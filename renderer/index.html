@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RadarSimApp</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Sidebar Navigation -->
+      <nav id="sidebar">
+        <div class="sidebar-header">
+          <div class="logo">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <circle cx="14" cy="14" r="13" stroke="#6C5CE7" stroke-width="2" fill="none"/>
+              <circle cx="14" cy="14" r="8" stroke="#6C5CE7" stroke-width="1.5" fill="none" opacity="0.6"/>
+              <circle cx="14" cy="14" r="3" fill="#6C5CE7"/>
+              <line x1="14" y1="14" x2="24" y2="6" stroke="#A29BFE" stroke-width="1.5"/>
+            </svg>
+            <span>RadarSimApp</span>
+          </div>
+        </div>
+        <ul class="nav-list">
+          <li class="nav-item active" data-panel="transmitter">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            <span>Transmitter</span>
+          </li>
+          <li class="nav-item" data-panel="receiver">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>
+            <span>Receiver</span>
+          </li>
+          <li class="nav-item" data-panel="radar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10"/><path d="M2 12h20"/></svg>
+            <span>Radar</span>
+          </li>
+          <li class="nav-item" data-panel="targets">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            <span>Targets</span>
+          </li>
+          <li class="nav-item" data-panel="simulation">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span>Simulation</span>
+          </li>
+          <li class="nav-item" data-panel="rcs">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            <span>RCS Analysis</span>
+          </li>
+          <li class="nav-item" data-panel="results">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+            <span>Results</span>
+          </li>
+        </ul>
+        <div class="sidebar-footer">
+          <button id="btn-check-env" class="btn-secondary btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            Check Environment
+          </button>
+          <div id="env-status" class="env-status"></div>
+        </div>
+      </nav>
+
+      <!-- Main Content -->
+      <main id="content">
+        <!-- Transmitter Panel -->
+        <div class="panel active" id="panel-transmitter">
+          <div class="panel-header">
+            <h2>Transmitter Configuration</h2>
+            <p class="panel-desc">Configure waveform, power, and TX channel parameters</p>
+          </div>
+          <div class="panel-body">
+            <div class="panel-split">
+              <!-- Left: Config forms -->
+              <div class="panel-split-left">
+                <div class="config-grid">
+                  <!-- Waveform Section -->
+                  <section class="config-section">
+                    <h3>Waveform</h3>
+                    <div class="form-group">
+                      <label for="tx-waveform-type">Waveform Type</label>
+                      <select id="tx-waveform-type">
+                        <option value="fmcw">FMCW (Linear Chirp)</option>
+                        <option value="single-tone">Single Tone (CW)</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label for="tx-f-start">Start Frequency (GHz)</label>
+                        <input type="number" id="tx-f-start" value="24" step="0.1" />
+                      </div>
+                      <div class="form-group">
+                        <label for="tx-f-end">End Frequency (GHz)</label>
+                        <input type="number" id="tx-f-end" value="24.5" step="0.1" />
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label for="tx-t-start">Sweep Start (µs)</label>
+                        <input type="number" id="tx-t-start" value="0" step="1" />
+                      </div>
+                      <div class="form-group">
+                        <label for="tx-t-end">Sweep End (µs)</label>
+                        <input type="number" id="tx-t-end" value="80" step="1" />
+                      </div>
+                    </div>
+                    <div class="info-box">
+                      <strong>Bandwidth:</strong> <span id="tx-bandwidth">500 MHz</span> &nbsp;|&nbsp;
+                      <strong>Sweep Time:</strong> <span id="tx-sweep-time">80 µs</span>
+                    </div>
+                  </section>
+
+                  <!-- RF Section -->
+                  <section class="config-section">
+                    <h3>RF Properties</h3>
+                    <div class="form-group">
+                      <label for="tx-power">TX Power (dBm)</label>
+                      <input type="number" id="tx-power" value="0" step="1" />
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label for="tx-pulses">Number of Pulses</label>
+                        <input type="number" id="tx-pulses" value="256" min="1" step="1" />
+                      </div>
+                      <div class="form-group">
+                        <label for="tx-prp">Pulse Repetition Period (µs)</label>
+                        <input type="number" id="tx-prp" value="100" step="1" />
+                      </div>
+                    </div>
+                  </section>
+
+                  <!-- Phase Noise -->
+                  <section class="config-section">
+                    <h3>Phase Noise <span class="badge">Optional</span></h3>
+                    <div class="form-group">
+                      <label>
+                        <input type="checkbox" id="tx-pn-enable" />
+                        Enable Phase Noise
+                      </label>
+                    </div>
+                    <div id="tx-pn-fields" class="collapsible hidden">
+                      <div class="form-group">
+                        <label for="tx-pn-f">Frequency Offsets (Hz, comma-separated)</label>
+                        <input type="text" id="tx-pn-f" placeholder="e.g. 1e3, 1e4, 1e5, 1e6" />
+                      </div>
+                      <div class="form-group">
+                        <label for="tx-pn-power">Phase Noise Power (dB/Hz, comma-separated)</label>
+                        <input type="text" id="tx-pn-power" placeholder="e.g. -80, -95, -105, -120" />
+                      </div>
+                    </div>
+                  </section>
+
+                  <!-- TX Channels -->
+                  <section class="config-section full-width">
+                    <div class="section-header">
+                      <h3>TX Channels</h3>
+                      <button class="btn-icon" id="btn-add-tx-ch" title="Add Channel">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      </button>
+                    </div>
+                    <div id="tx-channels-list">
+                      <!-- Channels will be dynamically added here -->
+                    </div>
+                  </section>
+                </div>
+              </div>
+              <!-- Right: Channel locations plot -->
+              <div class="panel-split-right">
+                <div class="sticky-sidebar">
+                  <section class="config-section">
+                    <h3>Channel Locations</h3>
+                    <div id="tx-locations-plot" class="plot-container-sm has-data"></div>
+                  </section>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Receiver Panel -->
+        <div class="panel" id="panel-receiver">
+          <div class="panel-header">
+            <h2>Receiver Configuration</h2>
+            <p class="panel-desc">Configure sampling, noise, and RX channel parameters</p>
+          </div>
+          <div class="panel-body">
+            <div class="config-grid">
+              <section class="config-section">
+                <h3>Sampling</h3>
+                <div class="form-group">
+                  <label for="rx-fs">Sampling Rate (MHz)</label>
+                  <input type="number" id="rx-fs" value="2" step="0.1" />
+                </div>
+                <div class="form-group">
+                  <label for="rx-bb-type">Baseband Type</label>
+                  <select id="rx-bb-type">
+                    <option value="complex">Complex (I/Q)</option>
+                    <option value="real">Real</option>
+                  </select>
+                </div>
+              </section>
+
+              <section class="config-section">
+                <h3>Noise & Gain</h3>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="rx-nf">Noise Figure (dB)</label>
+                    <input type="number" id="rx-nf" value="10" step="0.5" />
+                  </div>
+                  <div class="form-group">
+                    <label for="rx-rf-gain">RF Gain (dB)</label>
+                    <input type="number" id="rx-rf-gain" value="0" step="1" />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="rx-bb-gain">Baseband Gain (dB)</label>
+                    <input type="number" id="rx-bb-gain" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="rx-load-r">Load Resistor (Ω)</label>
+                    <input type="number" id="rx-load-r" value="500" step="10" />
+                  </div>
+                </div>
+              </section>
+
+              <!-- RX Channels -->
+              <section class="config-section full-width">
+                <div class="section-header">
+                  <h3>RX Channels</h3>
+                  <button class="btn-icon" id="btn-add-rx-ch" title="Add Channel">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </button>
+                </div>
+                <div id="rx-channels-list">
+                  <!-- Channels will be dynamically added here -->
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <!-- Radar Panel -->
+        <div class="panel" id="panel-radar">
+          <div class="panel-header">
+            <h2>Radar Configuration</h2>
+            <p class="panel-desc">Configure radar platform motion and position</p>
+          </div>
+          <div class="panel-body">
+            <div class="config-grid">
+              <section class="config-section">
+                <h3>Position</h3>
+                <div class="form-row triple">
+                  <div class="form-group">
+                    <label for="radar-loc-x">X (m)</label>
+                    <input type="number" id="radar-loc-x" value="0" step="0.1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-loc-y">Y (m)</label>
+                    <input type="number" id="radar-loc-y" value="0" step="0.1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-loc-z">Z (m)</label>
+                    <input type="number" id="radar-loc-z" value="0" step="0.1" />
+                  </div>
+                </div>
+              </section>
+
+              <section class="config-section">
+                <h3>Velocity</h3>
+                <div class="form-row triple">
+                  <div class="form-group">
+                    <label for="radar-spd-x">Vx (m/s)</label>
+                    <input type="number" id="radar-spd-x" value="0" step="0.1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-spd-y">Vy (m/s)</label>
+                    <input type="number" id="radar-spd-y" value="0" step="0.1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-spd-z">Vz (m/s)</label>
+                    <input type="number" id="radar-spd-z" value="0" step="0.1" />
+                  </div>
+                </div>
+              </section>
+
+              <section class="config-section">
+                <h3>Rotation</h3>
+                <div class="form-row triple">
+                  <div class="form-group">
+                    <label for="radar-rot-yaw">Yaw (°)</label>
+                    <input type="number" id="radar-rot-yaw" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-rot-pitch">Pitch (°)</label>
+                    <input type="number" id="radar-rot-pitch" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-rot-roll">Roll (°)</label>
+                    <input type="number" id="radar-rot-roll" value="0" step="1" />
+                  </div>
+                </div>
+              </section>
+
+              <section class="config-section">
+                <h3>Rotation Rate</h3>
+                <div class="form-row triple">
+                  <div class="form-group">
+                    <label for="radar-rr-yaw">Yaw Rate (°/s)</label>
+                    <input type="number" id="radar-rr-yaw" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-rr-pitch">Pitch Rate (°/s)</label>
+                    <input type="number" id="radar-rr-pitch" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-rr-roll">Roll Rate (°/s)</label>
+                    <input type="number" id="radar-rr-roll" value="0" step="1" />
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <!-- Targets Panel -->
+        <div class="panel" id="panel-targets">
+          <div class="panel-header">
+            <h2>Target Configuration</h2>
+            <p class="panel-desc">Define point targets and 3D mesh targets for the scene</p>
+          </div>
+          <div class="panel-body">
+            <div class="config-grid">
+              <section class="config-section full-width">
+                <div class="section-header">
+                  <h3>Point Targets</h3>
+                  <button class="btn-icon" id="btn-add-point-target" title="Add Point Target">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </button>
+                </div>
+                <div id="point-targets-list"></div>
+              </section>
+
+              <section class="config-section full-width">
+                <div class="section-header">
+                  <h3>Mesh Targets</h3>
+                  <button class="btn-icon" id="btn-add-mesh-target" title="Add Mesh Target">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </button>
+                </div>
+                <div id="mesh-targets-list"></div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <!-- Simulation Panel -->
+        <div class="panel" id="panel-simulation">
+          <div class="panel-header">
+            <h2>Simulation</h2>
+            <p class="panel-desc">Configure and run the radar simulation</p>
+          </div>
+          <div class="panel-body">
+            <div class="config-grid">
+              <section class="config-section">
+                <h3>Simulation Settings</h3>
+                <div class="form-group">
+                  <label for="sim-density">Ray Density (rays/λ)</label>
+                  <input type="number" id="sim-density" value="1" step="0.1" min="0.1" />
+                </div>
+                <div class="form-group">
+                  <label for="sim-level">Fidelity Level</label>
+                  <select id="sim-level">
+                    <option value="">Full (Default)</option>
+                    <option value="frame">Frame Level</option>
+                    <option value="pulse">Pulse Level</option>
+                    <option value="sample">Sample Level</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="sim-device">Compute Device</label>
+                  <select id="sim-device">
+                    <option value="cpu">CPU</option>
+                    <option value="gpu">GPU (CUDA)</option>
+                  </select>
+                </div>
+              </section>
+
+              <section class="config-section">
+                <h3>Processing</h3>
+                <div class="form-group">
+                  <label>
+                    <input type="checkbox" id="proc-range-doppler" checked />
+                    Compute Range-Doppler Map
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label>
+                    <input type="checkbox" id="proc-range-profile" />
+                    Compute Range Profile
+                  </label>
+                </div>
+              </section>
+
+              <section class="config-section full-width">
+                <h3>Run</h3>
+                <div class="run-controls">
+                  <button id="btn-run-sim" class="btn-primary btn-lg">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Run Simulation
+                  </button>
+                  <div id="sim-status" class="status-msg"></div>
+                </div>
+                <div id="sim-progress" class="progress-bar hidden">
+                  <div class="progress-fill"></div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <!-- RCS Panel -->
+        <div class="panel" id="panel-rcs">
+          <div class="panel-header">
+            <h2>RCS Analysis</h2>
+            <p class="panel-desc">Compute radar cross-section of 3D mesh targets</p>
+          </div>
+          <div class="panel-body">
+            <div class="config-grid">
+              <section class="config-section">
+                <h3>RCS Settings</h3>
+                <div class="form-group">
+                  <label for="rcs-freq">Frequency (GHz)</label>
+                  <input type="number" id="rcs-freq" value="24" step="0.1" />
+                </div>
+                <div class="form-group">
+                  <label for="rcs-density">Ray Density</label>
+                  <input type="number" id="rcs-density" value="1" step="0.1" min="0.1" />
+                </div>
+              </section>
+
+              <section class="config-section">
+                <h3>Incidence Angles</h3>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="rcs-phi-start">Phi Start (°)</label>
+                    <input type="number" id="rcs-phi-start" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="rcs-phi-end">Phi End (°)</label>
+                    <input type="number" id="rcs-phi-end" value="360" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="rcs-phi-step">Phi Step (°)</label>
+                    <input type="number" id="rcs-phi-step" value="1" step="1" min="1" />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="rcs-theta">Theta (°)</label>
+                  <input type="number" id="rcs-theta" value="90" step="1" />
+                </div>
+              </section>
+
+              <section class="config-section">
+                <h3>Polarization</h3>
+                <div class="form-row triple">
+                  <div class="form-group">
+                    <label for="rcs-pol-x">Pol X</label>
+                    <input type="number" id="rcs-pol-x" value="0" step="0.1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="rcs-pol-y">Pol Y</label>
+                    <input type="number" id="rcs-pol-y" value="0" step="0.1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="rcs-pol-z">Pol Z</label>
+                    <input type="number" id="rcs-pol-z" value="1" step="0.1" />
+                  </div>
+                </div>
+              </section>
+
+              <section class="config-section full-width">
+                <div class="run-controls">
+                  <button id="btn-run-rcs" class="btn-primary btn-lg">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Run RCS Analysis
+                  </button>
+                  <div id="rcs-status" class="status-msg"></div>
+                </div>
+              </section>
+
+              <section class="config-section full-width">
+                <h3>RCS Results</h3>
+                <div id="rcs-plot" class="plot-container"></div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results Panel -->
+        <div class="panel" id="panel-results">
+          <div class="panel-header">
+            <h2>Results</h2>
+            <p class="panel-desc">Visualize simulation output</p>
+            <div class="panel-actions">
+              <button id="btn-export" class="btn-secondary" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export
+              </button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="results-grid">
+              <div class="result-card">
+                <h3>Range-Doppler Map</h3>
+                <div id="plot-range-doppler" class="plot-container"></div>
+              </div>
+              <div class="result-card">
+                <h3>Range Profile</h3>
+                <div id="plot-range-profile" class="plot-container"></div>
+              </div>
+              <div class="result-card full-width">
+                <h3>Baseband Signal</h3>
+                <div id="plot-baseband" class="plot-container"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="../node_modules/plotly.js-dist/plotly.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "radarsimapp",
+  "version": "1.0.0",
+  "description": "Desktop radar simulation application powered by RadarSimPy",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "author": "RadarSimX",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0"
+  },
+  "dependencies": {
+    "python-shell": "^5.0.0",
+    "plotly.js-dist": "^2.35.0"
+  }
+}
