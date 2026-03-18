@@ -619,8 +619,8 @@ select {
 }
 
 .panel-split-right {
-  width: 380px;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
 }
 
 .sticky-sidebar {
@@ -681,6 +681,7 @@ select {
     flex-direction: column;
   }
   .panel-split-right {
+    flex: 1;
     width: 100%;
   }
   .channel-card-body {
