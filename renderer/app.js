@@ -61,15 +61,96 @@ function updateTxInfo() {
     bw >= 1e9 ? (bw / 1e9).toFixed(2) + " GHz" : (bw / 1e6).toFixed(1) + " MHz";
   document.getElementById("tx-sweep-time").textContent =
     sw >= 1e-3 ? (sw * 1e3).toFixed(2) + " ms" : (sw * 1e6).toFixed(1) + " µs";
+  updateTxWaveformPlot();
 }
 ["tx-f-start", "tx-f-end", "tx-t-start", "tx-t-end"].forEach((id) =>
   document.getElementById(id).addEventListener("input", updateTxInfo)
 );
+document.getElementById("tx-prp").addEventListener("input", updateTxWaveformPlot);
+document.getElementById("tx-waveform-type").addEventListener("change", updateTxWaveformPlot);
 
-// --- Phase Noise Toggle ---
-document.getElementById("tx-pn-enable").addEventListener("change", (e) => {
-  document.getElementById("tx-pn-fields").classList.toggle("hidden", !e.target.checked);
-});
+// --- TX Waveform Preview Plot (Frequency vs Time) ---
+function updateTxWaveformPlot() {
+  const container = document.getElementById("tx-waveform-plot");
+  if (!container) return;
+
+  const waveformType = document.getElementById("tx-waveform-type").value;
+  const fStart = parseNumber(document.getElementById("tx-f-start").value);
+  const fEnd = parseNumber(document.getElementById("tx-f-end").value);
+  const tStart = parseNumber(document.getElementById("tx-t-start").value);
+  const tEnd = parseNumber(document.getElementById("tx-t-end").value);
+  const prp = parseNumber(document.getElementById("tx-prp").value, 100);
+
+  const traces = [];
+  const numCycles = 2;
+
+  if (waveformType === "single-tone") {
+    const fc = (fStart + fEnd) / 2;
+    for (let i = 0; i < numCycles; i++) {
+      const offset = i * prp;
+      traces.push({
+        x: [offset + tStart, offset + tEnd],
+        y: [fc, fc],
+        type: "scatter", mode: "lines",
+        line: { color: "#00D2B4", width: 2.5 },
+        showlegend: false,
+      });
+    }
+  } else {
+    const lineColor = waveformType === "custom" ? "#FD79A8" : "#6C5CE7";
+    const dashStyle = waveformType === "custom" ? "dash" : "solid";
+    for (let i = 0; i < numCycles; i++) {
+      const offset = i * prp;
+      if (tStart > 0) {
+        traces.push({
+          x: [offset, offset + tStart],
+          y: [fStart, fStart],
+          type: "scatter", mode: "lines",
+          line: { color: lineColor, width: 1, dash: "dot" },
+          showlegend: false,
+        });
+      }
+      traces.push({
+        x: [offset + tStart, offset + tEnd],
+        y: [fStart, fEnd],
+        type: "scatter", mode: "lines",
+        line: { color: lineColor, width: 2.5, dash: dashStyle },
+        showlegend: false,
+      });
+      if (prp > tEnd) {
+        traces.push({
+          x: [offset + tEnd, offset + prp],
+          y: [fEnd, fStart],
+          type: "scatter", mode: "lines",
+          line: { color: lineColor, width: 1, dash: "dot" },
+          showlegend: false,
+        });
+      }
+    }
+  }
+
+  const layout = {
+    paper_bgcolor: "#12121a",
+    plot_bgcolor: "#12121a",
+    font: { color: "#e8e8f0", size: 10 },
+    margin: { l: 56, r: 16, t: 16, b: 40 },
+    xaxis: {
+      title: { text: "Time (µs)", font: { size: 10 } },
+      gridcolor: "#2a2a3e",
+      zerolinecolor: "#3a3a4e",
+      color: "#8888a0",
+    },
+    yaxis: {
+      title: { text: "Frequency (GHz)", font: { size: 10 } },
+      gridcolor: "#2a2a3e",
+      zerolinecolor: "#3a3a4e",
+      color: "#8888a0",
+    },
+    showlegend: false,
+  };
+
+  Plotly.newPlot(container, traces, layout, { responsive: true, displayModeBar: false });
+}
 
 // --- TX Channels ---
 function renderTxChannels() {
@@ -563,15 +644,6 @@ function collectConfig() {
     pulses: parseInt(document.getElementById("tx-pulses").value) || 1,
     prp: parseNumber(document.getElementById("tx-prp").value) * 1e-6,
   };
-
-  if (document.getElementById("tx-pn-enable").checked) {
-    const pnF = parseCSV(document.getElementById("tx-pn-f").value);
-    const pnP = parseCSV(document.getElementById("tx-pn-power").value);
-    if (pnF.length > 0 && pnP.length > 0) {
-      txConfig.pn_f = pnF;
-      txConfig.pn_power = pnP;
-    }
-  }
 
   // TX Channels
   txConfig.channels = txChannels.map((_, i) => {

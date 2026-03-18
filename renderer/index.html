@@ -73,12 +73,11 @@
             <p class="panel-desc">Configure waveform, power, and TX channel parameters</p>
           </div>
           <div class="panel-body">
+            <!-- Waveform config + preview -->
             <div class="panel-split">
-              <!-- Left: Config forms -->
               <div class="panel-split-left">
                 <div class="config-grid">
-                  <!-- Waveform Section -->
-                  <section class="config-section">
+                  <section class="config-section full-width">
                     <h3>Waveform</h3>
                     <div class="form-group">
                       <label for="tx-waveform-type">Waveform Type</label>
@@ -112,11 +111,6 @@
                       <strong>Bandwidth:</strong> <span id="tx-bandwidth">500 MHz</span> &nbsp;|&nbsp;
                       <strong>Sweep Time:</strong> <span id="tx-sweep-time">80 µs</span>
                     </div>
-                  </section>
-
-                  <!-- RF Section -->
-                  <section class="config-section">
-                    <h3>RF Properties</h3>
                     <div class="form-group">
                       <label for="tx-power">TX Power (dBm)</label>
                       <input type="number" id="tx-power" value="0" step="1" />
@@ -132,29 +126,21 @@
                       </div>
                     </div>
                   </section>
-
-                  <!-- Phase Noise -->
+                </div>
+              </div>
+              <div class="panel-split-right">
+                <div class="sticky-sidebar">
                   <section class="config-section">
-                    <h3>Phase Noise <span class="badge">Optional</span></h3>
-                    <div class="form-group">
-                      <label>
-                        <input type="checkbox" id="tx-pn-enable" />
-                        Enable Phase Noise
-                      </label>
-                    </div>
-                    <div id="tx-pn-fields" class="collapsible hidden">
-                      <div class="form-group">
-                        <label for="tx-pn-f">Frequency Offsets (Hz, comma-separated)</label>
-                        <input type="text" id="tx-pn-f" placeholder="e.g. 1e3, 1e4, 1e5, 1e6" />
-                      </div>
-                      <div class="form-group">
-                        <label for="tx-pn-power">Phase Noise Power (dB/Hz, comma-separated)</label>
-                        <input type="text" id="tx-pn-power" placeholder="e.g. -80, -95, -105, -120" />
-                      </div>
-                    </div>
+                    <h3>Frequency vs Time</h3>
+                    <div id="tx-waveform-plot" class="plot-container-sm has-data"></div>
                   </section>
-
-                  <!-- TX Channels -->
+                </div>
+              </div>
+            </div>
+            <!-- TX Channels + locations -->
+            <div class="panel-split">
+              <div class="panel-split-left">
+                <div class="config-grid">
                   <section class="config-section full-width">
                     <div class="section-header">
                       <h3>TX Channels</h3>
@@ -168,7 +154,6 @@
                   </section>
                 </div>
               </div>
-              <!-- Right: Channel locations plot -->
               <div class="panel-split-right">
                 <div class="sticky-sidebar">
                   <section class="config-section">

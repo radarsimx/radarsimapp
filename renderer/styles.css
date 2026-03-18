@@ -609,6 +609,10 @@ select {
   align-items: flex-start;
 }
 
+.panel-split + .panel-split {
+  margin-top: 24px;
+}
+
 .panel-split-left {
   flex: 1;
   min-width: 0;
