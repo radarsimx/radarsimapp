@@ -680,6 +680,7 @@ select {
   .panel-split {
     flex-direction: column;
   }
+  .panel-split-left,
   .panel-split-right {
     flex: 1;
     width: 100%;

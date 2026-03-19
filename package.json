@@ -10,10 +10,10 @@
   "author": "RadarSimX",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^33.0.0"
+    "electron": "^41.0.3"
   },
   "dependencies": {
-    "python-shell": "^5.0.0",
-    "plotly.js-dist": "^2.35.0"
+    "plotly.js-dist": "^2.35.0",
+    "python-shell": "^5.0.0"
   }
 }
