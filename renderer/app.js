@@ -18,6 +18,14 @@ document.querySelectorAll(".nav-item").forEach((item) => {
   });
 });
 
+// --- Custom Number Input Spinners ---
+document.querySelectorAll('input[type="number"]').forEach((input) => {
+  const parent = input.parentNode;
+  const next = input.nextSibling;
+  const wrapper = wrapNumberInput(input);
+  parent.insertBefore(wrapper, next);
+});
+
 // --- Helpers ---
 function parseNumber(val, fallback = 0) {
   const n = parseFloat(val);
@@ -83,7 +91,7 @@ function updateTxWaveformPlot() {
         x: [offset, offset + tStart],
         y: [fStart, fStart],
         type: "scatter", mode: "lines",
-        line: { color: "#6C5CE7", width: 1, dash: "dot" },
+        line: { color: "#689f38", width: 1, dash: "dot" },
         showlegend: false,
       });
     }
@@ -91,7 +99,7 @@ function updateTxWaveformPlot() {
       x: [offset + tStart, offset + tEnd],
       y: [fStart, fEnd],
       type: "scatter", mode: "lines",
-      line: { color: "#6C5CE7", width: 2.5 },
+      line: { color: "#689f38", width: 2.5 },
       showlegend: false,
     });
     if (prp > tEnd) {
@@ -99,7 +107,7 @@ function updateTxWaveformPlot() {
         x: [offset + tEnd, offset + prp],
         y: [fEnd, fStart],
         type: "scatter", mode: "lines",
-        line: { color: "#6C5CE7", width: 1, dash: "dot" },
+        line: { color: "#689f38", width: 1, dash: "dot" },
         showlegend: false,
       });
     }
@@ -258,9 +266,50 @@ function createChannelCard(prefix, index, data, isTx) {
   return card;
 }
 
+function wrapNumberInput(input) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "number-input-wrapper";
+
+  const spinner = document.createElement("div");
+  spinner.className = "number-input-spinner";
+
+  const upBtn = document.createElement("button");
+  upBtn.className = "spin-btn";
+  upBtn.type = "button";
+  upBtn.tabIndex = -1;
+  upBtn.innerHTML = '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="2,7 5,3 8,7"/></svg>';
+
+  const downBtn = document.createElement("button");
+  downBtn.className = "spin-btn";
+  downBtn.type = "button";
+  downBtn.tabIndex = -1;
+  downBtn.innerHTML = '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="2,3 5,7 8,3"/></svg>';
+
+  spinner.appendChild(upBtn);
+  spinner.appendChild(downBtn);
+  wrapper.appendChild(input);
+  wrapper.appendChild(spinner);
+
+  upBtn.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    input.stepUp();
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  downBtn.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    input.stepDown();
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  return wrapper;
+}
+
 function createInput(id, value, step) {
   const inp = el("input", { type: "number", id, value: String(value), step: String(step) });
-  return inp;
+  return wrapNumberInput(inp);
 }
 
 function createTextInput(id, value) {
@@ -384,9 +433,9 @@ function updateChannelPatternPlot(pfx, index) {
     traces.push({
       x: azAngles, y: azPattern,
       type: "scatter", mode: "lines+markers", name: "Azimuth",
-      line: { color: "#6C5CE7", width: 2 },
-      marker: { size: 4, color: "#A29BFE" },
-      fill: "tozeroy", fillcolor: "rgba(108, 92, 231, 0.08)",
+      line: { color: "#689f38", width: 2 },
+      marker: { size: 4, color: "#8bc34a" },
+      fill: "tozeroy", fillcolor: "rgba(104, 159, 56, 0.08)",
     });
   }
   if (elAngles.length > 0 && elPattern.length > 0) {
@@ -436,9 +485,9 @@ function updateTxLocationsPlot() {
     text: labels,
     type: "scatter3d",
     mode: "markers+text",
-    marker: { size: 8, color: "#6C5CE7", symbol: "diamond", line: { width: 1, color: "#A29BFE" } },
+    marker: { size: 8, color: "#689f38", symbol: "diamond", line: { width: 1, color: "#8bc34a" } },
     textposition: "top center",
-    textfont: { size: 10, color: "#A29BFE" },
+    textfont: { size: 10, color: "#8bc34a" },
   };
 
   const layout = {
@@ -963,7 +1012,7 @@ function plotResults(data) {
       y: rp,
       type: "scatter",
       mode: "lines",
-      line: { color: "#6C5CE7", width: 1.5 },
+      line: { color: "#689f38", width: 1.5 },
     };
     if (data.range_axis) {
       trace.x = data.range_axis;
@@ -994,7 +1043,7 @@ function plotResults(data) {
       y: bb,
       type: "scatter",
       mode: "lines",
-      line: { color: "#A29BFE", width: 1 },
+      line: { color: "#8bc34a", width: 1 },
     };
     const layout = {
       ...plotlyLayout,
@@ -1072,9 +1121,9 @@ document.getElementById("btn-run-rcs").addEventListener("click", async () => {
       y: result.data.rcs_dbsm,
       type: "scatter",
       mode: "lines",
-      line: { color: "#6C5CE7", width: 2 },
+      line: { color: "#689f38", width: 2 },
       fill: "tozeroy",
-      fillcolor: "rgba(108, 92, 231, 0.1)",
+      fillcolor: "rgba(104, 159, 56, 0.1)",
     };
     const layout = {
       ...plotlyLayout,
