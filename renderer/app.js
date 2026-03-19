@@ -168,6 +168,8 @@ function renderTxChannels() {
     });
     updateTxLocationsPlot();
     attachLocationListeners();
+    const cards = document.querySelectorAll("#tx-channels-list .channel-card");
+    if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
   });
 }
 
@@ -259,11 +261,24 @@ function createChannelCard(prefix, index, data, isTx) {
     ]),
   ]);
 
-  const card = el("div", { className: "channel-card" }, [
-    el("div", { className: "channel-card-header" }, [
+  const card = el("div", { className: "channel-card collapsed" }, [
+    el("div", { className: "channel-card-header", onClick: (e) => {
+      if (!e.target.closest(".btn-danger")) {
+        const isCollapsed = card.classList.contains("collapsed");
+        if (isCollapsed) {
+          card.parentElement?.querySelectorAll(".channel-card").forEach(c => c.classList.add("collapsed"));
+        }
+        card.classList.toggle("collapsed");
+      }
+    }}, [
       el("span", { textContent: `${prefix} Channel ${index + 1}` }),
-      el("button", { className: "btn-icon btn-danger", title: "Remove", onClick: () => removeChannel(prefix, index) }, [
-        createSVG("trash"),
+      el("div", { style: "display:flex;gap:4px;align-items:center" }, [
+        el("button", { className: "btn-icon btn-collapse", title: "Collapse" }, [
+          createSVG("chevron"),
+        ]),
+        el("button", { className: "btn-icon btn-danger", title: "Remove", onClick: () => removeChannel(prefix, index) }, [
+          createSVG("trash"),
+        ]),
       ]),
     ]),
     el("div", { className: "channel-card-body" }, [
@@ -299,21 +314,71 @@ function createSVG(name) {
     p2.setAttribute("d", "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2");
     svg.appendChild(p1);
     svg.appendChild(p2);
+  } else if (name === "chevron") {
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    p.setAttribute("points", "6 9 12 15 18 9");
+    svg.appendChild(p);
   }
   return svg;
 }
 
 function removeChannel(prefix, index) {
+  if (!confirm(`Remove ${prefix} Channel ${index + 1}?`)) return;
   if (prefix === "TX") {
+    saveTxChannelStates();
     txChannels.splice(index, 1);
     renderTxChannels();
   } else {
+    saveRxChannelStates();
     rxChannels.splice(index, 1);
     renderRxChannels();
   }
 }
 
+function saveTxChannelStates() {
+  txChannels.forEach((ch, i) => {
+    const g = (id) => document.getElementById(id)?.value;
+    ch.location = [
+      parseNumber(g(`tx-ch-${i}-loc-x`)),
+      parseNumber(g(`tx-ch-${i}-loc-y`)),
+      parseNumber(g(`tx-ch-${i}-loc-z`)),
+    ];
+    ch.polarization = [
+      parseNumber(g(`tx-ch-${i}-pol-x`)),
+      parseNumber(g(`tx-ch-${i}-pol-y`)),
+      parseNumber(g(`tx-ch-${i}-pol-z`), 1),
+    ];
+    ch.azimuth_angle = parseCSV(g(`tx-ch-${i}-az-angles`) || "");
+    ch.azimuth_pattern = parseCSV(g(`tx-ch-${i}-az-pattern`) || "");
+    ch.elevation_angle = parseCSV(g(`tx-ch-${i}-el-angles`) || "");
+    ch.elevation_pattern = parseCSV(g(`tx-ch-${i}-el-pattern`) || "");
+    ch.delay = parseNumber(g(`tx-ch-${i}-delay`)) * 1e-9;
+    ch.grid = parseNumber(g(`tx-ch-${i}-grid`), 1);
+  });
+}
+
+function saveRxChannelStates() {
+  rxChannels.forEach((ch, i) => {
+    const g = (id) => document.getElementById(id)?.value;
+    ch.location = [
+      parseNumber(g(`rx-ch-${i}-loc-x`)),
+      parseNumber(g(`rx-ch-${i}-loc-y`)),
+      parseNumber(g(`rx-ch-${i}-loc-z`)),
+    ];
+    ch.polarization = [
+      parseNumber(g(`rx-ch-${i}-pol-x`)),
+      parseNumber(g(`rx-ch-${i}-pol-y`)),
+      parseNumber(g(`rx-ch-${i}-pol-z`), 1),
+    ];
+    ch.azimuth_angle = parseCSV(g(`rx-ch-${i}-az-angles`) || "");
+    ch.azimuth_pattern = parseCSV(g(`rx-ch-${i}-az-pattern`) || "");
+    ch.elevation_angle = parseCSV(g(`rx-ch-${i}-el-angles`) || "");
+    ch.elevation_pattern = parseCSV(g(`rx-ch-${i}-el-pattern`) || "");
+  });
+}
+
 document.getElementById("btn-add-tx-ch").addEventListener("click", () => {
+  saveTxChannelStates();
   txChannels.push({});
   renderTxChannels();
 });
@@ -442,9 +507,14 @@ function renderRxChannels() {
   rxChannels.forEach((ch, i) => {
     container.appendChild(createChannelCard("RX", i, ch, false));
   });
+  requestAnimationFrame(() => {
+    const cards = container.querySelectorAll(".channel-card");
+    if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
+  });
 }
 
 document.getElementById("btn-add-rx-ch").addEventListener("click", () => {
+  saveRxChannelStates();
   rxChannels.push({});
   renderRxChannels();
 });

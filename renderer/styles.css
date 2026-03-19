@@ -440,12 +440,30 @@ select {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
+  cursor: pointer;
+  user-select: none;
 }
 
 .channel-card-header span {
   font-weight: 600;
   font-size: 13px;
   color: var(--accent-light);
+}
+
+.channel-card-header .btn-collapse svg {
+  transition: transform var(--transition);
+}
+
+.channel-card.collapsed .channel-card-header .btn-collapse svg {
+  transform: rotate(-90deg);
+}
+
+.channel-card.collapsed .channel-card-header {
+  margin-bottom: 0;
+}
+
+.channel-card.collapsed .channel-card-body {
+  display: none;
 }
 
 /* ===== Target Cards ===== */
@@ -495,7 +513,7 @@ select {
 }
 
 /* ===== Plots ===== */
-.plot-container {
+.result-plot {
   width: 100%;
   min-height: 320px;
   background: var(--bg-input);
@@ -508,11 +526,11 @@ select {
   overflow: hidden;
 }
 
-.plot-container::before {
+.result-plot::before {
   content: "No data yet — run a simulation";
 }
 
-.plot-container.has-data::before {
+.result-plot.has-data::before {
   content: none;
 }
 
