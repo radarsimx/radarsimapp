@@ -79,14 +79,6 @@
                 <div class="config-grid">
                   <section class="config-section full-width">
                     <h3>Waveform</h3>
-                    <div class="form-group">
-                      <label for="tx-waveform-type">Waveform Type</label>
-                      <select id="tx-waveform-type">
-                        <option value="fmcw">FMCW (Linear Chirp)</option>
-                        <option value="single-tone">Single Tone (CW)</option>
-                        <option value="custom">Custom</option>
-                      </select>
-                    </div>
                     <div class="form-row">
                       <div class="form-group">
                         <label for="tx-f-start">Start Frequency (GHz)</label>
@@ -106,10 +98,6 @@
                         <label for="tx-t-end">Sweep End (µs)</label>
                         <input type="number" id="tx-t-end" value="80" step="1" />
                       </div>
-                    </div>
-                    <div class="info-box">
-                      <strong>Bandwidth:</strong> <span id="tx-bandwidth">500 MHz</span> &nbsp;|&nbsp;
-                      <strong>Sweep Time:</strong> <span id="tx-sweep-time">80 µs</span>
                     </div>
                     <div class="form-group">
                       <label for="tx-power">TX Power (dBm)</label>

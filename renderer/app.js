@@ -55,26 +55,18 @@ function updateTxInfo() {
   const fEnd = parseNumber(document.getElementById("tx-f-end").value) * 1e9;
   const tStart = parseNumber(document.getElementById("tx-t-start").value) * 1e-6;
   const tEnd = parseNumber(document.getElementById("tx-t-end").value) * 1e-6;
-  const bw = Math.abs(fEnd - fStart);
-  const sw = Math.abs(tEnd - tStart);
-  document.getElementById("tx-bandwidth").textContent =
-    bw >= 1e9 ? (bw / 1e9).toFixed(2) + " GHz" : (bw / 1e6).toFixed(1) + " MHz";
-  document.getElementById("tx-sweep-time").textContent =
-    sw >= 1e-3 ? (sw * 1e3).toFixed(2) + " ms" : (sw * 1e6).toFixed(1) + " µs";
   updateTxWaveformPlot();
 }
 ["tx-f-start", "tx-f-end", "tx-t-start", "tx-t-end"].forEach((id) =>
   document.getElementById(id).addEventListener("input", updateTxInfo)
 );
 document.getElementById("tx-prp").addEventListener("input", updateTxWaveformPlot);
-document.getElementById("tx-waveform-type").addEventListener("change", updateTxWaveformPlot);
 
 // --- TX Waveform Preview Plot (Frequency vs Time) ---
 function updateTxWaveformPlot() {
   const container = document.getElementById("tx-waveform-plot");
   if (!container) return;
 
-  const waveformType = document.getElementById("tx-waveform-type").value;
   const fStart = parseNumber(document.getElementById("tx-f-start").value);
   const fEnd = parseNumber(document.getElementById("tx-f-end").value);
   const tStart = parseNumber(document.getElementById("tx-t-start").value);
@@ -84,48 +76,32 @@ function updateTxWaveformPlot() {
   const traces = [];
   const numCycles = 2;
 
-  if (waveformType === "single-tone") {
-    const fc = (fStart + fEnd) / 2;
-    for (let i = 0; i < numCycles; i++) {
-      const offset = i * prp;
+  for (let i = 0; i < numCycles; i++) {
+    const offset = i * prp;
+    if (tStart > 0) {
       traces.push({
-        x: [offset + tStart, offset + tEnd],
-        y: [fc, fc],
+        x: [offset, offset + tStart],
+        y: [fStart, fStart],
         type: "scatter", mode: "lines",
-        line: { color: "#00D2B4", width: 2.5 },
+        line: { color: "#6C5CE7", width: 1, dash: "dot" },
         showlegend: false,
       });
     }
-  } else {
-    const lineColor = waveformType === "custom" ? "#FD79A8" : "#6C5CE7";
-    const dashStyle = waveformType === "custom" ? "dash" : "solid";
-    for (let i = 0; i < numCycles; i++) {
-      const offset = i * prp;
-      if (tStart > 0) {
-        traces.push({
-          x: [offset, offset + tStart],
-          y: [fStart, fStart],
-          type: "scatter", mode: "lines",
-          line: { color: lineColor, width: 1, dash: "dot" },
-          showlegend: false,
-        });
-      }
+    traces.push({
+      x: [offset + tStart, offset + tEnd],
+      y: [fStart, fEnd],
+      type: "scatter", mode: "lines",
+      line: { color: "#6C5CE7", width: 2.5 },
+      showlegend: false,
+    });
+    if (prp > tEnd) {
       traces.push({
-        x: [offset + tStart, offset + tEnd],
-        y: [fStart, fEnd],
+        x: [offset + tEnd, offset + prp],
+        y: [fEnd, fStart],
         type: "scatter", mode: "lines",
-        line: { color: lineColor, width: 2.5, dash: dashStyle },
+        line: { color: "#6C5CE7", width: 1, dash: "dot" },
         showlegend: false,
       });
-      if (prp > tEnd) {
-        traces.push({
-          x: [offset + tEnd, offset + prp],
-          y: [fEnd, fStart],
-          type: "scatter", mode: "lines",
-          line: { color: lineColor, width: 1, dash: "dot" },
-          showlegend: false,
-        });
-      }
     }
   }
 
@@ -246,44 +222,36 @@ function createChannelCard(prefix, index, data, isTx) {
     );
   }
 
-  // Build the pattern plots column
-  const azPlotDiv = el("div", { className: "pattern-plot", id: `${pfx}-ch-${index}-az-plot` });
-  const elPlotDiv = el("div", { className: "pattern-plot", id: `${pfx}-ch-${index}-el-plot` });
+  // Build the combined pattern plot
+  const patternPlotDiv = el("div", { className: "pattern-plot", id: `${pfx}-ch-${index}-pattern-plot` });
 
   const plots = el("div", { className: "channel-card-plots" }, [
-    el("div", {}, [
-      el("div", { className: "pattern-plot-label", textContent: "Azimuth Pattern" }),
-      azPlotDiv,
-    ]),
-    el("div", {}, [
-      el("div", { className: "pattern-plot-label", textContent: "Elevation Pattern" }),
-      elPlotDiv,
-    ]),
+    el("div", { className: "pattern-plot-label", textContent: "Antenna Pattern" }),
+    patternPlotDiv,
   ]);
 
   const card = el("div", { className: "channel-card collapsed" }, [
-    el("div", { className: "channel-card-header", onClick: (e) => {
-      if (!e.target.closest(".btn-danger")) {
-        const isCollapsed = card.classList.contains("collapsed");
-        if (isCollapsed) {
-          card.parentElement?.querySelectorAll(".channel-card").forEach(c => c.classList.add("collapsed"));
-        }
-        card.classList.toggle("collapsed");
+    el("div", { className: "channel-card-header", onClick: () => {
+      const isCollapsed = card.classList.contains("collapsed");
+      if (isCollapsed) {
+        card.parentElement?.querySelectorAll(".channel-card").forEach(c => c.classList.add("collapsed"));
       }
+      card.classList.toggle("collapsed");
     }}, [
       el("span", { textContent: `${prefix} Channel ${index + 1}` }),
-      el("div", { style: "display:flex;gap:4px;align-items:center" }, [
-        el("button", { className: "btn-icon btn-collapse", title: "Collapse" }, [
-          createSVG("chevron"),
-        ]),
-        el("button", { className: "btn-icon btn-danger", title: "Remove", onClick: () => removeChannel(prefix, index) }, [
-          createSVG("trash"),
-        ]),
+      el("button", { className: "btn-icon btn-collapse", title: "Collapse" }, [
+        createSVG("chevron"),
       ]),
     ]),
     el("div", { className: "channel-card-body" }, [
       fields,
       plots,
+      el("div", { style: "display:flex;justify-content:flex-end;margin-top:4px" }, [
+        el("button", { className: "btn-secondary btn-danger", title: "Remove", onClick: () => removeChannel(prefix, index) }, [
+          createSVG("trash"),
+          " Remove Channel",
+        ]),
+      ]),
     ]),
   ]);
 
@@ -408,35 +376,36 @@ function updateChannelPatternPlot(pfx, index) {
   const elAngles = parseCSV(elAnglesEl.value);
   const elPattern = parseCSV(elPatternEl.value);
 
-  // Azimuth plot
-  const azPlot = document.getElementById(`${pfx}-ch-${index}-az-plot`);
-  if (azPlot && azAngles.length > 0 && azPattern.length > 0) {
-    Plotly.newPlot(azPlot, [{
-      x: azAngles,
-      y: azPattern,
-      type: "scatter",
-      mode: "lines+markers",
+  const plotDiv = document.getElementById(`${pfx}-ch-${index}-pattern-plot`);
+  if (!plotDiv) return;
+
+  const traces = [];
+  if (azAngles.length > 0 && azPattern.length > 0) {
+    traces.push({
+      x: azAngles, y: azPattern,
+      type: "scatter", mode: "lines+markers", name: "Azimuth",
       line: { color: "#6C5CE7", width: 2 },
       marker: { size: 4, color: "#A29BFE" },
-      fill: "tozeroy",
-      fillcolor: "rgba(108, 92, 231, 0.08)",
-    }], { ...patternPlotLayout }, patternPlotConfig);
+      fill: "tozeroy", fillcolor: "rgba(108, 92, 231, 0.08)",
+    });
   }
-
-  // Elevation plot
-  const elPlot = document.getElementById(`${pfx}-ch-${index}-el-plot`);
-  if (elPlot && elAngles.length > 0 && elPattern.length > 0) {
-    Plotly.newPlot(elPlot, [{
-      x: elAngles,
-      y: elPattern,
-      type: "scatter",
-      mode: "lines+markers",
+  if (elAngles.length > 0 && elPattern.length > 0) {
+    traces.push({
+      x: elAngles, y: elPattern,
+      type: "scatter", mode: "lines+markers", name: "Elevation",
       line: { color: "#00D2B4", width: 2 },
       marker: { size: 4, color: "#55EFC4" },
-      fill: "tozeroy",
-      fillcolor: "rgba(0, 210, 180, 0.08)",
-    }], { ...patternPlotLayout }, patternPlotConfig);
+      fill: "tozeroy", fillcolor: "rgba(0, 210, 180, 0.08)",
+    });
   }
+  if (traces.length === 0) return;
+
+  const layout = {
+    ...patternPlotLayout,
+    showlegend: true,
+    legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
+  };
+  Plotly.newPlot(plotDiv, traces, layout, patternPlotConfig);
 }
 
 function attachPatternListeners(pfx, index) {
@@ -696,16 +665,9 @@ function collectConfig() {
   const fEnd = parseNumber(document.getElementById("tx-f-end").value) * 1e9;
   const tStart = parseNumber(document.getElementById("tx-t-start").value) * 1e-6;
   const tEnd = parseNumber(document.getElementById("tx-t-end").value) * 1e-6;
-  const waveformType = document.getElementById("tx-waveform-type").value;
 
-  let f, t;
-  if (waveformType === "single-tone") {
-    f = fStart;
-    t = tEnd - tStart;
-  } else {
-    f = [fStart, fEnd];
-    t = [tStart, tEnd];
-  }
+  const f = [fStart, fEnd];
+  const t = [tStart, tEnd];
 
   const txConfig = {
     f,
