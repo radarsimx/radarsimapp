@@ -736,11 +736,13 @@ select {
 .panel-split-right {
   flex: 1;
   min-width: 0;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
 }
 
 .sticky-sidebar {
-  position: sticky;
-  top: 0;
+  /* sticky handled by parent .panel-split-right */
 }
 
 /* Stretch variant: right column grows to match left column height */
@@ -749,6 +751,8 @@ select {
 }
 
 .panel-split--stretch .panel-split-right {
+  position: static;
+  align-self: auto;
   display: flex;
   flex-direction: column;
 }

@@ -148,7 +148,7 @@ function boresightTraces(allCoords, color, origin = [0, 0, 0], dir = [1, 0, 0]) 
     },
     {
       x: [labelX], y: [labelY], z: [labelZ],
-      text: ["Boresight (+X)"],
+      text: ["Boresight"],
       type: "scatter3d", mode: "text",
       textfont: { size: 9, color },
       showlegend: false, hoverinfo: "none", name: "",
