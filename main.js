@@ -9,8 +9,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
-    minWidth: 1100,
-    minHeight: 700,
+    minWidth: 800,
+    minHeight: 500,
     title: "RadarSimApp",
     icon: path.join(__dirname, "assets", "icon.png"),
     webPreferences: {
