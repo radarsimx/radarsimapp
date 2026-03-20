@@ -843,6 +843,89 @@ select {
   border-color: #e74c3c;
 }
 
+/* ===== RCS Analysis Modal ===== */
+.rcs-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.rcs-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: min(860px, calc(100vw - 48px));
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.rcs-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.rcs-modal-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 3px;
+}
+
+.rcs-modal-subtitle {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 0;
+  font-family: var(--font-mono, monospace);
+}
+
+.rcs-modal-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rcs-modal-left {
+  width: 360px;
+  flex-shrink: 0;
+  padding: 20px 24px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+}
+
+.rcs-modal-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  min-width: 0;
+}
+
+.rcs-modal-plot {
+  flex: 1;
+  min-height: 300px;
+}
+
+.btn-rcs {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.btn-rcs:hover {
+  background: rgba(var(--accent-rgb, 93, 173, 226), 0.12);
+}
+
 /* ===== Plotly Theme Override ===== */
 .js-plotly-plot .plotly .modebar {
   background: transparent !important;

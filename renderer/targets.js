@@ -226,7 +226,10 @@ function renderMeshTargets() {
           ]),
         ]),
 
-        el("div", { style: "display:flex;justify-content:flex-end;margin-top:4px" }, [
+        el("div", { style: "display:flex;justify-content:flex-end;gap:8px;margin-top:4px" }, [
+          el("button", { className: "btn-secondary btn-rcs", title: "Run RCS Analysis for this target", onClick: () => openRcsModal(i) }, [
+            createSVG("rcs"), " RCS Analysis",
+          ]),
           el("button", { className: "btn-secondary btn-danger", title: "Remove", onClick: async () => {
             if (!(await confirmAsync(`Remove Mesh ${i + 1}?`))) return;
             saveMeshTargetStates();
