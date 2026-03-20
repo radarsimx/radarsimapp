@@ -743,6 +743,50 @@ select {
   top: 0;
 }
 
+/* Stretch variant: right column grows to match left column height */
+.panel-split--stretch {
+  align-items: stretch;
+}
+
+.panel-split--stretch .panel-split-right {
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-split--stretch .sticky-sidebar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-split--stretch .sticky-sidebar .config-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-split--stretch .sticky-sidebar .plot-container-sm {
+  flex: 1;
+  height: auto;
+  min-height: 200px;
+}
+
+.sticky-sidebar .config-section {
+  /* intentionally empty — override only in --stretch variant */
+}
+
+.plot-container-sq {
+  flex: none;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+
+/* Override plot-container-sm's fixed height when square aspect ratio is used */
+.plot-container-sm.plot-container-sq {
+  height: auto;
+}
+
 .plot-container-sm {
   width: 100%;
   height: 320px;
