@@ -541,7 +541,7 @@ function attachLocationListeners() {
     ["loc-x", "loc-y", "loc-z"].forEach((field) => {
       const elem = document.getElementById(`tx-ch-${i}-${field}`);
       if (elem) {
-        elem.addEventListener("input", () => updateTxLocationsPlot());
+        elem.addEventListener("input", () => { updateTxLocationsPlot(); updateRadarOverviewPlot(); });
       }
     });
   });
@@ -562,6 +562,7 @@ function renderRxChannels() {
     });
     updateRxLocationsPlot();
     attachRxLocationListeners();
+    updateRadarOverviewPlot();
     const cards = container.querySelectorAll(".channel-card");
     if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
   });
@@ -620,11 +621,100 @@ function attachRxLocationListeners() {
     ["loc-x", "loc-y", "loc-z"].forEach((field) => {
       const elem = document.getElementById(`rx-ch-${i}-${field}`);
       if (elem) {
-        elem.addEventListener("input", () => updateRxLocationsPlot());
+        elem.addEventListener("input", () => { updateRxLocationsPlot(); updateRadarOverviewPlot(); });
       }
     });
   });
 }
+
+// --- Radar Array Overview Plot (radar + TX + RX channels) ---
+function updateRadarOverviewPlot() {
+  const container = document.getElementById("radar-overview-plot");
+  if (!container) return;
+
+  const radarX = parseNumber(document.getElementById("radar-loc-x")?.value);
+  const radarY = parseNumber(document.getElementById("radar-loc-y")?.value);
+  const radarZ = parseNumber(document.getElementById("radar-loc-z")?.value);
+
+  const traces = [];
+
+  // Radar platform
+  traces.push({
+    x: [radarX], y: [radarY], z: [radarZ],
+    text: ["Radar"],
+    type: "scatter3d", mode: "markers+text",
+    marker: { size: 10, color: "#e17055", symbol: "square", line: { width: 1, color: "#fab1a0" } },
+    textposition: "top center",
+    textfont: { size: 10, color: "#fab1a0" },
+    name: "Radar", showlegend: true,
+  });
+
+  // TX channels
+  const txXs = [], txYs = [], txZs = [], txLabels = [];
+  txChannels.forEach((_, i) => {
+    txXs.push(radarX + parseNumber(document.getElementById(`tx-ch-${i}-loc-x`)?.value));
+    txYs.push(radarY + parseNumber(document.getElementById(`tx-ch-${i}-loc-y`)?.value));
+    txZs.push(radarZ + parseNumber(document.getElementById(`tx-ch-${i}-loc-z`)?.value));
+    txLabels.push(`TX${i + 1}`);
+  });
+  if (txXs.length > 0) {
+    traces.push({
+      x: txXs, y: txYs, z: txZs,
+      text: txLabels,
+      type: "scatter3d", mode: "markers+text",
+      marker: { size: 7, color: "#689f38", symbol: "diamond", line: { width: 1, color: "#8bc34a" } },
+      textposition: "top center",
+      textfont: { size: 9, color: "#8bc34a" },
+      name: "TX", showlegend: true,
+    });
+  }
+
+  // RX channels
+  const rxXs = [], rxYs = [], rxZs = [], rxLabels = [];
+  rxChannels.forEach((_, i) => {
+    rxXs.push(radarX + parseNumber(document.getElementById(`rx-ch-${i}-loc-x`)?.value));
+    rxYs.push(radarY + parseNumber(document.getElementById(`rx-ch-${i}-loc-y`)?.value));
+    rxZs.push(radarZ + parseNumber(document.getElementById(`rx-ch-${i}-loc-z`)?.value));
+    rxLabels.push(`RX${i + 1}`);
+  });
+  if (rxXs.length > 0) {
+    traces.push({
+      x: rxXs, y: rxYs, z: rxZs,
+      text: rxLabels,
+      type: "scatter3d", mode: "markers+text",
+      marker: { size: 7, color: "#6C5CE7", symbol: "circle", line: { width: 1, color: "#A29BFE" } },
+      textposition: "top center",
+      textfont: { size: 9, color: "#A29BFE" },
+      name: "RX", showlegend: true,
+    });
+  }
+
+  const allCoords = [radarX, radarY, radarZ, ...txXs, ...txYs, ...txZs, ...rxXs, ...rxYs, ...rxZs];
+  const arrow = boresightTraces(allCoords, "#fd7e14");
+
+  const layout = {
+    paper_bgcolor: "#12121a",
+    plot_bgcolor: "#12121a",
+    font: { color: "#e8e8f0", size: 10 },
+    margin: { l: 0, r: 0, t: 20, b: 0 },
+    scene: {
+      xaxis: { title: "X (m)", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
+      yaxis: { title: "Y (m)", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
+      zaxis: { title: "Z (m)", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
+      bgcolor: "#12121a",
+    },
+    legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
+    showlegend: true,
+  };
+
+  Plotly.newPlot(container, [...arrow, ...traces], layout, { responsive: true, displayModeBar: false });
+}
+
+[
+  "radar-loc-x", "radar-loc-y", "radar-loc-z",
+].forEach((id) => {
+  document.getElementById(id)?.addEventListener("input", updateRadarOverviewPlot);
+});
 
 // --- Point Targets ---
 function renderPointTargets() {
