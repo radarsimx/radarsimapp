@@ -57,6 +57,24 @@ function el(tag, attrs = {}, children = []) {
   return e;
 }
 
+// --- Custom Confirm Dialog ---
+function confirmAsync(message) {
+  return new Promise((resolve) => {
+    const overlay = el("div", { className: "confirm-overlay" }, [
+      el("div", { className: "confirm-dialog" }, [
+        el("p", { className: "confirm-message", textContent: message }),
+        el("div", { className: "confirm-actions" }, [
+          el("button", { className: "btn-secondary", textContent: "Cancel", onClick: () => { overlay.remove(); resolve(false); } }),
+          el("button", { className: "btn-primary btn-danger-solid", textContent: "Delete", onClick: () => { overlay.remove(); resolve(true); } }),
+        ]),
+      ]),
+    ]);
+    document.body.appendChild(overlay);
+    // Focus the Cancel button so keyboard users can dismiss easily
+    overlay.querySelector(".btn-secondary").focus();
+  });
+}
+
 // --- TX Bandwidth / Sweep Info ---
 function updateTxInfo() {
   const fStart = parseNumber(document.getElementById("tx-f-start").value) * 1e9;
@@ -340,8 +358,8 @@ function createSVG(name) {
   return svg;
 }
 
-function removeChannel(prefix, index) {
-  if (!confirm(`Remove ${prefix} Channel ${index + 1}?`)) return;
+async function removeChannel(prefix, index) {
+  if (!(await confirmAsync(`Remove ${prefix} Channel ${index + 1}?`))) return;
   if (prefix === "TX") {
     saveTxChannelStates();
     txChannels.splice(index, 1);
@@ -907,8 +925,8 @@ function renderPointTargets() {
           ]),
         ]),
         el("div", { style: "display:flex;justify-content:flex-end;margin-top:4px" }, [
-          el("button", { className: "btn-secondary btn-danger", title: "Remove", onClick: () => {
-            if (!confirm(`Remove Target ${i + 1}?`)) return;
+          el("button", { className: "btn-secondary btn-danger", title: "Remove", onClick: async () => {
+            if (!(await confirmAsync(`Remove Target ${i + 1}?`))) return;
             savePointTargetStates();
             pointTargets.splice(i, 1);
             renderPointTargets();
@@ -1077,8 +1095,8 @@ function renderMeshTargets() {
         ]),
 
         el("div", { style: "display:flex;justify-content:flex-end;margin-top:4px" }, [
-          el("button", { className: "btn-secondary btn-danger", title: "Remove", onClick: () => {
-            if (!confirm(`Remove Mesh ${i + 1}?`)) return;
+          el("button", { className: "btn-secondary btn-danger", title: "Remove", onClick: async () => {
+            if (!(await confirmAsync(`Remove Mesh ${i + 1}?`))) return;
             saveMeshTargetStates();
             meshTargets.splice(i, 1);
             renderMeshTargets();
