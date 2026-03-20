@@ -753,7 +753,95 @@ function updateRadarOverviewPlot() {
   "radar-rot-yaw", "radar-rot-pitch", "radar-rot-roll",
 ].forEach((id) => {
   document.getElementById(id)?.addEventListener("input", updateRadarOverviewPlot);
+  document.getElementById(id)?.addEventListener("input", updateTargetsPlot);
 });
+
+// --- Targets Scene Plot ---
+function updateTargetsPlot() {
+  const container = document.getElementById("targets-scene-plot");
+  if (!container) return;
+
+  const radarX = parseNumber(document.getElementById("radar-loc-x")?.value);
+  const radarY = parseNumber(document.getElementById("radar-loc-y")?.value);
+  const radarZ = parseNumber(document.getElementById("radar-loc-z")?.value);
+  const yaw   = parseNumber(document.getElementById("radar-rot-yaw")?.value);
+  const pitch = parseNumber(document.getElementById("radar-rot-pitch")?.value);
+  const roll  = parseNumber(document.getElementById("radar-rot-roll")?.value);
+
+  const traces = [];
+
+  // Radar platform
+  traces.push({
+    x: [radarX], y: [radarY], z: [radarZ],
+    text: ["Radar"],
+    type: "scatter3d", mode: "markers+text",
+    marker: { size: 10, color: "#e17055", symbol: "square", line: { width: 1, color: "#fab1a0" } },
+    textposition: "top center",
+    textfont: { size: 10, color: "#fab1a0" },
+    name: "Radar", showlegend: true,
+  });
+
+  // Point targets
+  const ptXs = [], ptYs = [], ptZs = [], ptLabels = [];
+  pointTargets.forEach((_, i) => {
+    ptXs.push(parseNumber(document.getElementById(`pt-${i}-loc-x`)?.value ?? 50));
+    ptYs.push(parseNumber(document.getElementById(`pt-${i}-loc-y`)?.value));
+    ptZs.push(parseNumber(document.getElementById(`pt-${i}-loc-z`)?.value));
+    ptLabels.push(`T${i + 1}`);
+  });
+  if (ptXs.length > 0) {
+    traces.push({
+      x: ptXs, y: ptYs, z: ptZs,
+      text: ptLabels,
+      type: "scatter3d", mode: "markers+text",
+      marker: { size: 7, color: "#fdcb6e", symbol: "circle", line: { width: 1, color: "#ffeaa7" } },
+      textposition: "top center",
+      textfont: { size: 9, color: "#ffeaa7" },
+      name: "Point Target", showlegend: true,
+    });
+  }
+
+  // Mesh targets (location only)
+  const mxs = [], mys = [], mzs = [], mLabels = [];
+  meshTargets.forEach((_, i) => {
+    mxs.push(parseNumber(document.getElementById(`mesh-${i}-loc-x`)?.value));
+    mys.push(parseNumber(document.getElementById(`mesh-${i}-loc-y`)?.value));
+    mzs.push(parseNumber(document.getElementById(`mesh-${i}-loc-z`)?.value));
+    mLabels.push(`M${i + 1}`);
+  });
+  if (mxs.length > 0) {
+    traces.push({
+      x: mxs, y: mys, z: mzs,
+      text: mLabels,
+      type: "scatter3d", mode: "markers+text",
+      marker: { size: 7, color: "#a29bfe", symbol: "diamond", line: { width: 1, color: "#dfe6e9" } },
+      textposition: "top center",
+      textfont: { size: 9, color: "#dfe6e9" },
+      name: "Mesh Target", showlegend: true,
+    });
+  }
+
+  const boresightDir = rotatePoint(1, 0, 0, yaw, pitch, roll);
+  const allCoords = [radarX, radarY, radarZ, ...ptXs, ...ptYs, ...ptZs, ...mxs, ...mys, ...mzs];
+  const arrow = boresightTraces(allCoords, "#fd7e14", [radarX, radarY, radarZ], boresightDir);
+
+  const layout = {
+    paper_bgcolor: "#12121a",
+    plot_bgcolor: "#12121a",
+    font: { color: "#e8e8f0", size: 10 },
+    margin: { l: 0, r: 0, t: 20, b: 0 },
+    scene: {
+      xaxis: { title: "X (m)", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
+      yaxis: { title: "Y (m)", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
+      zaxis: { title: "Z (m)", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
+      bgcolor: "#12121a",
+    },
+    legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
+    showlegend: true,
+  };
+
+  Plotly.newPlot(container, [...arrow, ...traces], layout, { responsive: true, displayModeBar: false });
+}
 
 // --- Point Targets ---
 function renderPointTargets() {
@@ -769,6 +857,7 @@ function renderPointTargets() {
           onClick: () => {
             pointTargets.splice(i, 1);
             renderPointTargets();
+            updateTargetsPlot();
           },
         }, [createSVG("trash")]),
       ]),
@@ -801,11 +890,20 @@ function renderPointTargets() {
     ]);
     container.appendChild(card);
   });
+  requestAnimationFrame(() => {
+    pointTargets.forEach((_, i) => {
+      ["loc-x", "loc-y", "loc-z"].forEach((f) => {
+        document.getElementById(`pt-${i}-${f}`)?.addEventListener("input", updateTargetsPlot);
+      });
+    });
+    updateTargetsPlot();
+  });
 }
 
 document.getElementById("btn-add-point-target").addEventListener("click", () => {
   pointTargets.push({ location: [50, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 });
   renderPointTargets();
+  updateTargetsPlot();
 });
 
 // --- Mesh Targets ---
@@ -822,6 +920,7 @@ function renderMeshTargets() {
           onClick: () => {
             meshTargets.splice(i, 1);
             renderMeshTargets();
+            updateTargetsPlot();
           },
         }, [createSVG("trash")]),
       ]),
@@ -918,11 +1017,20 @@ function renderMeshTargets() {
     ]);
     container.appendChild(card);
   });
+  requestAnimationFrame(() => {
+    meshTargets.forEach((_, i) => {
+      ["loc-x", "loc-y", "loc-z"].forEach((f) => {
+        document.getElementById(`mesh-${i}-${f}`)?.addEventListener("input", updateTargetsPlot);
+      });
+    });
+    updateTargetsPlot();
+  });
 }
 
 document.getElementById("btn-add-mesh-target").addEventListener("click", () => {
   meshTargets.push({});
   renderMeshTargets();
+  updateTargetsPlot();
 });
 
 // --- Collect Config from UI ---
