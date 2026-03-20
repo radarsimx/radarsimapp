@@ -152,6 +152,7 @@ function renderTxChannels() {
     });
     updateTxLocationsPlot();
     attachLocationListeners();
+    updateRadarOverviewPlot();
     const cards = document.querySelectorAll("#tx-channels-list .channel-card");
     if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
   });
@@ -467,26 +468,54 @@ function attachPatternListeners(pfx, index) {
 }
 
 // --- Boresight Arrow Helper ---
-function boresightTraces(allCoords, color) {
+// Rotate a point [x,y,z] by yaw (Z), pitch (Y), roll (X) in degrees — ZYX intrinsic
+function rotatePoint(x, y, z, yawDeg, pitchDeg, rollDeg) {
+  const toRad = Math.PI / 180;
+  const yaw = yawDeg * toRad, pitch = pitchDeg * toRad, roll = rollDeg * toRad;
+  const cy = Math.cos(yaw),  sy = Math.sin(yaw);
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const cr = Math.cos(roll),  sr = Math.sin(roll);
+  // Rz(yaw) * Ry(pitch) * Rx(roll)
+  const rx = cy*cp*x + (cy*sp*sr - sy*cr)*y + (cy*sp*cr + sy*sr)*z;
+  const ry = sy*cp*x + (sy*sp*sr + cy*cr)*y + (sy*sp*cr - cy*sr)*z;
+  const rz =   -sp*x +         cp*sr*y       +         cp*cr*z;
+  return [rx, ry, rz];
+}
+
+// allCoords: flat array of world-space coords used to scale the arrow
+// origin: [ox, oy, oz] tip base in world space
+// dir: unit direction vector [dx, dy, dz] in world space
+function boresightTraces(allCoords, color, origin = [0, 0, 0], dir = [1, 0, 0]) {
   const arrowLen = Math.max(...allCoords.map(Math.abs), 0.05) * 1.5;
+  const [ox, oy, oz] = origin;
+  const [dx, dy, dz] = dir;
+  const shaft = [
+    ox,
+    ox + dx * arrowLen * 0.85,
+  ];
+  const shaftY = [oy, oy + dy * arrowLen * 0.85];
+  const shaftZ = [oz, oz + dz * arrowLen * 0.85];
+  const labelX = ox + dx * arrowLen * 1.12;
+  const labelY = oy + dy * arrowLen * 1.12;
+  const labelZ = oz + dz * arrowLen * 1.12;
   return [
     {
-      x: [0, arrowLen * 0.85], y: [0, 0], z: [0, 0],
+      x: shaft, y: shaftY, z: shaftZ,
       type: "scatter3d", mode: "lines",
       line: { color, width: 3 },
       showlegend: false, hoverinfo: "none", name: "",
     },
     {
-      x: [arrowLen * 0.85], y: [0], z: [0],
-      u: [arrowLen * 0.15], v: [0], w: [0],
+      x: [ox + dx * arrowLen * 0.85], y: [oy + dy * arrowLen * 0.85], z: [oz + dz * arrowLen * 0.85],
+      u: [dx * arrowLen * 0.15], v: [dy * arrowLen * 0.15], w: [dz * arrowLen * 0.15],
       type: "cone",
       colorscale: [[0, color], [1, color]],
       showscale: false, showlegend: false,
       hoverinfo: "none", anchor: "tail",
     },
     {
-      x: [arrowLen * 1.12], y: [0], z: [0],
-      text: ["+X (Boresight)"],
+      x: [labelX], y: [labelY], z: [labelZ],
+      text: ["Boresight (+X)"],
       type: "scatter3d", mode: "text",
       textfont: { size: 9, color },
       showlegend: false, hoverinfo: "none", name: "",
@@ -635,6 +664,9 @@ function updateRadarOverviewPlot() {
   const radarX = parseNumber(document.getElementById("radar-loc-x")?.value);
   const radarY = parseNumber(document.getElementById("radar-loc-y")?.value);
   const radarZ = parseNumber(document.getElementById("radar-loc-z")?.value);
+  const yaw   = parseNumber(document.getElementById("radar-rot-yaw")?.value);
+  const pitch = parseNumber(document.getElementById("radar-rot-pitch")?.value);
+  const roll  = parseNumber(document.getElementById("radar-rot-roll")?.value);
 
   const traces = [];
 
@@ -649,12 +681,14 @@ function updateRadarOverviewPlot() {
     name: "Radar", showlegend: true,
   });
 
-  // TX channels
+  // TX channels — rotate local position, then offset by radar position
   const txXs = [], txYs = [], txZs = [], txLabels = [];
   txChannels.forEach((_, i) => {
-    txXs.push(radarX + parseNumber(document.getElementById(`tx-ch-${i}-loc-x`)?.value));
-    txYs.push(radarY + parseNumber(document.getElementById(`tx-ch-${i}-loc-y`)?.value));
-    txZs.push(radarZ + parseNumber(document.getElementById(`tx-ch-${i}-loc-z`)?.value));
+    const lx = parseNumber(document.getElementById(`tx-ch-${i}-loc-x`)?.value);
+    const ly = parseNumber(document.getElementById(`tx-ch-${i}-loc-y`)?.value);
+    const lz = parseNumber(document.getElementById(`tx-ch-${i}-loc-z`)?.value);
+    const [rx, ry, rz] = rotatePoint(lx, ly, lz, yaw, pitch, roll);
+    txXs.push(radarX + rx); txYs.push(radarY + ry); txZs.push(radarZ + rz);
     txLabels.push(`TX${i + 1}`);
   });
   if (txXs.length > 0) {
@@ -669,12 +703,14 @@ function updateRadarOverviewPlot() {
     });
   }
 
-  // RX channels
+  // RX channels — same treatment
   const rxXs = [], rxYs = [], rxZs = [], rxLabels = [];
   rxChannels.forEach((_, i) => {
-    rxXs.push(radarX + parseNumber(document.getElementById(`rx-ch-${i}-loc-x`)?.value));
-    rxYs.push(radarY + parseNumber(document.getElementById(`rx-ch-${i}-loc-y`)?.value));
-    rxZs.push(radarZ + parseNumber(document.getElementById(`rx-ch-${i}-loc-z`)?.value));
+    const lx = parseNumber(document.getElementById(`rx-ch-${i}-loc-x`)?.value);
+    const ly = parseNumber(document.getElementById(`rx-ch-${i}-loc-y`)?.value);
+    const lz = parseNumber(document.getElementById(`rx-ch-${i}-loc-z`)?.value);
+    const [rx, ry, rz] = rotatePoint(lx, ly, lz, yaw, pitch, roll);
+    rxXs.push(radarX + rx); rxYs.push(radarY + ry); rxZs.push(radarZ + rz);
     rxLabels.push(`RX${i + 1}`);
   });
   if (rxXs.length > 0) {
@@ -689,8 +725,10 @@ function updateRadarOverviewPlot() {
     });
   }
 
+  // Boresight arrow: rotate the +X unit vector by radar rotation, originate at radar position
+  const boresightDir = rotatePoint(1, 0, 0, yaw, pitch, roll);
   const allCoords = [radarX, radarY, radarZ, ...txXs, ...txYs, ...txZs, ...rxXs, ...rxYs, ...rxZs];
-  const arrow = boresightTraces(allCoords, "#fd7e14");
+  const arrow = boresightTraces(allCoords, "#fd7e14", [radarX, radarY, radarZ], boresightDir);
 
   const layout = {
     paper_bgcolor: "#12121a",
@@ -712,6 +750,7 @@ function updateRadarOverviewPlot() {
 
 [
   "radar-loc-x", "radar-loc-y", "radar-loc-z",
+  "radar-rot-yaw", "radar-rot-pitch", "radar-rot-roll",
 ].forEach((id) => {
   document.getElementById(id)?.addEventListener("input", updateRadarOverviewPlot);
 });
