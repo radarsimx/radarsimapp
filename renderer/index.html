@@ -161,58 +161,76 @@
             <p class="panel-desc">Configure sampling, noise, and RX channel parameters</p>
           </div>
           <div class="panel-body">
-            <div class="config-grid">
-              <section class="config-section">
-                <h3>Sampling</h3>
-                <div class="form-group">
-                  <label for="rx-fs">Sampling Rate (MHz)</label>
-                  <input type="number" id="rx-fs" value="2" step="0.1" />
+            <!-- Sampling + Noise & Gain -->
+            <div class="panel-split">
+              <div class="panel-split-left">
+                <div class="config-grid">
+                  <section class="config-section full-width">
+                    <h3>Sampling & Noise</h3>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label for="rx-fs">Sampling Rate (MHz)</label>
+                        <input type="number" id="rx-fs" value="2" step="0.1" />
+                      </div>
+                      <div class="form-group">
+                        <label for="rx-bb-type">Baseband Type</label>
+                        <select id="rx-bb-type">
+                          <option value="complex">Complex (I/Q)</option>
+                          <option value="real">Real</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label for="rx-nf">Noise Figure (dB)</label>
+                        <input type="number" id="rx-nf" value="10" step="0.5" />
+                      </div>
+                      <div class="form-group">
+                        <label for="rx-rf-gain">RF Gain (dB)</label>
+                        <input type="number" id="rx-rf-gain" value="0" step="1" />
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label for="rx-bb-gain">Baseband Gain (dB)</label>
+                        <input type="number" id="rx-bb-gain" value="0" step="1" />
+                      </div>
+                      <div class="form-group">
+                        <label for="rx-load-r">Load Resistor (Ω)</label>
+                        <input type="number" id="rx-load-r" value="500" step="10" />
+                      </div>
+                    </div>
+                  </section>
                 </div>
-                <div class="form-group">
-                  <label for="rx-bb-type">Baseband Type</label>
-                  <select id="rx-bb-type">
-                    <option value="complex">Complex (I/Q)</option>
-                    <option value="real">Real</option>
-                  </select>
-                </div>
-              </section>
+              </div>
+              <div class="panel-split-right"></div>
+            </div>
 
-              <section class="config-section">
-                <h3>Noise & Gain</h3>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="rx-nf">Noise Figure (dB)</label>
-                    <input type="number" id="rx-nf" value="10" step="0.5" />
-                  </div>
-                  <div class="form-group">
-                    <label for="rx-rf-gain">RF Gain (dB)</label>
-                    <input type="number" id="rx-rf-gain" value="0" step="1" />
-                  </div>
+            <!-- RX Channels + locations -->
+            <div class="panel-split">
+              <div class="panel-split-left">
+                <div class="config-grid">
+                  <section class="config-section full-width">
+                    <div class="section-header">
+                      <h3>RX Channels</h3>
+                      <button class="btn-icon" id="btn-add-rx-ch" title="Add Channel">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      </button>
+                    </div>
+                    <div id="rx-channels-list">
+                      <!-- Channels will be dynamically added here -->
+                    </div>
+                  </section>
                 </div>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="rx-bb-gain">Baseband Gain (dB)</label>
-                    <input type="number" id="rx-bb-gain" value="0" step="1" />
-                  </div>
-                  <div class="form-group">
-                    <label for="rx-load-r">Load Resistor (Ω)</label>
-                    <input type="number" id="rx-load-r" value="500" step="10" />
-                  </div>
+              </div>
+              <div class="panel-split-right">
+                <div class="sticky-sidebar">
+                  <section class="config-section">
+                    <h3>Channel Locations</h3>
+                    <div id="rx-locations-plot" class="plot-container-sm has-data"></div>
+                  </section>
                 </div>
-              </section>
-
-              <!-- RX Channels -->
-              <section class="config-section full-width">
-                <div class="section-header">
-                  <h3>RX Channels</h3>
-                  <button class="btn-icon" id="btn-add-rx-ch" title="Add Channel">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  </button>
-                </div>
-                <div id="rx-channels-list">
-                  <!-- Channels will be dynamically added here -->
-                </div>
-              </section>
+              </div>
             </div>
           </div>
         </div>
@@ -224,78 +242,82 @@
             <p class="panel-desc">Configure radar platform motion and position</p>
           </div>
           <div class="panel-body">
-            <div class="config-grid">
-              <section class="config-section">
-                <h3>Position</h3>
-                <div class="form-row triple">
-                  <div class="form-group">
-                    <label for="radar-loc-x">X (m)</label>
-                    <input type="number" id="radar-loc-x" value="0" step="0.1" />
-                  </div>
-                  <div class="form-group">
-                    <label for="radar-loc-y">Y (m)</label>
-                    <input type="number" id="radar-loc-y" value="0" step="0.1" />
-                  </div>
-                  <div class="form-group">
-                    <label for="radar-loc-z">Z (m)</label>
-                    <input type="number" id="radar-loc-z" value="0" step="0.1" />
-                  </div>
+            <div class="panel-split">
+              <div class="panel-split-left">
+                <div class="config-grid">
+                  <section class="config-section full-width">
+                    <h3>Platform</h3>
+                    <h4 class="subsection-label">Position (m)</h4>
+                    <div class="form-row triple">
+                      <div class="form-group">
+                        <label for="radar-loc-x">X</label>
+                        <input type="number" id="radar-loc-x" value="0" step="0.1" />
+                      </div>
+                      <div class="form-group">
+                        <label for="radar-loc-y">Y</label>
+                        <input type="number" id="radar-loc-y" value="0" step="0.1" />
+                      </div>
+                      <div class="form-group">
+                        <label for="radar-loc-z">Z</label>
+                        <input type="number" id="radar-loc-z" value="0" step="0.1" />
+                      </div>
+                    </div>
+                    <h4 class="subsection-label">Velocity (m/s)</h4>
+                    <div class="form-row triple">
+                      <div class="form-group">
+                        <label for="radar-spd-x">Vx</label>
+                        <input type="number" id="radar-spd-x" value="0" step="0.1" />
+                      </div>
+                      <div class="form-group">
+                        <label for="radar-spd-y">Vy</label>
+                        <input type="number" id="radar-spd-y" value="0" step="0.1" />
+                      </div>
+                      <div class="form-group">
+                        <label for="radar-spd-z">Vz</label>
+                        <input type="number" id="radar-spd-z" value="0" step="0.1" />
+                      </div>
+                    </div>
+                    <h4 class="subsection-label">Rotation (°)</h4>
+                    <div class="form-row triple">
+                      <div class="form-group">
+                        <label for="radar-rot-yaw">Yaw</label>
+                        <input type="number" id="radar-rot-yaw" value="0" step="1" />
+                      </div>
+                      <div class="form-group">
+                        <label for="radar-rot-pitch">Pitch</label>
+                        <input type="number" id="radar-rot-pitch" value="0" step="1" />
+                      </div>
+                      <div class="form-group">
+                        <label for="radar-rot-roll">Roll</label>
+                        <input type="number" id="radar-rot-roll" value="0" step="1" />
+                      </div>
+                    </div>
+                    <h4 class="subsection-label">Rotation Rate (°/s)</h4>
+                    <div class="form-row triple">
+                      <div class="form-group">
+                        <label for="radar-rr-yaw">Yaw</label>
+                        <input type="number" id="radar-rr-yaw" value="0" step="1" />
+                      </div>
+                      <div class="form-group">
+                        <label for="radar-rr-pitch">Pitch</label>
+                        <input type="number" id="radar-rr-pitch" value="0" step="1" />
+                      </div>
+                      <div class="form-group">
+                        <label for="radar-rr-roll">Roll</label>
+                        <input type="number" id="radar-rr-roll" value="0" step="1" />
+                      </div>
+                    </div>
+                  </section>
                 </div>
-              </section>
-
-              <section class="config-section">
-                <h3>Velocity</h3>
-                <div class="form-row triple">
-                  <div class="form-group">
-                    <label for="radar-spd-x">Vx (m/s)</label>
-                    <input type="number" id="radar-spd-x" value="0" step="0.1" />
-                  </div>
-                  <div class="form-group">
-                    <label for="radar-spd-y">Vy (m/s)</label>
-                    <input type="number" id="radar-spd-y" value="0" step="0.1" />
-                  </div>
-                  <div class="form-group">
-                    <label for="radar-spd-z">Vz (m/s)</label>
-                    <input type="number" id="radar-spd-z" value="0" step="0.1" />
-                  </div>
+              </div>
+              <div class="panel-split-right">
+                <div class="sticky-sidebar">
+                  <section class="config-section">
+                    <h3>Array Overview</h3>
+                    <div id="radar-overview-plot" class="plot-container-sm has-data"></div>
+                  </section>
                 </div>
-              </section>
-
-              <section class="config-section">
-                <h3>Rotation</h3>
-                <div class="form-row triple">
-                  <div class="form-group">
-                    <label for="radar-rot-yaw">Yaw (°)</label>
-                    <input type="number" id="radar-rot-yaw" value="0" step="1" />
-                  </div>
-                  <div class="form-group">
-                    <label for="radar-rot-pitch">Pitch (°)</label>
-                    <input type="number" id="radar-rot-pitch" value="0" step="1" />
-                  </div>
-                  <div class="form-group">
-                    <label for="radar-rot-roll">Roll (°)</label>
-                    <input type="number" id="radar-rot-roll" value="0" step="1" />
-                  </div>
-                </div>
-              </section>
-
-              <section class="config-section">
-                <h3>Rotation Rate</h3>
-                <div class="form-row triple">
-                  <div class="form-group">
-                    <label for="radar-rr-yaw">Yaw Rate (°/s)</label>
-                    <input type="number" id="radar-rr-yaw" value="0" step="1" />
-                  </div>
-                  <div class="form-group">
-                    <label for="radar-rr-pitch">Pitch Rate (°/s)</label>
-                    <input type="number" id="radar-rr-pitch" value="0" step="1" />
-                  </div>
-                  <div class="form-group">
-                    <label for="radar-rr-roll">Roll Rate (°/s)</label>
-                    <input type="number" id="radar-rr-roll" value="0" step="1" />
-                  </div>
-                </div>
-              </section>
+              </div>
             </div>
           </div>
         </div>

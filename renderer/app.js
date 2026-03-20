@@ -466,6 +466,34 @@ function attachPatternListeners(pfx, index) {
   });
 }
 
+// --- Boresight Arrow Helper ---
+function boresightTraces(allCoords, color) {
+  const arrowLen = Math.max(...allCoords.map(Math.abs), 0.05) * 1.5;
+  return [
+    {
+      x: [0, arrowLen * 0.85], y: [0, 0], z: [0, 0],
+      type: "scatter3d", mode: "lines",
+      line: { color, width: 3 },
+      showlegend: false, hoverinfo: "none", name: "",
+    },
+    {
+      x: [arrowLen * 0.85], y: [0], z: [0],
+      u: [arrowLen * 0.15], v: [0], w: [0],
+      type: "cone",
+      colorscale: [[0, color], [1, color]],
+      showscale: false, showlegend: false,
+      hoverinfo: "none", anchor: "tail",
+    },
+    {
+      x: [arrowLen * 1.12], y: [0], z: [0],
+      text: ["+X (Boresight)"],
+      type: "scatter3d", mode: "text",
+      textfont: { size: 9, color },
+      showlegend: false, hoverinfo: "none", name: "",
+    },
+  ];
+}
+
 // --- TX Channel Locations Plot ---
 function updateTxLocationsPlot() {
   const container = document.getElementById("tx-locations-plot");
@@ -504,7 +532,8 @@ function updateTxLocationsPlot() {
     showlegend: false,
   };
 
-  Plotly.newPlot(container, [trace], layout, { responsive: true, displayModeBar: false });
+  const arrow = boresightTraces(xs.concat(ys).concat(zs), "#fd7e14");
+  Plotly.newPlot(container, [...arrow, trace], layout, { responsive: true, displayModeBar: false });
 }
 
 function attachLocationListeners() {
@@ -525,7 +554,14 @@ function renderRxChannels() {
   rxChannels.forEach((ch, i) => {
     container.appendChild(createChannelCard("RX", i, ch, false));
   });
+
   requestAnimationFrame(() => {
+    rxChannels.forEach((_, i) => {
+      updateChannelPatternPlot("rx", i);
+      attachPatternListeners("rx", i);
+    });
+    updateRxLocationsPlot();
+    attachRxLocationListeners();
     const cards = container.querySelectorAll(".channel-card");
     if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
   });
@@ -536,6 +572,59 @@ document.getElementById("btn-add-rx-ch").addEventListener("click", () => {
   rxChannels.push({});
   renderRxChannels();
 });
+
+// --- RX Channel Locations Plot ---
+function updateRxLocationsPlot() {
+  const container = document.getElementById("rx-locations-plot");
+  if (!container) return;
+
+  const xs = [], ys = [], zs = [], labels = [];
+  rxChannels.forEach((_, i) => {
+    const x = parseNumber(document.getElementById(`rx-ch-${i}-loc-x`)?.value);
+    const y = parseNumber(document.getElementById(`rx-ch-${i}-loc-y`)?.value);
+    const z = parseNumber(document.getElementById(`rx-ch-${i}-loc-z`)?.value);
+    xs.push(x); ys.push(y); zs.push(z);
+    labels.push(`RX ${i + 1}`);
+  });
+
+  const trace = {
+    x: xs, y: ys, z: zs,
+    text: labels,
+    type: "scatter3d",
+    mode: "markers+text",
+    marker: { size: 8, color: "#6C5CE7", symbol: "circle", line: { width: 1, color: "#A29BFE" } },
+    textposition: "top center",
+    textfont: { size: 10, color: "#A29BFE" },
+  };
+
+  const layout = {
+    paper_bgcolor: "#12121a",
+    plot_bgcolor: "#12121a",
+    font: { color: "#e8e8f0", size: 10 },
+    margin: { l: 0, r: 0, t: 20, b: 0 },
+    scene: {
+      xaxis: { title: "X (m)", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
+      yaxis: { title: "Y (m)", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
+      zaxis: { title: "Z (m)", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
+      bgcolor: "#12121a",
+    },
+    showlegend: false,
+  };
+
+  const arrow = boresightTraces(xs.concat(ys).concat(zs), "#fd7e14");
+  Plotly.newPlot(container, [...arrow, trace], layout, { responsive: true, displayModeBar: false });
+}
+
+function attachRxLocationListeners() {
+  rxChannels.forEach((_, i) => {
+    ["loc-x", "loc-y", "loc-z"].forEach((field) => {
+      const elem = document.getElementById(`rx-ch-${i}-${field}`);
+      if (elem) {
+        elem.addEventListener("input", () => updateRxLocationsPlot());
+      }
+    });
+  });
+}
 
 // --- Point Targets ---
 function renderPointTargets() {
