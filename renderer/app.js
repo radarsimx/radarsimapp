@@ -14,8 +14,15 @@ document.querySelectorAll(".nav-item").forEach((item) => {
     document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
     item.classList.add("active");
     const panelId = "panel-" + item.dataset.panel;
-    document.getElementById(panelId).classList.add("active");
+    const activePanel = document.getElementById(panelId);
+    activePanel.classList.add("active");
+    activePanel.querySelectorAll(".js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot));
   });
+});
+
+// --- Resize all plots in the active panel on window resize ---
+window.addEventListener("resize", () => {
+  document.querySelectorAll(".panel.active .js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot));
 });
 
 // --- Custom Number Input Spinners ---

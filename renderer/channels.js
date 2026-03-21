@@ -88,6 +88,9 @@ function createChannelCard(prefix, index, data, isTx) {
         card.parentElement?.querySelectorAll(".channel-card").forEach(c => c.classList.add("collapsed"));
       }
       card.classList.toggle("collapsed");
+      if (isCollapsed) {
+        card.querySelectorAll(".js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot));
+      }
     }}, [
       el("span", { textContent: `${prefix} Channel ${index + 1}` }),
       el("button", { className: "btn-icon btn-collapse", title: "Collapse" }, [
