@@ -209,10 +209,11 @@ async function removeChannel(prefix, index) {
 
 function attachLocationListeners() {
   txChannels.forEach((_, i) => {
+    const debouncedUpdate = debounce(() => { updateTxLocationsPlot(); updateRadarOverviewPlot(); });
     ["loc-x", "loc-y", "loc-z"].forEach((field) => {
       const elem = document.getElementById(`tx-ch-${i}-${field}`);
       if (elem) {
-        elem.addEventListener("input", () => { updateTxLocationsPlot(); updateRadarOverviewPlot(); });
+        elem.addEventListener("input", debouncedUpdate);
       }
     });
   });
@@ -220,10 +221,11 @@ function attachLocationListeners() {
 
 function attachRxLocationListeners() {
   rxChannels.forEach((_, i) => {
+    const debouncedUpdate = debounce(() => { updateRxLocationsPlot(); updateRadarOverviewPlot(); });
     ["loc-x", "loc-y", "loc-z"].forEach((field) => {
       const elem = document.getElementById(`rx-ch-${i}-${field}`);
       if (elem) {
-        elem.addEventListener("input", () => { updateRxLocationsPlot(); updateRadarOverviewPlot(); });
+        elem.addEventListener("input", debouncedUpdate);
       }
     });
   });

@@ -37,18 +37,22 @@ document.querySelectorAll('input[type="number"]').forEach((input) => {
 function updateTxInfo() {
   updateTxWaveformPlot();
 }
+const debouncedUpdateTxInfo = debounce(updateTxInfo);
+const debouncedUpdateTxWaveformPlot = debounce(updateTxWaveformPlot);
 ["tx-f-start", "tx-f-end", "tx-t-start", "tx-t-end"].forEach((id) =>
-  document.getElementById(id).addEventListener("input", updateTxInfo)
+  document.getElementById(id).addEventListener("input", debouncedUpdateTxInfo)
 );
-document.getElementById("tx-prp").addEventListener("input", updateTxWaveformPlot);
+document.getElementById("tx-prp").addEventListener("input", debouncedUpdateTxWaveformPlot);
 
 // --- Radar Input Listeners ---
+const debouncedUpdateRadarOverviewPlot = debounce(updateRadarOverviewPlot);
+const debouncedUpdateTargetsPlot = debounce(updateTargetsPlot);
 [
   "radar-loc-x", "radar-loc-y", "radar-loc-z",
   "radar-rot-yaw", "radar-rot-pitch", "radar-rot-roll",
 ].forEach((id) => {
-  document.getElementById(id)?.addEventListener("input", updateRadarOverviewPlot);
-  document.getElementById(id)?.addEventListener("input", updateTargetsPlot);
+  document.getElementById(id)?.addEventListener("input", debouncedUpdateRadarOverviewPlot);
+  document.getElementById(id)?.addEventListener("input", debouncedUpdateTargetsPlot);
 });
 
 // --- Add Buttons ---

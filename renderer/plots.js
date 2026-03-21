@@ -99,10 +99,11 @@ function updateChannelPatternPlot(pfx, index) {
 }
 
 function attachPatternListeners(pfx, index) {
+  const debouncedUpdate = debounce(() => updateChannelPatternPlot(pfx, index));
   ["az-angles", "az-pattern", "el-angles", "el-pattern"].forEach((field) => {
     const elem = document.getElementById(`${pfx}-ch-${index}-${field}`);
     if (elem) {
-      elem.addEventListener("input", () => updateChannelPatternPlot(pfx, index));
+      elem.addEventListener("input", debouncedUpdate);
     }
   });
 }

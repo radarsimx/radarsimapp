@@ -1,5 +1,13 @@
 // ===== RadarSimApp - Utility Functions =====
 
+function debounce(fn, delay = 150) {
+  let timer;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
 function parseNumber(val, fallback = 0) {
   const n = parseFloat(val);
   return isNaN(n) ? fallback : n;
