@@ -82,16 +82,18 @@ function createChannelCard(prefix, index, data, isTx) {
   ]);
 
   const card = el("div", { className: "channel-card collapsed" }, [
-    el("div", { className: "channel-card-header", onClick: () => {
-      const isCollapsed = card.classList.contains("collapsed");
-      if (isCollapsed) {
-        card.parentElement?.querySelectorAll(".channel-card").forEach(c => c.classList.add("collapsed"));
+    el("div", {
+      className: "channel-card-header", onClick: () => {
+        const isCollapsed = card.classList.contains("collapsed");
+        if (isCollapsed) {
+          card.parentElement?.querySelectorAll(".channel-card").forEach(c => c.classList.add("collapsed"));
+        }
+        card.classList.toggle("collapsed");
+        if (isCollapsed) {
+          card.querySelectorAll(".js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot));
+        }
       }
-      card.classList.toggle("collapsed");
-      if (isCollapsed) {
-        card.querySelectorAll(".js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot));
-      }
-    }}, [
+    }, [
       el("span", { textContent: `${prefix} Channel ${index + 1}` }),
       el("button", { className: "btn-icon btn-collapse", title: "Collapse" }, [
         createSVG("chevron"),

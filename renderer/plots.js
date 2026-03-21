@@ -112,13 +112,13 @@ function attachPatternListeners(pfx, index) {
 function rotatePoint(x, y, z, yawDeg, pitchDeg, rollDeg) {
   const toRad = Math.PI / 180;
   const yaw = yawDeg * toRad, pitch = pitchDeg * toRad, roll = rollDeg * toRad;
-  const cy = Math.cos(yaw),  sy = Math.sin(yaw);
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
   const cp = Math.cos(pitch), sp = Math.sin(pitch);
-  const cr = Math.cos(roll),  sr = Math.sin(roll);
+  const cr = Math.cos(roll), sr = Math.sin(roll);
   // Rz(yaw) * Ry(pitch) * Rx(roll)
-  const rx = cy*cp*x + (cy*sp*sr - sy*cr)*y + (cy*sp*cr + sy*sr)*z;
-  const ry = sy*cp*x + (sy*sp*sr + cy*cr)*y + (sy*sp*cr - cy*sr)*z;
-  const rz =   -sp*x +         cp*sr*y       +         cp*cr*z;
+  const rx = cy * cp * x + (cy * sp * sr - sy * cr) * y + (cy * sp * cr + sy * sr) * z;
+  const ry = sy * cp * x + (sy * sp * sr + cy * cr) * y + (sy * sp * cr - cy * sr) * z;
+  const rz = -sp * x + cp * sr * y + cp * cr * z;
   return [rx, ry, rz];
 }
 
@@ -287,9 +287,9 @@ function updateRadarOverviewPlot() {
   const radarX = parseNumber(document.getElementById("radar-loc-x")?.value);
   const radarY = parseNumber(document.getElementById("radar-loc-y")?.value);
   const radarZ = parseNumber(document.getElementById("radar-loc-z")?.value);
-  const yaw   = parseNumber(document.getElementById("radar-rot-yaw")?.value);
+  const yaw = parseNumber(document.getElementById("radar-rot-yaw")?.value);
   const pitch = parseNumber(document.getElementById("radar-rot-pitch")?.value);
-  const roll  = parseNumber(document.getElementById("radar-rot-roll")?.value);
+  const roll = parseNumber(document.getElementById("radar-rot-roll")?.value);
 
   const traces = [];
 
@@ -366,9 +366,9 @@ function updateTargetsPlot() {
   const radarX = parseNumber(document.getElementById("radar-loc-x")?.value);
   const radarY = parseNumber(document.getElementById("radar-loc-y")?.value);
   const radarZ = parseNumber(document.getElementById("radar-loc-z")?.value);
-  const yaw   = parseNumber(document.getElementById("radar-rot-yaw")?.value);
+  const yaw = parseNumber(document.getElementById("radar-rot-yaw")?.value);
   const pitch = parseNumber(document.getElementById("radar-rot-pitch")?.value);
-  const roll  = parseNumber(document.getElementById("radar-rot-roll")?.value);
+  const roll = parseNumber(document.getElementById("radar-rot-roll")?.value);
 
   const traces = [];
 

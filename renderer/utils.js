@@ -109,16 +109,16 @@ function createSVG(name) {
     svg.appendChild(p);
   } else if (name === "rcs") {
     // Scatter/trend icon
-    const c1 = document.createElementNS("http://www.w3.org/2000/svg", "circle"); c1.setAttribute("cx", "4");  c1.setAttribute("cy", "20"); c1.setAttribute("r", "2"); svg.appendChild(c1);
+    const c1 = document.createElementNS("http://www.w3.org/2000/svg", "circle"); c1.setAttribute("cx", "4"); c1.setAttribute("cy", "20"); c1.setAttribute("r", "2"); svg.appendChild(c1);
     const c2 = document.createElementNS("http://www.w3.org/2000/svg", "circle"); c2.setAttribute("cx", "10"); c2.setAttribute("cy", "12"); c2.setAttribute("r", "2"); svg.appendChild(c2);
-    const c3 = document.createElementNS("http://www.w3.org/2000/svg", "circle"); c3.setAttribute("cx", "18"); c3.setAttribute("cy", "6");  c3.setAttribute("r", "2"); svg.appendChild(c3);
+    const c3 = document.createElementNS("http://www.w3.org/2000/svg", "circle"); c3.setAttribute("cx", "18"); c3.setAttribute("cy", "6"); c3.setAttribute("r", "2"); svg.appendChild(c3);
     const ln = document.createElementNS("http://www.w3.org/2000/svg", "polyline"); ln.setAttribute("points", "4 20 10 12 18 6"); svg.appendChild(ln);
   } else if (name === "close") {
     const l1 = document.createElementNS("http://www.w3.org/2000/svg", "line");
     l1.setAttribute("x1", "18"); l1.setAttribute("y1", "6");
-    l1.setAttribute("x2", "6");  l1.setAttribute("y2", "18");
+    l1.setAttribute("x2", "6"); l1.setAttribute("y2", "18");
     const l2 = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    l2.setAttribute("x1", "6");  l2.setAttribute("y1", "6");
+    l2.setAttribute("x1", "6"); l2.setAttribute("y1", "6");
     l2.setAttribute("x2", "18"); l2.setAttribute("y2", "18");
     svg.appendChild(l1);
     svg.appendChild(l2);

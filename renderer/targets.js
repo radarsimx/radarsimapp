@@ -24,13 +24,15 @@ function renderPointTargets() {
   container.innerHTML = "";
   pointTargets.forEach((t, i) => {
     const card = el("div", { className: "channel-card collapsed" }, [
-      el("div", { className: "channel-card-header", onClick: () => {
-        const isCollapsed = card.classList.contains("collapsed");
-        if (isCollapsed) {
-          card.parentElement?.querySelectorAll(".channel-card").forEach(c => c.classList.add("collapsed"));
+      el("div", {
+        className: "channel-card-header", onClick: () => {
+          const isCollapsed = card.classList.contains("collapsed");
+          if (isCollapsed) {
+            card.parentElement?.querySelectorAll(".channel-card").forEach(c => c.classList.add("collapsed"));
+          }
+          card.classList.toggle("collapsed");
         }
-        card.classList.toggle("collapsed");
-      }}, [
+      }, [
         el("span", { textContent: `Target ${i + 1}` }),
         el("button", { className: "btn-icon btn-collapse", title: "Collapse" }, [
           createSVG("chevron"),
@@ -64,13 +66,15 @@ function renderPointTargets() {
           ]),
         ]),
         el("div", { style: "display:flex;justify-content:flex-end;margin-top:4px" }, [
-          el("button", { className: "btn-secondary btn-danger", title: "Remove", onClick: async () => {
-            if (!(await confirmAsync(`Remove Target ${i + 1}?`))) return;
-            savePointTargetStates();
-            pointTargets.splice(i, 1);
-            renderPointTargets();
-            updateTargetsPlot();
-          }}, [createSVG("trash"), " Remove Target"]),
+          el("button", {
+            className: "btn-secondary btn-danger", title: "Remove", onClick: async () => {
+              if (!(await confirmAsync(`Remove Target ${i + 1}?`))) return;
+              savePointTargetStates();
+              pointTargets.splice(i, 1);
+              renderPointTargets();
+              updateTargetsPlot();
+            }
+          }, [createSVG("trash"), " Remove Target"]),
         ]),
       ]),
     ]);
@@ -123,13 +127,15 @@ function renderMeshTargets() {
   container.innerHTML = "";
   meshTargets.forEach((t, i) => {
     const card = el("div", { className: "channel-card collapsed" }, [
-      el("div", { className: "channel-card-header", onClick: () => {
-        const isCollapsed = card.classList.contains("collapsed");
-        if (isCollapsed) {
-          card.parentElement?.querySelectorAll(".channel-card").forEach(c => c.classList.add("collapsed"));
+      el("div", {
+        className: "channel-card-header", onClick: () => {
+          const isCollapsed = card.classList.contains("collapsed");
+          if (isCollapsed) {
+            card.parentElement?.querySelectorAll(".channel-card").forEach(c => c.classList.add("collapsed"));
+          }
+          card.classList.toggle("collapsed");
         }
-        card.classList.toggle("collapsed");
-      }}, [
+      }, [
         el("span", { textContent: `Mesh ${i + 1}` }),
         el("button", { className: "btn-icon btn-collapse", title: "Collapse" }, [
           createSVG("chevron"),
@@ -230,13 +236,15 @@ function renderMeshTargets() {
           el("button", { className: "btn-secondary btn-rcs", title: "Run RCS Analysis for this target", onClick: () => openRcsModal(i) }, [
             createSVG("rcs"), " RCS Analysis",
           ]),
-          el("button", { className: "btn-secondary btn-danger", title: "Remove", onClick: async () => {
-            if (!(await confirmAsync(`Remove Mesh ${i + 1}?`))) return;
-            saveMeshTargetStates();
-            meshTargets.splice(i, 1);
-            renderMeshTargets();
-            updateTargetsPlot();
-          }}, [createSVG("trash"), " Remove Mesh"]),
+          el("button", {
+            className: "btn-secondary btn-danger", title: "Remove", onClick: async () => {
+              if (!(await confirmAsync(`Remove Mesh ${i + 1}?`))) return;
+              saveMeshTargetStates();
+              meshTargets.splice(i, 1);
+              renderMeshTargets();
+              updateTargetsPlot();
+            }
+          }, [createSVG("trash"), " Remove Mesh"]),
         ]),
       ]),
     ]);

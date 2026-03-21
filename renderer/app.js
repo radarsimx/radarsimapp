@@ -158,8 +158,8 @@ function openRcsModal(meshIndex) {
       if (t.permittivity) mt.permittivity = t.permittivity;
 
       const phiStart = parseNumber(document.getElementById("rcs-m-phi-start")?.value);
-      const phiEnd   = parseNumber(document.getElementById("rcs-m-phi-end")?.value, 360);
-      const phiStep  = parseNumber(document.getElementById("rcs-m-phi-step")?.value, 1);
+      const phiEnd = parseNumber(document.getElementById("rcs-m-phi-end")?.value, 360);
+      const phiStep = parseNumber(document.getElementById("rcs-m-phi-step")?.value, 1);
       const phi = [];
       for (let a = phiStart; a <= phiEnd; a += phiStep) phi.push(a);
 
@@ -167,8 +167,8 @@ function openRcsModal(meshIndex) {
         targets: [mt],
         rcs: {
           frequency: parseNumber(document.getElementById("rcs-m-freq")?.value, 24) * 1e9,
-          density:   parseNumber(document.getElementById("rcs-m-density")?.value, 1),
-          inc_phi:   phi,
+          density: parseNumber(document.getElementById("rcs-m-density")?.value, 1),
+          inc_phi: phi,
           inc_theta: [parseNumber(document.getElementById("rcs-m-theta")?.value, 90)],
           inc_pol: [
             parseNumber(document.getElementById("rcs-m-pol-x")?.value),
