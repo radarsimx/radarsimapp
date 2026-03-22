@@ -26,9 +26,9 @@ document.querySelectorAll(".nav-item").forEach((item) => {
 });
 
 // --- Resize all plots in the active panel on window resize ---
-window.addEventListener("resize", () => {
+window.addEventListener("resize", debounce(() => {
   document.querySelectorAll(".panel.active .js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot));
-});
+}, 100));
 
 // --- Custom Number Input Spinners ---
 document.querySelectorAll('input[type="number"]').forEach((input) => {
@@ -50,14 +50,15 @@ const debouncedUpdateTxWaveformPlot = debounce(updateTxWaveformPlot);
 document.getElementById("tx-prp").addEventListener("input", debouncedUpdateTxWaveformPlot);
 
 // --- Radar Input Listeners ---
-const debouncedUpdateRadarOverviewPlot = debounce(updateRadarOverviewPlot);
-const debouncedUpdateTargetsPlot = debounce(updateTargetsPlot);
+const debouncedUpdateRadarPlots = debounce(() => {
+  updateRadarOverviewPlot();
+  updateTargetsPlot();
+});
 [
   "radar-loc-x", "radar-loc-y", "radar-loc-z",
   "radar-rot-yaw", "radar-rot-pitch", "radar-rot-roll",
 ].forEach((id) => {
-  document.getElementById(id)?.addEventListener("input", debouncedUpdateRadarOverviewPlot);
-  document.getElementById(id)?.addEventListener("input", debouncedUpdateTargetsPlot);
+  document.getElementById(id)?.addEventListener("input", debouncedUpdateRadarPlots);
 });
 
 // --- Add Buttons ---

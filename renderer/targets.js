@@ -81,9 +81,10 @@ function renderPointTargets() {
     container.appendChild(card);
   });
   requestAnimationFrame(() => {
+    const debouncedUpdate = debounce(updateTargetsPlot);
     pointTargets.forEach((_, i) => {
       ["loc-x", "loc-y", "loc-z"].forEach((f) => {
-        document.getElementById(`pt-${i}-${f}`)?.addEventListener("input", debounce(updateTargetsPlot));
+        document.getElementById(`pt-${i}-${f}`)?.addEventListener("input", debouncedUpdate);
       });
     });
     const cards = document.querySelectorAll("#point-targets-list .channel-card");
@@ -251,9 +252,10 @@ function renderMeshTargets() {
     container.appendChild(card);
   });
   requestAnimationFrame(() => {
+    const debouncedUpdate = debounce(updateTargetsPlot);
     meshTargets.forEach((_, i) => {
       ["loc-x", "loc-y", "loc-z"].forEach((f) => {
-        document.getElementById(`mesh-${i}-${f}`)?.addEventListener("input", debounce(updateTargetsPlot));
+        document.getElementById(`mesh-${i}-${f}`)?.addEventListener("input", debouncedUpdate);
       });
     });
     const cards = document.querySelectorAll("#mesh-targets-list .channel-card");

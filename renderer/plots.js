@@ -96,7 +96,7 @@ function updateChannelPatternPlot(pfx, index) {
     showlegend: true,
     legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
   };
-  Plotly.newPlot(plotDiv, traces, layout, patternPlotConfig);
+  Plotly.react(plotDiv, traces, layout, patternPlotConfig);
 }
 
 function attachPatternListeners(pfx, index) {
@@ -228,7 +228,7 @@ function updateTxWaveformPlot() {
     showlegend: false,
   };
 
-  Plotly.newPlot(container, traces, layout, smallPlotConfig);
+  Plotly.react(container, traces, layout, smallPlotConfig);
 }
 
 // --- TX Channel Locations Plot ---
@@ -256,7 +256,7 @@ function updateTxLocationsPlot() {
   };
 
   const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), "#fd7e14");
-  Plotly.newPlot(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
+  Plotly.react(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
 }
 
 // --- RX Channel Locations Plot ---
@@ -284,7 +284,7 @@ function updateRxLocationsPlot() {
   };
 
   const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), "#fd7e14");
-  Plotly.newPlot(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
+  Plotly.react(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
 }
 
 // --- Radar Array Overview Plot ---
@@ -366,7 +366,7 @@ function updateRadarOverviewPlot() {
     showlegend: true,
   };
 
-  Plotly.newPlot(container, [...arrow, ...traces], layout, smallPlotConfig);
+  Plotly.react(container, [...arrow, ...traces], layout, smallPlotConfig);
 }
 
 // --- Targets Scene Plot ---
@@ -444,7 +444,7 @@ function updateTargetsPlot() {
     showlegend: true,
   };
 
-  Plotly.newPlot(container, [...arrow, ...traces], layout, smallPlotConfig);
+  Plotly.react(container, [...arrow, ...traces], layout, smallPlotConfig);
 }
 
 // --- Plot Simulation Results ---
