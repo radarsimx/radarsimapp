@@ -123,8 +123,15 @@ function rotatePoint(x, y, z, yawDeg, pitchDeg, rollDeg) {
   return [rx, ry, rz];
 }
 
-function boresightTraces(allCoords, color, origin = [0, 0, 0], dir = [1, 0, 0]) {
-  const arrowLen = Math.max(...allCoords.map(Math.abs), 0.05) * 1.5;
+function sceneArrowLen(xs, ys, zs, minLen = 0.1) {
+  if (xs.length === 0) return minLen;
+  const spanX = Math.max(...xs) - Math.min(...xs);
+  const spanY = Math.max(...ys) - Math.min(...ys);
+  const spanZ = Math.max(...zs) - Math.min(...zs);
+  return Math.max(Math.max(spanX, spanY, spanZ) * 0.2, minLen);
+}
+
+function boresightTraces(arrowLen, color, origin = [0, 0, 0], dir = [1, 0, 0]) {
   const [ox, oy, oz] = origin;
   const [dx, dy, dz] = dir;
   const shaft = [ox, ox + dx * arrowLen * 0.85];
@@ -248,8 +255,8 @@ function updateTxLocationsPlot() {
     textfont: { size: 10, color: "#8bc34a" },
   };
 
-  const arrow = boresightTraces(xs.concat(ys).concat(zs), "#fd7e14");
-  Plotly.newPlot(container, [...arrow, trace], { ...smallPlotLayout }, smallPlotConfig);
+  const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), "#fd7e14");
+  Plotly.newPlot(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
 }
 
 // --- RX Channel Locations Plot ---
@@ -276,8 +283,8 @@ function updateRxLocationsPlot() {
     textfont: { size: 10, color: "#A29BFE" },
   };
 
-  const arrow = boresightTraces(xs.concat(ys).concat(zs), "#fd7e14");
-  Plotly.newPlot(container, [...arrow, trace], { ...smallPlotLayout }, smallPlotConfig);
+  const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), "#fd7e14");
+  Plotly.newPlot(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
 }
 
 // --- Radar Array Overview Plot ---
@@ -347,11 +354,14 @@ function updateRadarOverviewPlot() {
   }
 
   const boresightDir = rotatePoint(1, 0, 0, yaw, pitch, roll);
-  const allCoords = [radarX, radarY, radarZ, ...txXs, ...txYs, ...txZs, ...rxXs, ...rxYs, ...rxZs];
-  const arrow = boresightTraces(allCoords, "#fd7e14", [radarX, radarY, radarZ], boresightDir);
+  const arrow = boresightTraces(
+    sceneArrowLen([radarX, ...txXs, ...rxXs], [radarY, ...txYs, ...rxYs], [radarZ, ...txZs, ...rxZs]),
+    "#fd7e14", [radarX, radarY, radarZ], boresightDir
+  );
 
   const layout = {
     ...smallPlotLayout,
+    scene: { ...smallPlotLayout.scene },
     legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
     showlegend: true,
   };
@@ -422,10 +432,14 @@ function updateTargetsPlot() {
   }
 
   const boresightDir = rotatePoint(1, 0, 0, yaw, pitch, roll);
-  const arrow = boresightTraces([radarX, radarY, radarZ], "#fd7e14", [radarX, radarY, radarZ], boresightDir);
+  const arrow = boresightTraces(
+    sceneArrowLen([radarX, ...ptXs, ...mxs], [radarY, ...ptYs, ...mys], [radarZ, ...ptZs, ...mzs]),
+    "#fd7e14", [radarX, radarY, radarZ], boresightDir
+  );
 
   const layout = {
     ...smallPlotLayout,
+    scene: { ...smallPlotLayout.scene },
     legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
     showlegend: true,
   };
