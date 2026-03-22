@@ -62,18 +62,35 @@ function wrapNumberInput(input) {
   wrapper.appendChild(input);
   wrapper.appendChild(spinner);
 
+  function startSpin(stepFn) {
+    stepFn();
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    let delay = 400;
+    let interval = null;
+    const repeat = () => {
+      stepFn();
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    const timeout = setTimeout(() => {
+      interval = setInterval(repeat, 60);
+    }, delay);
+    const stop = () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    document.addEventListener("mouseup", stop, { once: true });
+    document.addEventListener("mouseleave", stop, { once: true });
+  }
+
   upBtn.addEventListener("mousedown", (e) => {
     e.preventDefault();
-    input.stepUp();
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
+    startSpin(() => input.stepUp());
   });
 
   downBtn.addEventListener("mousedown", (e) => {
     e.preventDefault();
-    input.stepDown();
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
+    startSpin(() => input.stepDown());
   });
 
   return wrapper;
