@@ -7,4 +7,5 @@ contextBridge.exposeInMainWorld("api", {
   checkPython: () => ipcRenderer.invoke("check-python"),
   selectFile: (options) => ipcRenderer.invoke("select-file", options),
   exportResults: (data) => ipcRenderer.invoke("export-results", data),
+  openExternal: (url) => ipcRenderer.invoke("open-external", url),
 });

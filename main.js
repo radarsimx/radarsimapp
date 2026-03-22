@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
 const { PythonBridge } = require("./python/bridge");
 
@@ -69,6 +69,14 @@ ipcMain.handle("check-python", async () => {
   } catch (err) {
     return { success: false, error: err.message || String(err) };
   }
+});
+
+ipcMain.handle("open-external", (_event, url) => {
+  const allowedHosts = ["radarsimx.com"];
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    if (allowedHosts.includes(host)) shell.openExternal(url);
+  } catch {}
 });
 
 ipcMain.handle("select-file", async (_event, options) => {

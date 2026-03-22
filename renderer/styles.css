@@ -95,6 +95,15 @@ body {
   letter-spacing: 0.3px;
 }
 
+.logo-link {
+  cursor: pointer;
+  display: contents;
+}
+
+.logo-link img:hover {
+  opacity: 0.85;
+}
+
 .nav-list {
   list-style: none;
   padding: 8px;
