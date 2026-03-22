@@ -40,7 +40,7 @@ const smallPlotLayout = {
   showlegend: false,
 };
 
-const smallPlotConfig = { responsive: true, displayModeBar: false };
+const smallPlotConfig = { responsive: true, displayModeBar: "hover", displaylogo: false };
 
 // --- Antenna Pattern Plots ---
 const patternPlotLayout = {
