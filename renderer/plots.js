@@ -123,6 +123,10 @@ function rotatePoint(x, y, z, yawDeg, pitchDeg, rollDeg) {
   return [rx, ry, rz];
 }
 
+function preserveCamera(container) {
+  return container._fullLayout?.scene?.camera ?? {};
+}
+
 function sceneArrowLen(xs, ys, zs, minLen = 0.1) {
   if (xs.length === 0) return minLen;
   const spanX = Math.max(...xs) - Math.min(...xs);
@@ -256,7 +260,7 @@ function updateTxLocationsPlot() {
   };
 
   const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), "#fd7e14");
-  Plotly.react(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
+  Plotly.react(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene, camera: preserveCamera(container) } }, smallPlotConfig);
 }
 
 // --- RX Channel Locations Plot ---
@@ -284,7 +288,7 @@ function updateRxLocationsPlot() {
   };
 
   const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), "#fd7e14");
-  Plotly.react(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
+  Plotly.react(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene, camera: preserveCamera(container) } }, smallPlotConfig);
 }
 
 // --- Radar Array Overview Plot ---
@@ -361,7 +365,7 @@ function updateRadarOverviewPlot() {
 
   const layout = {
     ...smallPlotLayout,
-    scene: { ...smallPlotLayout.scene },
+    scene: { ...smallPlotLayout.scene, camera: preserveCamera(container) },
     legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
     showlegend: true,
   };
@@ -439,7 +443,7 @@ function updateTargetsPlot() {
 
   const layout = {
     ...smallPlotLayout,
-    scene: { ...smallPlotLayout.scene },
+    scene: { ...smallPlotLayout.scene, camera: preserveCamera(container) },
     legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
     showlegend: true,
   };
