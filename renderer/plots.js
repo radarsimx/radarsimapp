@@ -35,6 +35,7 @@ const smallPlotLayout = {
     yaxis: { title: "Y (m)", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
     zaxis: { title: "Z (m)", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
     bgcolor: "#12121a",
+    aspectmode: "data",
   },
   showlegend: false,
 };
@@ -421,8 +422,7 @@ function updateTargetsPlot() {
   }
 
   const boresightDir = rotatePoint(1, 0, 0, yaw, pitch, roll);
-  const allCoords = [radarX, radarY, radarZ, ...ptXs, ...ptYs, ...ptZs, ...mxs, ...mys, ...mzs];
-  const arrow = boresightTraces(allCoords, "#fd7e14", [radarX, radarY, radarZ], boresightDir);
+  const arrow = boresightTraces([radarX, radarY, radarZ], "#fd7e14", [radarX, radarY, radarZ], boresightDir);
 
   const layout = {
     ...smallPlotLayout,

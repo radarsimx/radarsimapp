@@ -17,6 +17,11 @@ document.querySelectorAll(".nav-item").forEach((item) => {
     const activePanel = document.getElementById(panelId);
     activePanel.classList.add("active");
     activePanel.querySelectorAll(".js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot));
+    const panel = item.dataset.panel;
+    if (panel === "targets") updateTargetsPlot();
+    else if (panel === "radar") updateRadarOverviewPlot();
+    else if (panel === "transmitter") { updateTxLocationsPlot(); updateTxWaveformPlot(); }
+    else if (panel === "receiver") updateRxLocationsPlot();
   });
 });
 
