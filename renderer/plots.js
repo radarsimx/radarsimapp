@@ -127,6 +127,20 @@ function preserveCamera(container) {
   return container._fullLayout?.scene?.camera ?? {};
 }
 
+const _sceneCounts = new WeakMap();
+function scenePlot(container, traces, layout, config) {
+  const cam = preserveCamera(container);
+  if (layout.scene) layout.scene.camera = cam;
+  const count = traces.reduce((n, t) => n + (t.x ? t.x.length : 0), 0);
+  const prev = _sceneCounts.get(container);
+  if (prev === count && container.data) {
+    Plotly.react(container, traces, layout, config);
+  } else {
+    _sceneCounts.set(container, count);
+    Plotly.newPlot(container, traces, layout, config);
+  }
+}
+
 function sceneArrowLen(xs, ys, zs, minLen = 0.1) {
   if (xs.length === 0) return minLen;
   const spanX = Math.max(...xs) - Math.min(...xs);
@@ -260,7 +274,7 @@ function updateTxLocationsPlot() {
   };
 
   const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), "#fd7e14");
-  Plotly.react(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene, camera: preserveCamera(container) } }, smallPlotConfig);
+  scenePlot(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
 }
 
 // --- RX Channel Locations Plot ---
@@ -288,7 +302,7 @@ function updateRxLocationsPlot() {
   };
 
   const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), "#fd7e14");
-  Plotly.react(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene, camera: preserveCamera(container) } }, smallPlotConfig);
+  scenePlot(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
 }
 
 // --- Radar Array Overview Plot ---
@@ -365,12 +379,12 @@ function updateRadarOverviewPlot() {
 
   const layout = {
     ...smallPlotLayout,
-    scene: { ...smallPlotLayout.scene, camera: preserveCamera(container) },
+    scene: { ...smallPlotLayout.scene },
     legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
     showlegend: true,
   };
 
-  Plotly.react(container, [...arrow, ...traces], layout, smallPlotConfig);
+  scenePlot(container, [...arrow, ...traces], layout, smallPlotConfig);
 }
 
 // --- Targets Scene Plot ---
@@ -443,12 +457,12 @@ function updateTargetsPlot() {
 
   const layout = {
     ...smallPlotLayout,
-    scene: { ...smallPlotLayout.scene, camera: preserveCamera(container) },
+    scene: { ...smallPlotLayout.scene },
     legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
     showlegend: true,
   };
 
-  Plotly.react(container, [...arrow, ...traces], layout, smallPlotConfig);
+  scenePlot(container, [...arrow, ...traces], layout, smallPlotConfig);
 }
 
 // --- Plot Simulation Results ---
