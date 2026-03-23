@@ -342,3 +342,4 @@ renderTxChannels();
 renderRxChannels();
 renderPointTargets();
 updateTxInfo();
+updateRadarOverviewPlot();
