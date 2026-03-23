@@ -1,24 +1,41 @@
 // ===== RadarSimApp - Main Renderer Script =====
+// Entry point for the renderer process. Manages application state, navigation,
+// event listeners, the RCS analysis modal, and the simulation run flow.
 
 // --- State ---
+/** @type {Object[]} Transmitter channel configurations collected from the UI. */
 let txChannels = [];
+/** @type {Object[]} Receiver channel configurations collected from the UI. */
 let rxChannels = [];
+/** @type {Object[]} Point target configurations collected from the UI. */
 let pointTargets = [];
+/** @type {Object[]} Mesh target configurations collected from the UI. */
 let meshTargets = [];
+/** @type {Object|null} Raw simulation output from the last successful run; null until first run. */
 let lastSimResult = null;
 
 // --- Navigation ---
+// Attach click handlers to every sidebar nav item. Each click activates the
+// corresponding panel and triggers the relevant plot update(s).
 document.querySelectorAll(".nav-item").forEach((item) => {
   item.addEventListener("click", (e) => {
-    // Ignore bubbled clicks from a descendant nav-item
+    // Ignore bubbled clicks from a descendant nav-item so that clicking a
+    // child item doesn't also fire on its parent (nav-item--has-sub).
     if (e.target.closest(".nav-item") !== item) return;
+
+    // Deactivate all nav items and panels before activating the selected one.
     document.querySelectorAll(".nav-item").forEach((n) => n.classList.remove("active"));
     document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
     item.classList.add("active");
+
     const panelId = "panel-" + item.dataset.panel;
     const activePanel = document.getElementById(panelId);
     activePanel.classList.add("active");
+
+    // Resize any Plotly charts that are now visible to fill their containers.
     activePanel.querySelectorAll(".js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot));
+
+    // Refresh the plot(s) relevant to the newly active panel.
     const panel = item.dataset.panel;
     if (panel === "targets") updateTargetsPlot();
     else if (panel === "radar") updateRadarOverviewPlot();
@@ -28,11 +45,14 @@ document.querySelectorAll(".nav-item").forEach((item) => {
 });
 
 // --- Resize all plots in the active panel on window resize ---
+// Debounced to avoid excessive reflow during continuous window drag.
 window.addEventListener("resize", debounce(() => {
   document.querySelectorAll(".panel.active .js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot));
 }, 100));
 
 // --- Custom Number Input Spinners ---
+// Replace each bare <input type="number"> with a styled wrapper that includes
+// increment/decrement buttons (provided by wrapNumberInput in utils.js).
 document.querySelectorAll('input[type="number"]:not([readonly])').forEach((input) => {
   const parent = input.parentNode;
   const next = input.nextSibling;
@@ -41,6 +61,13 @@ document.querySelectorAll('input[type="number"]:not([readonly])').forEach((input
 });
 
 // --- TX Bandwidth / Sweep Info ---
+/**
+ * Recomputes the read-only bandwidth and pulse-length fields from the
+ * start/end frequency and time sweep inputs, then refreshes the waveform plot.
+ *
+ * Bandwidth (MHz) = (f_end - f_start) * 1000
+ * Pulse length (µs) = t_end - t_start
+ */
 function updateTxInfo() {
   const fStart = parseFloat(document.getElementById("tx-f-start").value) || 0;
   const fEnd = parseFloat(document.getElementById("tx-f-end").value) || 0;
@@ -50,14 +77,22 @@ function updateTxInfo() {
   document.getElementById("tx-pulse-length").value = (tEnd - tStart).toFixed(1);
   updateTxWaveformPlot();
 }
+
+// Debounced variants used as event listeners to avoid redundant recalculations
+// while the user is actively typing.
 const debouncedUpdateTxInfo = debounce(updateTxInfo);
 const debouncedUpdateTxWaveformPlot = debounce(updateTxWaveformPlot);
+
+// Frequency and time sweep inputs all feed into the bandwidth / pulse-length display.
 ["tx-f-start", "tx-f-end", "tx-t-start", "tx-t-end"].forEach((id) =>
   document.getElementById(id).addEventListener("input", debouncedUpdateTxInfo)
 );
+// PRP only affects the waveform timeline, not the bandwidth summary.
 document.getElementById("tx-prp").addEventListener("input", debouncedUpdateTxWaveformPlot);
 
 // --- Radar Input Listeners ---
+// When the radar platform position or orientation changes, both the radar
+// overview plot and the targets scene need to be refreshed together.
 const debouncedUpdateRadarPlots = debounce(() => {
   updateRadarOverviewPlot();
   updateTargetsPlot();
@@ -70,8 +105,11 @@ const debouncedUpdateRadarPlots = debounce(() => {
 });
 
 // --- Add Buttons ---
+// Each "Add" button first snapshots the current UI state into the corresponding
+// array, appends a blank entry, then re-renders the list.
+
 document.getElementById("btn-add-tx-ch").addEventListener("click", () => {
-  saveTxChannelStates();
+  saveTxChannelStates(); // persist existing card values before re-render
   txChannels.push({});
   renderTxChannels();
 });
@@ -84,6 +122,7 @@ document.getElementById("btn-add-rx-ch").addEventListener("click", () => {
 
 document.getElementById("btn-add-point-target").addEventListener("click", () => {
   savePointTargetStates();
+  // Default point target: 50 m ahead on the X axis, 20 dBsm, stationary.
   pointTargets.push({ location: [50, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 });
   renderPointTargets();
   updateTargetsPlot();
@@ -97,6 +136,19 @@ document.getElementById("btn-add-mesh-target").addEventListener("click", () => {
 });
 
 // --- Run Simulation ---
+/**
+ * Handles the "Run Simulation" button click.
+ *
+ * Flow:
+ *  1. Disables the button and shows a progress indicator.
+ *  2. Collects the full radar/target configuration from the UI via collectConfig().
+ *  3. Validates that at least one target is defined.
+ *  4. Sends the config to the main process via the preload API bridge.
+ *  5. On success: stores the result, updates the status bar, enables export,
+ *     and renders result plots.
+ *  6. On failure: displays the error message in the status bar.
+ *  7. Always re-enables the button and hides the progress bar.
+ */
 document.getElementById("btn-run-sim").addEventListener("click", async () => {
   const btn = document.getElementById("btn-run-sim");
   const status = document.getElementById("sim-status");
@@ -122,6 +174,7 @@ document.getElementById("btn-run-sim").addEventListener("click", async () => {
 
     lastSimResult = result.data;
     status.className = "status-msg success";
+    // baseband_shape reports [rx_channels × tx_channels × pulses × samples].
     status.textContent = `Simulation complete. Baseband shape: [${result.data.baseband_shape.join(" × ")}]`;
     document.getElementById("btn-export").disabled = false;
 
@@ -136,14 +189,24 @@ document.getElementById("btn-run-sim").addEventListener("click", async () => {
 });
 
 // --- RCS Analysis Modal ---
+/**
+ * Opens the RCS (Radar Cross-Section) analysis modal for a mesh target.
+ *
+ * The modal allows the user to configure incidence angles and polarization,
+ * run a sweep via the main-process RCS backend, and view the result as a
+ * RCS vs. Phi plot.
+ *
+ * @param {number} meshIndex - Index into the meshTargets array for the target
+ *   to analyse. The target must have a model path set.
+ */
 function openRcsModal(meshIndex) {
-  // Close any existing modal
+  // Close any existing modal to avoid stacking overlays.
   document.querySelector(".rcs-modal-overlay")?.remove();
 
   saveMeshTargetStates();
   const t = meshTargets[meshIndex];
   if (!t?.model) {
-    // Show a brief inline warning — no model set yet
+    // No model file set — show a transient inline warning on the target card.
     const cards = document.querySelectorAll("#mesh-targets-list .channel-card");
     if (cards[meshIndex]) {
       const warn = el("div", { className: "status-msg error", textContent: "Set a 3D model file before running RCS analysis.", style: "margin-top:8px" });
@@ -152,6 +215,7 @@ function openRcsModal(meshIndex) {
     }
     return;
   }
+  // Display only the filename, not the full path, in the modal subtitle.
   const modelName = t.model.split(/[\\/]/).pop();
 
   const statusEl = el("div", { className: "status-msg" });
@@ -168,9 +232,11 @@ function openRcsModal(meshIndex) {
     statusEl.textContent = "Running...";
 
     try {
+      // Build the minimal target descriptor required by the RCS backend.
       const mt = { model: t.model, location: t.location ?? [0, 0, 0], unit: t.unit ?? "m" };
       if (t.permittivity) mt.permittivity = t.permittivity;
 
+      // Build the phi sweep array from start/end/step inputs.
       const phiStart = parseNumber(document.getElementById("rcs-m-phi-start")?.value);
       const phiEnd = parseNumber(document.getElementById("rcs-m-phi-end")?.value, 360);
       const phiStep = parseNumber(document.getElementById("rcs-m-phi-step")?.value, 1);
@@ -303,12 +369,22 @@ function openRcsModal(meshIndex) {
 }
 
 // --- Export ---
+// Sends the last simulation result to the main process for file export.
+// The button is disabled until a successful simulation has been run.
 document.getElementById("btn-export").addEventListener("click", async () => {
   if (!lastSimResult) return;
   await window.api.exportResults(lastSimResult);
 });
 
 // --- Check Environment ---
+/**
+ * Checks whether the Python environment has all required dependencies
+ * (Python itself, NumPy, and RadarSimPy) by invoking the main-process
+ * checkPython IPC handler.
+ *
+ * Displays version info on success, or an error message if any dependency
+ * is missing or the check fails.
+ */
 document.getElementById("btn-check-env").addEventListener("click", async () => {
   const status = document.getElementById("env-status");
   status.className = "env-status";
@@ -319,6 +395,7 @@ document.getElementById("btn-check-env").addEventListener("click", async () => {
       const d = result.data;
       if (d.radarsimpy_available) {
         status.className = "env-status ok";
+        // Show trimmed version strings (e.g. "3.11.2" instead of the full banner).
         status.innerHTML = `Python: ${d.python_version?.split(" ")[0]}<br>NumPy: ${d.numpy_version}<br>RadarSimPy: ${d.radarsimpy_version}`;
       } else {
         status.className = "env-status err";
@@ -335,11 +412,14 @@ document.getElementById("btn-check-env").addEventListener("click", async () => {
 });
 
 // --- Init ---
+// Populate each list with one default entry so the UI is not empty on first
+// load, then render all channel/target cards and seed the derived fields and
+// plots.  The Radar panel is the default active panel (set in index.html).
 txChannels.push({});
 rxChannels.push({});
 pointTargets.push({ location: [50, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 });
 renderTxChannels();
 renderRxChannels();
 renderPointTargets();
-updateTxInfo();
-updateRadarOverviewPlot();
+updateTxInfo();           // seed bandwidth / pulse-length read-only fields
+updateRadarOverviewPlot(); // render the radar overview on the default active panel
