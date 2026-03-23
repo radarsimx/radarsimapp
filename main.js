@@ -27,7 +27,7 @@ function createWindow() {
     minWidth: 800,
     minHeight: 500,
     title: "RadarSimApp",
-    icon: path.join(__dirname, "assets", "icon.png"),
+    icon: path.join(__dirname, "renderer", "assets", "logo.svg"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
