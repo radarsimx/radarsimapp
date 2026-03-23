@@ -325,6 +325,53 @@ body {
   letter-spacing: 0.5px;
 }
 
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--border-focus);
+  color: #fff;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+  cursor: default;
+  margin-left: 5px;
+  vertical-align: middle;
+  position: relative;
+}
+
+.info-icon::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e1e2e;
+  color: var(--text-primary);
+  border: 1px solid var(--border-focus);
+  border-radius: var(--radius);
+  padding: 6px 9px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  white-space: pre;
+  width: max-content;
+  max-width: 220px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.info-icon:hover::after {
+  opacity: 1;
+}
+
 .form-group label input[type="checkbox"] {
   margin-right: 6px;
   accent-color: var(--accent);
@@ -362,6 +409,11 @@ textarea:focus,
 select:focus {
   border-color: var(--border-focus);
   box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+input[type="text"].is-invalid {
+  border-color: var(--error);
+  box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.2);
 }
 
 /* Number input: hide native spin buttons */

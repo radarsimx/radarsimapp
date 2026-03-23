@@ -18,6 +18,21 @@ function formatComplex(val) {
   return String(val);
 }
 
+// Validates a string as a Python-compatible complex number (e.g. 1, 1j, 1+2j, -j)
+function isValidComplex(str) {
+  const s = (str ?? "").trim();
+  if (s === "") return false;
+  // Real only: 1, -1.5, 1e3
+  const realPat = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
+  // Complex (real + imaginary): 1+2j, 1-j, -1.5+2.5e3j
+  const complexPat = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?[+-](\d+(\.\d*)?|\.\d+)?([eE][+-]?\d+)?[jJ]$/;
+  // Imaginary only with coefficient: 2j, -2.5j, 2.5e3j
+  const imagNumPat = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?[jJ]$/;
+  // Pure j: j, +j, -j
+  const purePat = /^[+-]?[jJ]$/;
+  return realPat.test(s) || complexPat.test(s) || imagNumPat.test(s) || purePat.test(s);
+}
+
 function parseCSV(str) {
   return str
     .split(",")
