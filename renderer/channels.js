@@ -24,38 +24,6 @@ function createChannelCard(prefix, index, data, isTx) {
         createInput(`${pfx}-ch-${index}-pol-z`, data.polarization?.[2] ?? 1, 0.1),
       ]),
     ]),
-
-    // Antenna Pattern (azimuth)
-    el("div", { className: "form-group" }, [
-      el("label", { textContent: "AZIMUTH ANGLES (°, COMMA-SEPARATED)" }),
-      createTextInput(
-        `${pfx}-ch-${index}-az-angles`,
-        data.azimuth_angle?.join(", ") ?? "-90, 90"
-      ),
-    ]),
-    el("div", { className: "form-group" }, [
-      el("label", { textContent: "AZIMUTH PATTERN (DB, COMMA-SEPARATED)" }),
-      createTextInput(
-        `${pfx}-ch-${index}-az-pattern`,
-        data.azimuth_pattern?.join(", ") ?? "0, 0"
-      ),
-    ]),
-
-    // Antenna Pattern (elevation)
-    el("div", { className: "form-group" }, [
-      el("label", { textContent: "ELEVATION ANGLES (°, COMMA-SEPARATED)" }),
-      createTextInput(
-        `${pfx}-ch-${index}-el-angles`,
-        data.elevation_angle?.join(", ") ?? "-90, 90"
-      ),
-    ]),
-    el("div", { className: "form-group" }, [
-      el("label", { textContent: "ELEVATION PATTERN (DB, COMMA-SEPARATED)" }),
-      createTextInput(
-        `${pfx}-ch-${index}-el-pattern`,
-        data.elevation_pattern?.join(", ") ?? "0, 0"
-      ),
-    ]),
   ]);
 
   if (isTx) {
@@ -72,6 +40,40 @@ function createChannelCard(prefix, index, data, isTx) {
       ])
     );
   }
+
+  // Antenna Pattern (azimuth)
+  fields.append(
+    el("div", { className: "form-group" }, [
+      el("label", { textContent: "AZIMUTH ANGLES (°)" }),
+      createTextInput(
+        `${pfx}-ch-${index}-az-angles`,
+        data.azimuth_angle?.join(", ") ?? "-90, 90"
+      ),
+    ]),
+    el("div", { className: "form-group" }, [
+      el("label", { textContent: "AZIMUTH PATTERN (DB)" }),
+      createTextInput(
+        `${pfx}-ch-${index}-az-pattern`,
+        data.azimuth_pattern?.join(", ") ?? "0, 0"
+      ),
+    ]),
+
+    // Antenna Pattern (elevation)
+    el("div", { className: "form-group" }, [
+      el("label", { textContent: "ELEVATION ANGLES (°)" }),
+      createTextInput(
+        `${pfx}-ch-${index}-el-angles`,
+        data.elevation_angle?.join(", ") ?? "-90, 90"
+      ),
+    ]),
+    el("div", { className: "form-group" }, [
+      el("label", { textContent: "ELEVATION PATTERN (DB)" }),
+      createTextInput(
+        `${pfx}-ch-${index}-el-pattern`,
+        data.elevation_pattern?.join(", ") ?? "0, 0"
+      ),
+    ]),
+  );
 
   // Build the combined pattern plot
   const patternPlotDiv = el("div", { className: "pattern-plot", id: `${pfx}-ch-${index}-pattern-plot` });

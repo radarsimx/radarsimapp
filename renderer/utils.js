@@ -102,7 +102,22 @@ function createInput(id, value, step) {
 }
 
 function createTextInput(id, value) {
-  return el("input", { type: "text", id, value });
+  const ta = el("textarea", { id, rows: 1 });
+  ta.value = value;
+  ta.style.resize = "none";
+  ta.style.overflow = "hidden";
+  ta.style.lineHeight = "1.3";
+  ta.style.height = "33px";
+  const autoResize = () => {
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+  };
+  ta.addEventListener("input", autoResize);
+  ta.addEventListener("focus", autoResize, { once: true });
+  new ResizeObserver((entries, obs) => {
+    if (entries[0].contentRect.width > 0) { autoResize(); obs.disconnect(); }
+  }).observe(ta);
+  return ta;
 }
 
 function createSVG(name) {
