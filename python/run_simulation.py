@@ -23,8 +23,7 @@ def build_transmitter(tx_cfg):
         if "location" in ch:
             channel["location"] = tuple(ch["location"])
         if "polarization" in ch:
-            channel["polarization"] = ch["polarization"]
-        if "delay" in ch:
+            channel["polarization"] = [complex(v) for v in ch["polarization"]]
             channel["delay"] = ch["delay"]
         if "azimuth_angle" in ch:
             channel["azimuth_angle"] = np.array(ch["azimuth_angle"])
@@ -68,7 +67,7 @@ def build_receiver(rx_cfg):
         if "location" in ch:
             channel["location"] = tuple(ch["location"])
         if "polarization" in ch:
-            channel["polarization"] = ch["polarization"]
+            channel["polarization"] = [complex(v) for v in ch["polarization"]]
         if "azimuth_angle" in ch:
             channel["azimuth_angle"] = np.array(ch["azimuth_angle"])
         if "azimuth_pattern" in ch:

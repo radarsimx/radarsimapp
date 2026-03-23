@@ -13,6 +13,11 @@ function parseNumber(val, fallback = 0) {
   return isNaN(n) ? fallback : n;
 }
 
+function formatComplex(val) {
+  if (typeof val === "string") return val;
+  return String(val);
+}
+
 function parseCSV(str) {
   return str
     .split(",")

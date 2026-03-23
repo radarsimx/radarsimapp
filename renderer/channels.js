@@ -7,11 +7,11 @@ function createChannelCard(prefix, index, data, isTx) {
   const fields = el("div", { className: "channel-card-fields" }, [
     // Location
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "Location (x, y, z) [mm]" }),
+      el("label", { textContent: "Location (x, y, z) (mm)" }),
       el("div", { className: "form-row triple" }, [
-        createInput(`${pfx}-ch-${index}-loc-x`, (data.location?.[0] ?? 0) * 1000, 1),
-        createInput(`${pfx}-ch-${index}-loc-y`, (data.location?.[1] ?? 0) * 1000, 1),
-        createInput(`${pfx}-ch-${index}-loc-z`, (data.location?.[2] ?? 0) * 1000, 1),
+        createInput(`${pfx}-ch-${index}-loc-x`, (data.location?.[0] ?? 0) * 1000, 0.1),
+        createInput(`${pfx}-ch-${index}-loc-y`, (data.location?.[1] ?? 0) * 1000, 0.1),
+        createInput(`${pfx}-ch-${index}-loc-z`, (data.location?.[2] ?? 0) * 1000, 0.1),
       ]),
     ]),
 
@@ -19,9 +19,9 @@ function createChannelCard(prefix, index, data, isTx) {
     el("div", { className: "form-group" }, [
       el("label", { textContent: "Polarization (x, y, z)" }),
       el("div", { className: "form-row triple" }, [
-        createInput(`${pfx}-ch-${index}-pol-x`, data.polarization?.[0] ?? 0, 0.1),
-        createInput(`${pfx}-ch-${index}-pol-y`, data.polarization?.[1] ?? 0, 0.1),
-        createInput(`${pfx}-ch-${index}-pol-z`, data.polarization?.[2] ?? 1, 0.1),
+        el("input", { type: "text", id: `${pfx}-ch-${index}-pol-x`, value: formatComplex(data.polarization?.[0] ?? 0) }),
+        el("input", { type: "text", id: `${pfx}-ch-${index}-pol-y`, value: formatComplex(data.polarization?.[1] ?? 0) }),
+        el("input", { type: "text", id: `${pfx}-ch-${index}-pol-z`, value: formatComplex(data.polarization?.[2] ?? 1) }),
       ]),
     ]),
   ]);
@@ -159,9 +159,9 @@ function saveTxChannelStates() {
       parseNumber(g(`tx-ch-${i}-loc-z`)) * 1e-3,
     ];
     ch.polarization = [
-      parseNumber(g(`tx-ch-${i}-pol-x`)),
-      parseNumber(g(`tx-ch-${i}-pol-y`)),
-      parseNumber(g(`tx-ch-${i}-pol-z`), 1),
+      g(`tx-ch-${i}-pol-x`) || "0",
+      g(`tx-ch-${i}-pol-y`) || "0",
+      g(`tx-ch-${i}-pol-z`) || "1",
     ];
     ch.azimuth_angle = parseCSV(g(`tx-ch-${i}-az-angles`) || "");
     ch.azimuth_pattern = parseCSV(g(`tx-ch-${i}-az-pattern`) || "");
@@ -180,9 +180,9 @@ function saveRxChannelStates() {
       parseNumber(g(`rx-ch-${i}-loc-z`)) * 1e-3,
     ];
     ch.polarization = [
-      parseNumber(g(`rx-ch-${i}-pol-x`)),
-      parseNumber(g(`rx-ch-${i}-pol-y`)),
-      parseNumber(g(`rx-ch-${i}-pol-z`), 1),
+      g(`rx-ch-${i}-pol-x`) || "0",
+      g(`rx-ch-${i}-pol-y`) || "0",
+      g(`rx-ch-${i}-pol-z`) || "1",
     ];
     ch.azimuth_angle = parseCSV(g(`rx-ch-${i}-az-angles`) || "");
     ch.azimuth_pattern = parseCSV(g(`rx-ch-${i}-az-pattern`) || "");

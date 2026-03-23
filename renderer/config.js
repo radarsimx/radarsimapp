@@ -27,9 +27,9 @@ function collectConfig() {
       parseNumber(document.getElementById(`tx-ch-${i}-loc-z`)?.value) * 1e-3,
     ];
     ch.polarization = [
-      parseNumber(document.getElementById(`tx-ch-${i}-pol-x`)?.value),
-      parseNumber(document.getElementById(`tx-ch-${i}-pol-y`)?.value),
-      parseNumber(document.getElementById(`tx-ch-${i}-pol-z`)?.value, 1),
+      document.getElementById(`tx-ch-${i}-pol-x`)?.value || "0",
+      document.getElementById(`tx-ch-${i}-pol-y`)?.value || "0",
+      document.getElementById(`tx-ch-${i}-pol-z`)?.value || "1",
     ];
     const azAngles = parseCSV(document.getElementById(`tx-ch-${i}-az-angles`)?.value || "");
     const azPattern = parseCSV(document.getElementById(`tx-ch-${i}-az-pattern`)?.value || "");
@@ -66,9 +66,9 @@ function collectConfig() {
       parseNumber(document.getElementById(`rx-ch-${i}-loc-z`)?.value) * 1e-3,
     ];
     ch.polarization = [
-      parseNumber(document.getElementById(`rx-ch-${i}-pol-x`)?.value),
-      parseNumber(document.getElementById(`rx-ch-${i}-pol-y`)?.value),
-      parseNumber(document.getElementById(`rx-ch-${i}-pol-z`)?.value, 1),
+      document.getElementById(`rx-ch-${i}-pol-x`)?.value || "0",
+      document.getElementById(`rx-ch-${i}-pol-y`)?.value || "0",
+      document.getElementById(`rx-ch-${i}-pol-z`)?.value || "1",
     ];
     const azAngles = parseCSV(document.getElementById(`rx-ch-${i}-az-angles`)?.value || "");
     const azPattern = parseCSV(document.getElementById(`rx-ch-${i}-az-pattern`)?.value || "");

@@ -274,7 +274,8 @@ function updateTxLocationsPlot() {
   };
 
   const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), "#fd7e14");
-  scenePlot(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
+  const mmScene = { ...smallPlotLayout.scene, xaxis: { ...smallPlotLayout.scene.xaxis, title: "X (mm)" }, yaxis: { ...smallPlotLayout.scene.yaxis, title: "Y (mm)" }, zaxis: { ...smallPlotLayout.scene.zaxis, title: "Z (mm)" } };
+  scenePlot(container, [...arrow, trace], { ...smallPlotLayout, scene: mmScene }, smallPlotConfig);
 }
 
 // --- RX Channel Locations Plot ---
@@ -302,7 +303,8 @@ function updateRxLocationsPlot() {
   };
 
   const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), "#fd7e14");
-  scenePlot(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
+  const mmScene = { ...smallPlotLayout.scene, xaxis: { ...smallPlotLayout.scene.xaxis, title: "X (mm)" }, yaxis: { ...smallPlotLayout.scene.yaxis, title: "Y (mm)" }, zaxis: { ...smallPlotLayout.scene.zaxis, title: "Z (mm)" } };
+  scenePlot(container, [...arrow, trace], { ...smallPlotLayout, scene: mmScene }, smallPlotConfig);
 }
 
 // --- Radar Array Overview Plot ---
