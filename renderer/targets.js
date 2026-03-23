@@ -254,15 +254,15 @@ function renderMeshTargets() {
           el("label", { textContent: "Rotation Rate (°/s)" }),
           el("div", { className: "form-row triple" }, [
             el("div", { className: "form-group" }, [
-              el("label", { textContent: "yaw" }),
+              el("label", { textContent: "yaw rate" }),
               createInput(`mesh-${i}-rr-yaw`, t.rotation_rate?.[0] ?? 0, 1),
             ]),
             el("div", { className: "form-group" }, [
-              el("label", { textContent: "pitch" }),
+              el("label", { textContent: "pitch rate" }),
               createInput(`mesh-${i}-rr-pitch`, t.rotation_rate?.[1] ?? 0, 1),
             ]),
             el("div", { className: "form-group" }, [
-              el("label", { textContent: "roll" }),
+              el("label", { textContent: "roll rate" }),
               createInput(`mesh-${i}-rr-roll`, t.rotation_rate?.[2] ?? 0, 1),
             ]),
           ]),

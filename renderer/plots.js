@@ -325,7 +325,7 @@ function updateRadarOverviewPlot() {
     x: [radarX], y: [radarY], z: [radarZ],
     text: ["Radar"],
     type: "scatter3d", mode: "markers+text",
-    marker: { size: 10, color: "#e17055", symbol: "square", line: { width: 1, color: "#fab1a0" } },
+    marker: { size: 3, color: "#e17055", symbol: "square", line: { width: 1, color: "#fab1a0" } },
     textposition: "top center",
     textfont: { size: 10, color: "#fab1a0" },
     name: "Radar", showlegend: true,

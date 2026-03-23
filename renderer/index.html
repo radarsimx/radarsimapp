@@ -19,7 +19,8 @@
           <span class="logo-link" onclick="window.api.openExternal('https://radarsimx.com/')" title="RadarSimX">
             <img src="logo.svg" width="128" height="128" alt="RadarSimApp logo" />
           </span>
-          <span class="logo-link" onclick="window.api.openExternal('https://radarsimx.com/')" title="RadarSimX">RadarSimApp</span>
+          <span class="logo-link" onclick="window.api.openExternal('https://radarsimx.com/')"
+            title="RadarSimX">RadarSimApp</span>
         </div>
       </div>
       <ul class="nav-list">
@@ -203,6 +204,7 @@
               <div class="config-grid">
                 <section class="config-section full-width">
                   <h3>Sampling & Noise</h3>
+                  <h4 class="subsection-label">Sampling</h4>
                   <div class="form-row">
                     <div class="form-group">
                       <label for="rx-fs">Sampling Rate (MHz)</label>
@@ -216,6 +218,7 @@
                       </select>
                     </div>
                   </div>
+                  <h4 class="subsection-label">Noise & Gain</h4>
                   <div class="form-row">
                     <div class="form-group">
                       <label for="rx-nf">Noise Figure (dB)</label>
@@ -285,8 +288,8 @@
           <div class="panel-split">
             <div class="panel-split-left">
               <div class="config-grid">
-                <section class="config-section">
-                  <h3>Motion</h3>
+                <section class="config-section full-width">
+                  <h3>Radar Motion</h3>
                   <h4 class="subsection-label">Position (m)</h4>
                   <div class="form-row triple">
                     <div class="form-group">
@@ -317,9 +320,6 @@
                       <input type="number" id="radar-spd-z" value="0" step="0.1" />
                     </div>
                   </div>
-                </section>
-                <section class="config-section">
-                  <h3>Orientation</h3>
                   <h4 class="subsection-label">Rotation (°)</h4>
                   <div class="form-row triple">
                     <div class="form-group">
@@ -338,15 +338,15 @@
                   <h4 class="subsection-label">Rotation Rate (°/s)</h4>
                   <div class="form-row triple">
                     <div class="form-group">
-                      <label for="radar-rr-yaw">yaw</label>
+                      <label for="radar-rr-yaw">yaw rate</label>
                       <input type="number" id="radar-rr-yaw" value="0" step="1" />
                     </div>
                     <div class="form-group">
-                      <label for="radar-rr-pitch">pitch</label>
+                      <label for="radar-rr-pitch">pitch rate</label>
                       <input type="number" id="radar-rr-pitch" value="0" step="1" />
                     </div>
                     <div class="form-group">
-                      <label for="radar-rr-roll">roll</label>
+                      <label for="radar-rr-roll">roll rate</label>
                       <input type="number" id="radar-rr-roll" value="0" step="1" />
                     </div>
                   </div>
