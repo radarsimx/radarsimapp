@@ -33,7 +33,7 @@ window.addEventListener("resize", debounce(() => {
 }, 100));
 
 // --- Custom Number Input Spinners ---
-document.querySelectorAll('input[type="number"]').forEach((input) => {
+document.querySelectorAll('input[type="number"]:not([readonly])').forEach((input) => {
   const parent = input.parentNode;
   const next = input.nextSibling;
   const wrapper = wrapNumberInput(input);
@@ -42,6 +42,12 @@ document.querySelectorAll('input[type="number"]').forEach((input) => {
 
 // --- TX Bandwidth / Sweep Info ---
 function updateTxInfo() {
+  const fStart = parseFloat(document.getElementById("tx-f-start").value) || 0;
+  const fEnd = parseFloat(document.getElementById("tx-f-end").value) || 0;
+  const tStart = parseFloat(document.getElementById("tx-t-start").value) || 0;
+  const tEnd = parseFloat(document.getElementById("tx-t-end").value) || 0;
+  document.getElementById("tx-bandwidth").value = ((fEnd - fStart) * 1000).toFixed(1);
+  document.getElementById("tx-pulse-length").value = (tEnd - tStart).toFixed(1);
   updateTxWaveformPlot();
 }
 const debouncedUpdateTxInfo = debounce(updateTxInfo);

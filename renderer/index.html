@@ -120,10 +120,6 @@
                       <input type="number" id="tx-t-end" value="80" step="1" />
                     </div>
                   </div>
-                  <div class="form-group">
-                    <label for="tx-power">TX Power (dBm)</label>
-                    <input type="number" id="tx-power" value="0" step="1" />
-                  </div>
                   <div class="form-row">
                     <div class="form-group">
                       <label for="tx-pulses">Number of Pulses</label>
@@ -132,6 +128,21 @@
                     <div class="form-group">
                       <label for="tx-prp">Pulse Repetition Period (µs)</label>
                       <input type="number" id="tx-prp" value="100" step="1" />
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="tx-power">TX Power (dBm)</label>
+                    <input type="number" id="tx-power" value="0" step="1" />
+                  </div>
+                  <hr />
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label for="tx-bandwidth">Bandwidth (MHz)</label>
+                      <input type="number" id="tx-bandwidth" value="500" readonly tabindex="-1" />
+                    </div>
+                    <div class="form-group">
+                      <label for="tx-pulse-length">Pulse Length (µs)</label>
+                      <input type="number" id="tx-pulse-length" value="80" readonly tabindex="-1" />
                     </div>
                   </div>
                 </section>
