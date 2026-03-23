@@ -7,24 +7,42 @@ function createChannelCard(prefix, index, data, isTx) {
   const fields = el("div", { className: "channel-card-fields" }, [
     // Location
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "Location (x, y, z) (mm)" }),
+      el("label", { textContent: "Location (mm)" }),
       el("div", { className: "form-row triple" }, [
-        createInput(`${pfx}-ch-${index}-loc-x`, (data.location?.[0] ?? 0) * 1000, 0.1),
-        createInput(`${pfx}-ch-${index}-loc-y`, (data.location?.[1] ?? 0) * 1000, 0.1),
-        createInput(`${pfx}-ch-${index}-loc-z`, (data.location?.[2] ?? 0) * 1000, 0.1),
+        el("div", { className: "form-group" }, [
+          el("label", { textContent: "x" }),
+          createInput(`${pfx}-ch-${index}-loc-x`, (data.location?.[0] ?? 0) * 1000, 0.1),
+        ]),
+        el("div", { className: "form-group" }, [
+          el("label", { textContent: "y" }),
+          createInput(`${pfx}-ch-${index}-loc-y`, (data.location?.[1] ?? 0) * 1000, 0.1),
+        ]),
+        el("div", { className: "form-group" }, [
+          el("label", { textContent: "z" }),
+          createInput(`${pfx}-ch-${index}-loc-z`, (data.location?.[2] ?? 0) * 1000, 0.1),
+        ]),
       ]),
     ]),
 
     // Polarization
     el("div", { className: "form-group" }, [
       el("label", {}, [
-        el("span", { textContent: "Polarization (x, y, z)" }),
+        el("span", { textContent: "Polarization" }),
         el("i", { className: "info-icon", "data-tooltip": "Real: 1  or  -0.5\nImaginary: 1j  or  -j\nComplex: 1+2j  or  0.5-1.5j" }, ["?"]),
       ]),
       el("div", { className: "form-row triple" }, [
-        el("input", { type: "text", id: `${pfx}-ch-${index}-pol-x`, value: formatComplex(data.polarization?.[0] ?? 0), onInput: (e) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
-        el("input", { type: "text", id: `${pfx}-ch-${index}-pol-y`, value: formatComplex(data.polarization?.[1] ?? 0), onInput: (e) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
-        el("input", { type: "text", id: `${pfx}-ch-${index}-pol-z`, value: formatComplex(data.polarization?.[2] ?? 1), onInput: (e) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
+        el("div", { className: "form-group" }, [
+          el("label", { textContent: "x" }),
+          el("input", { type: "text", id: `${pfx}-ch-${index}-pol-x`, value: formatComplex(data.polarization?.[0] ?? 0), onInput: (e) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
+        ]),
+        el("div", { className: "form-group" }, [
+          el("label", { textContent: "y" }),
+          el("input", { type: "text", id: `${pfx}-ch-${index}-pol-y`, value: formatComplex(data.polarization?.[1] ?? 0), onInput: (e) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
+        ]),
+        el("div", { className: "form-group" }, [
+          el("label", { textContent: "z" }),
+          el("input", { type: "text", id: `${pfx}-ch-${index}-pol-z`, value: formatComplex(data.polarization?.[2] ?? 1), onInput: (e) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
+        ]),
       ]),
     ]),
   ]);

@@ -294,7 +294,6 @@ body {
 .subsection-label {
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-secondary);
   margin: 14px 0 8px;
