@@ -412,14 +412,6 @@ document.getElementById("btn-check-env").addEventListener("click", async () => {
 });
 
 // --- Init ---
-// Populate each list with one default entry so the UI is not empty on first
-// load, then render all channel/target cards and seed the derived fields and
-// plots.  The Radar panel is the default active panel (set in index.html).
-txChannels.push({});
-rxChannels.push({});
-pointTargets.push({ location: [50, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 });
-renderTxChannels();
-renderRxChannels();
-renderPointTargets();
-updateTxInfo();           // seed bandwidth / pulse-length read-only fields
-updateRadarOverviewPlot(); // render the radar overview on the default active panel
+// Initialization is handled by state.js (loaded after this script), which
+// restores a previously saved session from localStorage or falls back to
+// defaults when no saved state exists.

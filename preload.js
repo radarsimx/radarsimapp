@@ -8,4 +8,6 @@ contextBridge.exposeInMainWorld("api", {
   selectFile: (options) => ipcRenderer.invoke("select-file", options),
   exportResults: (data) => ipcRenderer.invoke("export-results", data),
   openExternal: (url) => ipcRenderer.invoke("open-external", url),
+  saveConfig: (jsonData) => ipcRenderer.invoke("save-config", jsonData),
+  loadConfig: () => ipcRenderer.invoke("load-config"),
 });

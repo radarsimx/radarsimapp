@@ -168,3 +168,37 @@ ipcMain.handle("export-results", async (_event, data) => {
   fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2));
   return result.filePath;
 });
+
+/**
+ * Saves the current UI configuration to a user-chosen JSON file.
+ *
+ * @param {string} jsonData - Serialised configuration state.
+ * @returns {boolean} true if saved successfully, false if cancelled.
+ */
+ipcMain.handle("save-config", async (_event, jsonData) => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: "Save Configuration",
+    defaultPath: "radar-config.json",
+    filters: [{ name: "JSON", extensions: ["json"] }],
+  });
+  if (result.canceled) return false;
+  const fs = require("fs");
+  fs.writeFileSync(result.filePath, jsonData, "utf8");
+  return true;
+});
+
+/**
+ * Opens a JSON configuration file and returns its contents as a string.
+ *
+ * @returns {string|null} The raw JSON string, or null if the user cancelled.
+ */
+ipcMain.handle("load-config", async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Load Configuration",
+    properties: ["openFile"],
+    filters: [{ name: "JSON", extensions: ["json"] }],
+  });
+  if (result.canceled) return null;
+  const fs = require("fs");
+  return fs.readFileSync(result.filePaths[0], "utf8");
+});

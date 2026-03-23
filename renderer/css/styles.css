@@ -197,6 +197,34 @@ body {
   border-top: 1px solid var(--border);
 }
 
+.config-controls {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.config-controls .btn-secondary.btn-sm {
+  width: 50%;
+}
+
+.config-status {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-height: 14px;
+  margin-bottom: 8px;
+  text-align: center;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.config-status.ok {
+  color: var(--success);
+}
+
+.config-status.err {
+  color: var(--error);
+}
+
 .env-status {
   margin-top: 8px;
   font-size: 11px;
