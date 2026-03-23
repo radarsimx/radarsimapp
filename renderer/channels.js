@@ -7,17 +7,17 @@ function createChannelCard(prefix, index, data, isTx) {
   const fields = el("div", { className: "channel-card-fields" }, [
     // Location
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "LOCATION (X, Y, Z) [M]" }),
+      el("label", { textContent: "Location (x, y, z) [mm]" }),
       el("div", { className: "form-row triple" }, [
-        createInput(`${pfx}-ch-${index}-loc-x`, data.location?.[0] ?? 0, 0.001),
-        createInput(`${pfx}-ch-${index}-loc-y`, data.location?.[1] ?? 0, 0.001),
-        createInput(`${pfx}-ch-${index}-loc-z`, data.location?.[2] ?? 0, 0.001),
+        createInput(`${pfx}-ch-${index}-loc-x`, (data.location?.[0] ?? 0) * 1000, 1),
+        createInput(`${pfx}-ch-${index}-loc-y`, (data.location?.[1] ?? 0) * 1000, 1),
+        createInput(`${pfx}-ch-${index}-loc-z`, (data.location?.[2] ?? 0) * 1000, 1),
       ]),
     ]),
 
     // Polarization
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "POLARIZATION (X, Y, Z)" }),
+      el("label", { textContent: "Polarization (x, y, z)" }),
       el("div", { className: "form-row triple" }, [
         createInput(`${pfx}-ch-${index}-pol-x`, data.polarization?.[0] ?? 0, 0.1),
         createInput(`${pfx}-ch-${index}-pol-y`, data.polarization?.[1] ?? 0, 0.1),
@@ -28,15 +28,9 @@ function createChannelCard(prefix, index, data, isTx) {
 
   if (isTx) {
     fields.appendChild(
-      el("div", { className: "form-row" }, [
-        el("div", { className: "form-group" }, [
-          el("label", { textContent: "DELAY (NS)" }),
-          createInput(`tx-ch-${index}-delay`, (data.delay ?? 0) * 1e9, 1),
-        ]),
-        el("div", { className: "form-group" }, [
-          el("label", { textContent: "RAY GRID (°)" }),
-          createInput(`tx-ch-${index}-grid`, data.grid ?? 1, 0.1),
-        ]),
+      el("div", { className: "form-group" }, [
+        el("label", { textContent: "Delay (ns)" }),
+        createInput(`tx-ch-${index}-delay`, (data.delay ?? 0) * 1e9, 1),
       ])
     );
   }
@@ -44,14 +38,14 @@ function createChannelCard(prefix, index, data, isTx) {
   // Antenna Pattern (azimuth)
   fields.append(
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "AZIMUTH ANGLES (°)" }),
+      el("label", { textContent: "Azimuth Angles (°)" }),
       createTextInput(
         `${pfx}-ch-${index}-az-angles`,
         data.azimuth_angle?.join(", ") ?? "-90, 90"
       ),
     ]),
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "AZIMUTH PATTERN (DB)" }),
+      el("label", { textContent: "Azimuth Pattern (dB)" }),
       createTextInput(
         `${pfx}-ch-${index}-az-pattern`,
         data.azimuth_pattern?.join(", ") ?? "0, 0"
@@ -60,14 +54,14 @@ function createChannelCard(prefix, index, data, isTx) {
 
     // Antenna Pattern (elevation)
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "ELEVATION ANGLES (°)" }),
+      el("label", { textContent: "Elevation Angles (°)" }),
       createTextInput(
         `${pfx}-ch-${index}-el-angles`,
         data.elevation_angle?.join(", ") ?? "-90, 90"
       ),
     ]),
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "ELEVATION PATTERN (DB)" }),
+      el("label", { textContent: "Elevation Pattern (dB)" }),
       createTextInput(
         `${pfx}-ch-${index}-el-pattern`,
         data.elevation_pattern?.join(", ") ?? "0, 0"
@@ -160,9 +154,9 @@ function saveTxChannelStates() {
   txChannels.forEach((ch, i) => {
     const g = (id) => document.getElementById(id)?.value;
     ch.location = [
-      parseNumber(g(`tx-ch-${i}-loc-x`)),
-      parseNumber(g(`tx-ch-${i}-loc-y`)),
-      parseNumber(g(`tx-ch-${i}-loc-z`)),
+      parseNumber(g(`tx-ch-${i}-loc-x`)) * 1e-3,
+      parseNumber(g(`tx-ch-${i}-loc-y`)) * 1e-3,
+      parseNumber(g(`tx-ch-${i}-loc-z`)) * 1e-3,
     ];
     ch.polarization = [
       parseNumber(g(`tx-ch-${i}-pol-x`)),
@@ -174,7 +168,6 @@ function saveTxChannelStates() {
     ch.elevation_angle = parseCSV(g(`tx-ch-${i}-el-angles`) || "");
     ch.elevation_pattern = parseCSV(g(`tx-ch-${i}-el-pattern`) || "");
     ch.delay = parseNumber(g(`tx-ch-${i}-delay`)) * 1e-9;
-    ch.grid = parseNumber(g(`tx-ch-${i}-grid`), 1);
   });
 }
 
@@ -182,9 +175,9 @@ function saveRxChannelStates() {
   rxChannels.forEach((ch, i) => {
     const g = (id) => document.getElementById(id)?.value;
     ch.location = [
-      parseNumber(g(`rx-ch-${i}-loc-x`)),
-      parseNumber(g(`rx-ch-${i}-loc-y`)),
-      parseNumber(g(`rx-ch-${i}-loc-z`)),
+      parseNumber(g(`rx-ch-${i}-loc-x`)) * 1e-3,
+      parseNumber(g(`rx-ch-${i}-loc-y`)) * 1e-3,
+      parseNumber(g(`rx-ch-${i}-loc-z`)) * 1e-3,
     ];
     ch.polarization = [
       parseNumber(g(`rx-ch-${i}-pol-x`)),

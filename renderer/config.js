@@ -22,9 +22,9 @@ function collectConfig() {
   txConfig.channels = txChannels.map((_, i) => {
     const ch = {};
     ch.location = [
-      parseNumber(document.getElementById(`tx-ch-${i}-loc-x`)?.value),
-      parseNumber(document.getElementById(`tx-ch-${i}-loc-y`)?.value),
-      parseNumber(document.getElementById(`tx-ch-${i}-loc-z`)?.value),
+      parseNumber(document.getElementById(`tx-ch-${i}-loc-x`)?.value) * 1e-3,
+      parseNumber(document.getElementById(`tx-ch-${i}-loc-y`)?.value) * 1e-3,
+      parseNumber(document.getElementById(`tx-ch-${i}-loc-z`)?.value) * 1e-3,
     ];
     ch.polarization = [
       parseNumber(document.getElementById(`tx-ch-${i}-pol-x`)?.value),
@@ -41,7 +41,6 @@ function collectConfig() {
     if (elPattern.length > 0) ch.elevation_pattern = elPattern;
     const delay = parseNumber(document.getElementById(`tx-ch-${i}-delay`)?.value) * 1e-9;
     if (delay !== 0) ch.delay = delay;
-    ch.grid = parseNumber(document.getElementById(`tx-ch-${i}-grid`)?.value, 1);
     return ch;
   });
 
@@ -62,9 +61,9 @@ function collectConfig() {
   rxConfig.channels = rxChannels.map((_, i) => {
     const ch = {};
     ch.location = [
-      parseNumber(document.getElementById(`rx-ch-${i}-loc-x`)?.value),
-      parseNumber(document.getElementById(`rx-ch-${i}-loc-y`)?.value),
-      parseNumber(document.getElementById(`rx-ch-${i}-loc-z`)?.value),
+      parseNumber(document.getElementById(`rx-ch-${i}-loc-x`)?.value) * 1e-3,
+      parseNumber(document.getElementById(`rx-ch-${i}-loc-y`)?.value) * 1e-3,
+      parseNumber(document.getElementById(`rx-ch-${i}-loc-z`)?.value) * 1e-3,
     ];
     ch.polarization = [
       parseNumber(document.getElementById(`rx-ch-${i}-pol-x`)?.value),
