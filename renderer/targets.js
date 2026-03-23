@@ -40,31 +40,50 @@ function renderPointTargets() {
       ]),
       el("div", { className: "channel-card-body" }, [
         el("div", { className: "form-group" }, [
-          el("label", { textContent: "LOCATION (X, Y, Z) [M]" }),
+          el("label", { textContent: "Location (m)" }),
           el("div", { className: "form-row triple" }, [
-            createInput(`pt-${i}-loc-x`, t.location?.[0] ?? 50, 1),
-            createInput(`pt-${i}-loc-y`, t.location?.[1] ?? 0, 1),
-            createInput(`pt-${i}-loc-z`, t.location?.[2] ?? 0, 1),
+            el("div", { className: "form-group" }, [
+              el("label", { textContent: "x" }),
+              createInput(`pt-${i}-loc-x`, t.location?.[0] ?? 50, 1),
+            ]),
+            el("div", { className: "form-group" }, [
+              el("label", { textContent: "y" }),
+              createInput(`pt-${i}-loc-y`, t.location?.[1] ?? 0, 1),
+            ]),
+            el("div", { className: "form-group" }, [
+              el("label", { textContent: "z" }),
+              createInput(`pt-${i}-loc-z`, t.location?.[2] ?? 0, 1),
+            ]),
+          ]),
+        ]),
+        el("div", { className: "form-group" }, [
+          el("label", { textContent: "Velocity (m/s)" }),
+          el("div", { className: "form-row triple" }, [
+            el("div", { className: "form-group" }, [
+              el("label", { innerHTML: "v<sub>x</sub>" }),
+              createInput(`pt-${i}-spd-x`, t.speed?.[0] ?? 0, 1),
+            ]),
+            el("div", { className: "form-group" }, [
+              el("label", { innerHTML: "v<sub>y</sub>" }),
+              createInput(`pt-${i}-spd-y`, t.speed?.[1] ?? 0, 1),
+            ]),
+            el("div", { className: "form-group" }, [
+              el("label", { innerHTML: "v<sub>z</sub>" }),
+              createInput(`pt-${i}-spd-z`, t.speed?.[2] ?? 0, 1),
+            ]),
           ]),
         ]),
         el("div", { className: "form-row" }, [
           el("div", { className: "form-group" }, [
-            el("label", { textContent: "RCS (DBSM)" }),
+            el("label", { textContent: "RCS (dBsm)" }),
             createInput(`pt-${i}-rcs`, t.rcs ?? 20, 1),
           ]),
           el("div", { className: "form-group" }, [
-            el("label", { textContent: "PHASE (°)" }),
+            el("label", { textContent: "Phase (°)" }),
             createInput(`pt-${i}-phase`, t.phase ?? 0, 1),
           ]),
         ]),
-        el("div", { className: "form-group" }, [
-          el("label", { textContent: "SPEED (VX, VY, VZ) [M/S]" }),
-          el("div", { className: "form-row triple" }, [
-            createInput(`pt-${i}-spd-x`, t.speed?.[0] ?? 0, 1),
-            createInput(`pt-${i}-spd-y`, t.speed?.[1] ?? 0, 1),
-            createInput(`pt-${i}-spd-z`, t.speed?.[2] ?? 0, 1),
-          ]),
-        ]),
+
         el("div", { style: "display:flex;justify-content:flex-end;margin-top:4px" }, [
           el("button", {
             className: "btn-secondary btn-danger", title: "Remove", onClick: async () => {
@@ -145,7 +164,7 @@ function renderMeshTargets() {
       el("div", { className: "channel-card-body" }, [
         // Model path
         el("div", { className: "form-group" }, [
-          el("label", { textContent: "3D MODEL FILE" }),
+          el("label", { textContent: "3D Model File" }),
           el("div", { style: "display:flex;gap:8px" }, [
             (() => {
               const inp = el("input", {
@@ -175,48 +194,84 @@ function renderMeshTargets() {
 
         // Location
         el("div", { className: "form-group" }, [
-          el("label", { textContent: "LOCATION (X, Y, Z) [M]" }),
+          el("label", { textContent: "Location (m)" }),
           el("div", { className: "form-row triple" }, [
-            createInput(`mesh-${i}-loc-x`, t.location?.[0] ?? 0, 1),
-            createInput(`mesh-${i}-loc-y`, t.location?.[1] ?? 0, 1),
-            createInput(`mesh-${i}-loc-z`, t.location?.[2] ?? 0, 1),
+            el("div", { className: "form-group" }, [
+              el("label", { textContent: "x" }),
+              createInput(`mesh-${i}-loc-x`, t.location?.[0] ?? 0, 1),
+            ]),
+            el("div", { className: "form-group" }, [
+              el("label", { textContent: "y" }),
+              createInput(`mesh-${i}-loc-y`, t.location?.[1] ?? 0, 1),
+            ]),
+            el("div", { className: "form-group" }, [
+              el("label", { textContent: "z" }),
+              createInput(`mesh-${i}-loc-z`, t.location?.[2] ?? 0, 1),
+            ]),
           ]),
         ]),
 
         // Speed
         el("div", { className: "form-group" }, [
-          el("label", { textContent: "SPEED (VX, VY, VZ) [M/S]" }),
+          el("label", { textContent: "Velocity (m/s)" }),
           el("div", { className: "form-row triple" }, [
-            createInput(`mesh-${i}-spd-x`, t.speed?.[0] ?? 0, 1),
-            createInput(`mesh-${i}-spd-y`, t.speed?.[1] ?? 0, 1),
-            createInput(`mesh-${i}-spd-z`, t.speed?.[2] ?? 0, 1),
+            el("div", { className: "form-group" }, [
+              el("label", { innerHTML: "v<sub>x</sub>" }),
+              createInput(`mesh-${i}-spd-x`, t.speed?.[0] ?? 0, 1),
+            ]),
+            el("div", { className: "form-group" }, [
+              el("label", { innerHTML: "v<sub>y</sub>" }),
+              createInput(`mesh-${i}-spd-y`, t.speed?.[1] ?? 0, 1),
+            ]),
+            el("div", { className: "form-group" }, [
+              el("label", { innerHTML: "v<sub>z</sub>" }),
+              createInput(`mesh-${i}-spd-z`, t.speed?.[2] ?? 0, 1),
+            ]),
           ]),
         ]),
 
         // Rotation
         el("div", { className: "form-group" }, [
-          el("label", { textContent: "ROTATION (YAW, PITCH, ROLL) [°]" }),
+          el("label", { textContent: "Rotation (°)" }),
           el("div", { className: "form-row triple" }, [
-            createInput(`mesh-${i}-rot-yaw`, t.rotation?.[0] ?? 0, 1),
-            createInput(`mesh-${i}-rot-pitch`, t.rotation?.[1] ?? 0, 1),
-            createInput(`mesh-${i}-rot-roll`, t.rotation?.[2] ?? 0, 1),
+            el("div", { className: "form-group" }, [
+              el("label", { textContent: "yaw" }),
+              createInput(`mesh-${i}-rot-yaw`, t.rotation?.[0] ?? 0, 1),
+            ]),
+            el("div", { className: "form-group" }, [
+              el("label", { textContent: "pitch" }),
+              createInput(`mesh-${i}-rot-pitch`, t.rotation?.[1] ?? 0, 1),
+            ]),
+            el("div", { className: "form-group" }, [
+              el("label", { textContent: "roll" }),
+              createInput(`mesh-${i}-rot-roll`, t.rotation?.[2] ?? 0, 1),
+            ]),
           ]),
         ]),
 
         // Rotation Rate
         el("div", { className: "form-group" }, [
-          el("label", { textContent: "ROTATION RATE (°/S)" }),
+          el("label", { textContent: "Rotation Rate (°/s)" }),
           el("div", { className: "form-row triple" }, [
-            createInput(`mesh-${i}-rr-yaw`, t.rotation_rate?.[0] ?? 0, 1),
-            createInput(`mesh-${i}-rr-pitch`, t.rotation_rate?.[1] ?? 0, 1),
-            createInput(`mesh-${i}-rr-roll`, t.rotation_rate?.[2] ?? 0, 1),
+            el("div", { className: "form-group" }, [
+              el("label", { textContent: "yaw" }),
+              createInput(`mesh-${i}-rr-yaw`, t.rotation_rate?.[0] ?? 0, 1),
+            ]),
+            el("div", { className: "form-group" }, [
+              el("label", { textContent: "pitch" }),
+              createInput(`mesh-${i}-rr-pitch`, t.rotation_rate?.[1] ?? 0, 1),
+            ]),
+            el("div", { className: "form-group" }, [
+              el("label", { textContent: "roll" }),
+              createInput(`mesh-${i}-rr-roll`, t.rotation_rate?.[2] ?? 0, 1),
+            ]),
           ]),
         ]),
 
         // Unit
         el("div", { className: "form-row" }, [
           el("div", { className: "form-group" }, [
-            el("label", { textContent: "MODEL UNIT" }),
+            el("label", { textContent: "Model Unit" }),
             (() => {
               const sel = el("select", { id: `mesh-${i}-unit` });
               ["m", "cm", "mm"].forEach((u) => {
@@ -228,7 +283,7 @@ function renderMeshTargets() {
             })(),
           ]),
           el("div", { className: "form-group" }, [
-            el("label", { innerHTML: "PERMITTIVITY (ε<sub>r</sub>)" }),
+            el("label", { innerHTML: "Permittivity (ε<sub>r</sub>)" }),
             createInput(`mesh-${i}-perm`, t.permittivity ?? "", 0.1),
           ]),
         ]),
