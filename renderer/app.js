@@ -9,7 +9,9 @@ let lastSimResult = null;
 
 // --- Navigation ---
 document.querySelectorAll(".nav-item").forEach((item) => {
-  item.addEventListener("click", () => {
+  item.addEventListener("click", (e) => {
+    // Ignore bubbled clicks from a descendant nav-item
+    if (e.target.closest(".nav-item") !== item) return;
     document.querySelectorAll(".nav-item").forEach((n) => n.classList.remove("active"));
     document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
     item.classList.add("active");
