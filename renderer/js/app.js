@@ -50,6 +50,16 @@ window.addEventListener("resize", debounce(() => {
   document.querySelectorAll(".panel.active .js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot));
 }, 100));
 
+// --- Sidebar Toggle ---
+document.getElementById("btn-sidebar-toggle").addEventListener("click", () => {
+  const app = document.getElementById("app");
+  app.classList.toggle("sidebar-collapsed");
+  // Resize visible plots after transition completes
+  setTimeout(() => {
+    document.querySelectorAll(".panel.active .js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot));
+  }, 220);
+});
+
 // --- Custom Number Input Spinners ---
 // Replace each bare <input type="number"> with a styled wrapper that includes
 // increment/decrement buttons (provided by wrapNumberInput in utils.js).

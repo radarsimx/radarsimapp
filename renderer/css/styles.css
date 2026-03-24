@@ -77,6 +77,68 @@ body {
   flex-direction: column;
   flex-shrink: 0;
   user-select: none;
+  transition: width 0.2s ease;
+  overflow: hidden;
+}
+
+#app.sidebar-collapsed #sidebar {
+  width: 48px;
+}
+
+/* Hide text labels and footer when collapsed */
+#app.sidebar-collapsed .sidebar-footer,
+#app.sidebar-collapsed .nav-item span,
+#app.sidebar-collapsed .nav-item-label span {
+  display: none;
+}
+
+/* Show sublist but collapse its indentation */
+#app.sidebar-collapsed .nav-sublist {
+  padding: 0;
+}
+
+#app.sidebar-collapsed .nav-sublist .nav-item {
+  padding-left: 0;
+  justify-content: center;
+}
+
+/* Center icons in collapsed rail */
+#app.sidebar-collapsed .nav-item,
+#app.sidebar-collapsed .nav-item-label {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+#btn-sidebar-toggle {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+#btn-sidebar-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+#app.sidebar-collapsed .sidebar-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+#app.sidebar-collapsed .sidebar-header .logo {
+  display: none;
 }
 
 .sidebar-header {
