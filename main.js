@@ -5,7 +5,7 @@
 
 const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
-const { PythonBridge } = require("./python/bridge");
+const { PythonBridge } = require("./radarsimlib/bridge");
 
 /** @type {BrowserWindow|undefined} The single application window instance. */
 let mainWindow;

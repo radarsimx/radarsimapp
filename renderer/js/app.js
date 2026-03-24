@@ -393,13 +393,13 @@ document.getElementById("btn-check-env").addEventListener("click", async () => {
     const result = await window.api.checkPython();
     if (result.success && result.data) {
       const d = result.data;
-      if (d.radarsimpy_available) {
+      if (d.radarsimlib_available) {
         status.className = "env-status ok";
-        // Show trimmed version strings (e.g. "3.11.2" instead of the full banner).
-        status.innerHTML = `Python: ${d.python_version?.split(" ")[0]}<br>NumPy: ${d.numpy_version}<br>RadarSimPy: ${d.radarsimpy_version}`;
+        status.innerHTML = `RadarSimLib: ${d.radarsimlib_version}` +
+          (d.licensed ? " (Licensed)" : " (Unlicensed)");
       } else {
         status.className = "env-status err";
-        status.textContent = "radarsimpy not found in Python environment";
+        status.textContent = "radarsimc.dll not found or failed to load";
       }
     } else {
       status.className = "env-status err";
