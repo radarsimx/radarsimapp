@@ -118,6 +118,50 @@ function sphericalToXyz(phiDeg, thetaDeg) {
   return [Math.sin(theta) * Math.cos(phi), Math.sin(theta) * Math.sin(phi), Math.cos(theta)];
 }
 
+/**
+ * Build normalized antenna pattern arrays following Matlab TxChannel.m / RxChannel.m.
+ *   phi     = azimuth_angle / 180 * pi
+ *   phi_ptn = azimuth_pattern - max(azimuth_pattern)
+ *   theta   = flip(90 - elevation_angle) / 180 * pi
+ *   theta_ptn = flip(elevation_pattern) - max(elevation_pattern)
+ *   antenna_gain = max(azimuth_pattern)
+ */
+function _buildAntennaPattern(azAngle, azPattern, elAngle, elPattern) {
+  let phi, phiPtn, antennaGain;
+  if (azAngle && azPattern && azAngle.length > 0) {
+    if (azAngle.length !== azPattern.length) {
+      throw new Error("The length of azimuth_angle and azimuth_pattern must be the same.");
+    }
+    antennaGain = Math.max(...azPattern);
+    phi = new Float32Array(azAngle.map((v) => (v * Math.PI) / 180));
+    phiPtn = new Float32Array(azPattern.map((v) => v - antennaGain));
+  } else {
+    // Default omnidirectional: [-90, 90] deg → [-pi/2, pi/2]
+    phi = new Float32Array([-Math.PI / 2, Math.PI / 2]);
+    phiPtn = new Float32Array([0, 0]);
+    antennaGain = 0;
+  }
+
+  let theta, thetaPtn;
+  if (elAngle && elPattern && elAngle.length > 0) {
+    if (elAngle.length !== elPattern.length) {
+      throw new Error("The length of elevation_angle and elevation_pattern must be the same.");
+    }
+    const elMax = Math.max(...elPattern);
+    // flip(90 - elevation_angle) / 180 * pi  (Matlab TxChannel.m lines 79-80)
+    const transformed = elAngle.map((v) => (90 - v) * Math.PI / 180).reverse();
+    const ptnFlipped = [...elPattern].reverse().map((v) => v - elMax);
+    theta = new Float32Array(transformed);
+    thetaPtn = new Float32Array(ptnFlipped);
+  } else {
+    // Default: elevation [-90, 90] → theta flip([180, 0])*pi/180 = [0, pi]
+    theta = new Float32Array([0, Math.PI]);
+    thetaPtn = new Float32Array([0, 0]);
+  }
+
+  return { phi, phiPtn, theta, thetaPtn, antennaGain };
+}
+
 
 // ── Mesh (STL) loader ─────────────────────────────────────────────────────────
 const UNIT_SCALE = { mm: 1e-3, cm: 1e-2, m: 1.0, in: 0.0254 };
@@ -258,22 +302,57 @@ function _toDbMag3D(re, im, nPulse, nRx, spp) {
 
 // ── Builders ──────────────────────────────────────────────────────────────────
 function _buildTransmitter(txCfg) {
-  const f = txCfg.f || [24e9, 24.5e9];
-  const t = txCfg.t || [0, 80e-6];
+  // ── Normalize f and t (Matlab Transmitter.m lines 78-87) ──────────────
+  let f = txCfg.f || [24e9, 24.5e9];
+  let t = txCfg.t || [0, 80e-6];
+  if (!Array.isArray(f)) f = [f];
+  if (!Array.isArray(t)) t = [t];
+  if (f.length === 1) f = [f[0], f[0]];
+  if (t.length === 1) t = [0, t[0]];
+  if (f.length !== t.length) {
+    throw new Error("f and t must have the same length.");
+  }
+
   const numPulses = txCfg.pulses || 1;
   const txPower = txCfg.tx_power || 0;
 
   const freq = toF64(f);
   const freqTime = toF64(t);
-  const fOffset = txCfg.f_offset ? toF64(txCfg.f_offset) : new Float64Array(numPulses);
 
-  // pulse_start_time: prp * [0, 1, 2, …, pulses-1]
-  let prp = txCfg.prp;
-  if (prp == null) {
-    prp = Array.isArray(t) && t.length >= 2 ? Math.abs(t[t.length - 1] - t[0]) : 1e-3;
+  const pulseDuration = t[t.length - 1] - t[0];
+
+  // ── PRP → pulse_start_time (Matlab Transmitter.m lines 91-107) ───────
+  let prpArr;
+  if (txCfg.prp == null) {
+    prpArr = new Float64Array(numPulses).fill(pulseDuration);
+  } else if (typeof txCfg.prp === "number") {
+    prpArr = new Float64Array(numPulses).fill(txCfg.prp);
+  } else {
+    prpArr = toF64(txCfg.prp);
   }
+  if (prpArr.length < numPulses) {
+    throw new Error("The length of prp must be >= the number of pulses.");
+  }
+  for (let i = 0; i < numPulses; i++) {
+    if (prpArr[i] < pulseDuration) {
+      throw new Error("prp can't be smaller than the pulse length.");
+    }
+  }
+  // pulse_start_time = cumsum(prp) - prp[0]  (Matlab line 109)
   const pst = new Float64Array(numPulses);
-  for (let i = 0; i < numPulses; i++) pst[i] = i * prp;
+  pst[0] = 0;
+  for (let i = 1; i < numPulses; i++) pst[i] = pst[i - 1] + prpArr[i - 1];
+
+  // ── f_offset (Matlab Transmitter.m lines 105-111) ────────────────────
+  let fOffset;
+  if (txCfg.f_offset == null) {
+    fOffset = new Float64Array(numPulses);
+  } else {
+    fOffset = toF64(txCfg.f_offset);
+    if (fOffset.length !== numPulses) {
+      throw new Error("The length of f_offset must be the same as pulses.");
+    }
+  }
 
   let ptrTx;
   if (txCfg.pn_f && txCfg.pn_power) {
@@ -300,6 +379,9 @@ function _buildTransmitter(txCfg) {
   }
   if (!ptrTx) throw new Error("Create_Transmitter returned null");
 
+  // ── Track delays for timestamp computation ──────────────────────────
+  const txDelays = [];
+
   for (const ch of txCfg.channels || [{}]) {
     const loc = toF32(ch.location || [0, 0, 0]);
 
@@ -313,48 +395,66 @@ function _buildTransmitter(txCfg) {
       polarIm = new Float32Array(3);
     }
 
-    let phi = null, phiPtn = null, phiLen = 0;
-    if (ch.azimuth_angle && ch.azimuth_pattern && ch.azimuth_angle.length > 0) {
-      phi = deg2rad(ch.azimuth_angle);
-      phiPtn = toF32(ch.azimuth_pattern);
-      phiLen = phi.length;
-    } else {
-      // Provide a minimal omnidirectional pattern (required by DLL — cannot be null/empty)
-      phi = new Float32Array([-Math.PI / 2, Math.PI / 2]);
-      phiPtn = new Float32Array([0, 0]);
-      phiLen = 2;
-    }
-    let theta = null, thetaPtn = null, thetaLen = 0;
-    if (ch.elevation_angle && ch.elevation_pattern && ch.elevation_angle.length > 0) {
-      theta = deg2rad(ch.elevation_angle);
-      thetaPtn = toF32(ch.elevation_pattern);
-      thetaLen = theta.length;
-    } else {
-      theta = new Float32Array([-Math.PI / 2, Math.PI / 2]);
-      thetaPtn = new Float32Array([0, 0]);
-      thetaLen = 2;
-    }
+    // ── Antenna pattern (Matlab TxChannel.m lines 71-86) ─────────────
+    const { phi, phiPtn, theta, thetaPtn, antennaGain } =
+      _buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
+                           ch.elevation_angle, ch.elevation_pattern);
 
-    // pulse_mod_real/imag must always be valid arrays sized to numPulses (DLL requirement)
-    let pModRe = new Float32Array(numPulses).fill(1);
-    let pModIm = new Float32Array(numPulses);
+    // ── Pulse modulation (Matlab TxChannel.m lines 88-99) ────────────
+    let pModRe, pModIm;
     if (ch.pulse_amp && ch.pulse_phs) {
-      pModRe = new Float32Array(ch.pulse_amp.map((a, i) => a * Math.cos(ch.pulse_phs[i])));
-      pModIm = new Float32Array(ch.pulse_amp.map((a, i) => a * Math.sin(ch.pulse_phs[i])));
+      const phsRad = ch.pulse_phs.map((v) => (v * Math.PI) / 180);
+      pModRe = new Float32Array(ch.pulse_amp.map((a, i) => a * Math.cos(phsRad[i])));
+      pModIm = new Float32Array(ch.pulse_amp.map((a, i) => a * Math.sin(phsRad[i])));
+    } else if (ch.pulse_phs && !ch.pulse_amp) {
+      const phsRad = ch.pulse_phs.map((v) => (v * Math.PI) / 180);
+      pModRe = new Float32Array(phsRad.map((p) => Math.cos(p)));
+      pModIm = new Float32Array(phsRad.map((p) => Math.sin(p)));
+    } else if (ch.pulse_amp && !ch.pulse_phs) {
+      pModRe = toF32(ch.pulse_amp);
+      pModIm = new Float32Array(ch.pulse_amp.length);
+    } else {
+      // Default: ones (Matlab Transmitter.m add_txchannel line 143)
+      pModRe = new Float32Array(numPulses).fill(1);
+      pModIm = new Float32Array(numPulses);
     }
 
+    // ── Waveform modulation (Matlab TxChannel.m lines 101-115) ───────
+    let modT = null, modVarRe = null, modVarIm = null, modLen = 0;
+    if (ch.mod_t && (ch.phs != null || ch.amp != null)) {
+      modT = toF32(ch.mod_t);
+      const amp = ch.amp || new Array(modT.length).fill(1);
+      const phs = ch.phs ? ch.phs.map((v) => (v * Math.PI) / 180)
+                         : new Array(modT.length).fill(0);
+      modVarRe = new Float32Array(amp.map((a, i) => a * Math.cos(phs[i])));
+      modVarIm = new Float32Array(amp.map((a, i) => a * Math.sin(phs[i])));
+      modLen = modT.length;
+    }
+
+    const chDelay = ch.delay || 0;
+    txDelays.push(chDelay);
+
+    // grid = 1/180*pi ≈ 0.01745 rad (Matlab Transmitter.m line 157)
     const ret = Add_Txchannel(
       loc, polarRe, polarIm,
-      phi, phiPtn, phiLen,
-      theta, thetaPtn, thetaLen,
-      ch.antenna_gain || 0,
-      null, null, null, 0,  // no in-flight waveform modulation
+      phi, phiPtn, phi.length,
+      theta, thetaPtn, theta.length,
+      antennaGain,
+      modT, modVarRe, modVarIm, modLen,
       pModRe, pModIm,
-      ch.delay || 0, ch.grid || 0.5, ptrTx
+      chDelay, (1 / 180) * Math.PI, ptrTx
     );
     if (ret !== 0) throw new Error("Add_Txchannel failed");
   }
-  return ptrTx;
+
+  return {
+    ptr: ptrTx,
+    pulses: numPulses,
+    pulseDuration,
+    prp: prpArr,
+    pulseStartTime: pst,
+    delays: txDelays,
+  };
 }
 
 function _buildReceiver(rxCfg) {
@@ -362,9 +462,12 @@ function _buildReceiver(rxCfg) {
   const rfGain = rxCfg.rf_gain || 0;
   const res = rxCfg.load_resistor || 500;
   const bbGain = rxCfg.baseband_gain || 0;
-  const bbBw = fs / 2; // Nyquist bandwidth
+  const bbType = rxCfg.bb_type || "complex";
 
-  const ptrRx = Create_Receiver(fs, rfGain, res, bbGain, bbBw);
+  // Noise bandwidth depends on bb_type (Matlab Receiver.m lines 78-82)
+  const noiseBw = bbType === "real" ? fs / 2 : fs;
+
+  const ptrRx = Create_Receiver(fs, rfGain, res, bbGain, noiseBw);
   if (!ptrRx) throw new Error("Create_Receiver returned null");
 
   for (const ch of rxCfg.channels || [{}]) {
@@ -380,37 +483,31 @@ function _buildReceiver(rxCfg) {
       polarIm = new Float32Array(3);
     }
 
-    let phi = null, phiPtn = null, phiLen = 0;
-    if (ch.azimuth_angle && ch.azimuth_pattern && ch.azimuth_angle.length > 0) {
-      phi = deg2rad(ch.azimuth_angle);
-      phiPtn = toF32(ch.azimuth_pattern);
-      phiLen = phi.length;
-    } else {
-      phi = new Float32Array([-Math.PI / 2, Math.PI / 2]);
-      phiPtn = new Float32Array([0, 0]);
-      phiLen = 2;
-    }
-    let theta = null, thetaPtn = null, thetaLen = 0;
-    if (ch.elevation_angle && ch.elevation_pattern && ch.elevation_angle.length > 0) {
-      theta = deg2rad(ch.elevation_angle);
-      thetaPtn = toF32(ch.elevation_pattern);
-      thetaLen = theta.length;
-    } else {
-      theta = new Float32Array([-Math.PI / 2, Math.PI / 2]);
-      thetaPtn = new Float32Array([0, 0]);
-      thetaLen = 2;
-    }
+    // ── Antenna pattern (Matlab RxChannel.m lines 51-66) ─────────────
+    const { phi, phiPtn, theta, thetaPtn, antennaGain } =
+      _buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
+                           ch.elevation_angle, ch.elevation_pattern);
 
-    const emptyF32 = new Float32Array(0);
     const ret = Add_Rxchannel(
       loc, polarRe, polarIm,
-      phi, phiPtn, phiLen,
-      theta, thetaPtn, thetaLen,
-      ch.antenna_gain || 0, ptrRx
+      phi, phiPtn, phi.length,
+      theta, thetaPtn, theta.length,
+      antennaGain, ptrRx
     );
     if (ret !== 0) throw new Error("Add_Rxchannel failed");
   }
-  return ptrRx;
+
+  return {
+    ptr: ptrRx,
+    fs,
+    rfGain,
+    noiseFigure: rxCfg.noise_figure || 0,
+    basebandGain: bbGain,
+    loadResistor: res,
+    noiseBw: noiseBw,
+    bbType,
+    numChannels: (rxCfg.channels || [{}]).length,
+  };
 }
 
 function _buildTargets(targetsCfg, density = 1) {
@@ -420,25 +517,43 @@ function _buildTargets(targetsCfg, density = 1) {
   for (const t of targetsCfg) {
     const loc = toF32(t.location || [0, 0, 0]);
     const speed = toF32(t.speed || [0, 0, 0]);
-    const rot = toF32(t.rotation || [0, 0, 0]);
-    const rotRate = toF32(t.rotation_rate || [0, 0, 0]);
 
     if (t.model) {
       const mesh = loadStl(t.model, t.unit || "m");
       const origin = toF32(t.origin || [0, 0, 0]);
-      const perm = t.permittivity ? parseComplex(t.permittivity) : { re: 1, im: 0 };
+
+      // Convert rotation/rotation_rate degrees → radians (Matlab MeshTarget.m line 75-76)
+      const rot = toF32((t.rotation || [0, 0, 0]).map((v) => (v * Math.PI) / 180));
+      const rotRate = toF32((t.rotation_rate || [0, 0, 0]).map((v) => (v * Math.PI) / 180));
+
+      // Permittivity: 'PEC' → {-1, 0} (Matlab RadarSimulator.m add_mesh_target lines 175-182)
+      let epReal, epImag;
+      if (!t.permittivity || t.permittivity === "PEC") {
+        epReal = -1;
+        epImag = 0;
+      } else {
+        const perm = parseComplex(t.permittivity);
+        epReal = perm.re;
+        epImag = perm.im;
+      }
+
       const ret = Add_Mesh_Target(
         mesh.points, mesh.cells, mesh.cellSize,
         origin, loc, speed, rot, rotRate,
-        perm.re, perm.im, 1.0, 0.0,
-        false, density, false, ptrTargets
+        epReal, epImag, 1.0, 0.0,
+        t.skip_diffusion || false,
+        t.density || 0,
+        t.environment || false,
+        ptrTargets
       );
       if (ret !== 0) throw new Error("Add_Mesh_Target failed");
     } else {
+      // Phase: degrees → radians (Matlab PointTarget.m line 53)
+      const phaseRad = t.phase != null ? (t.phase * Math.PI) / 180 : 0;
       const ret = Add_Point_Target(
         loc, speed,
-        t.rcs !== undefined ? t.rcs : 0,
-        t.phase !== undefined ? t.phase : 0,
+        t.rcs != null ? t.rcs : 0,
+        phaseRad,
         ptrTargets
       );
       if (ret !== 0) throw new Error("Add_Point_Target failed");
@@ -467,17 +582,17 @@ class PythonBridge {
     }));
 
     console.log("[bridge] Building transmitter...");
-    const ptrTx = _buildTransmitter(txCfg);
-    console.log("[bridge] TX pointer:", ptrTx);
+    const tx = _buildTransmitter(txCfg);
+    console.log("[bridge] TX pointer:", tx.ptr);
 
     console.log("[bridge] Building receiver...");
-    const ptrRx = _buildReceiver(rxCfg);
-    console.log("[bridge] RX pointer:", ptrRx);
+    const rx = _buildReceiver(rxCfg);
+    console.log("[bridge] RX pointer:", rx.ptr);
 
     console.log("[bridge] Creating radar...");
     const frameStart = new Float64Array([0.0]);
     const ptrRadar = Create_Radar(
-      ptrTx, ptrRx, frameStart, 1,
+      tx.ptr, rx.ptr, frameStart, 1,
       toF32(radarCfg.location || [0, 0, 0]),
       toF32(radarCfg.speed || [0, 0, 0]),
       toF32(radarCfg.rotation || [0, 0, 0]),
@@ -486,8 +601,10 @@ class PythonBridge {
     console.log("[bridge] Radar pointer:", ptrRadar);
     if (!ptrRadar) throw new Error("Create_Radar returned null");
 
-    const density = simCfg.density || 1;
-    const level = simCfg.level || 0;
+    const density = Number(simCfg.density) || 1;
+    // Map level strings to ints (Matlab RadarSimulator.m lines 93-99)
+    const levelMap = { frame: 0, pulse: 1, sample: 2 };
+    const level = levelMap[simCfg.level] ?? 0;
 
     console.log("[bridge] Building targets...");
     const ptrTargets = _buildTargets(config.targets || [], density);
@@ -499,7 +616,8 @@ class PythonBridge {
     if (bbSize <= 0) throw new Error(`Get_BB_Size returned ${bbSize} — check radar configuration`);
     const bbRe = new Float64Array(bbSize);
     const bbIm = new Float64Array(bbSize);
-    const rayFilter = new Int32Array([0, 1000000]); // include all reflection orders
+    // ray_filter default [0, 10] (Matlab RadarSimulator.m line 78)
+    const rayFilter = new Int32Array(simCfg.ray_filter || [0, 10]);
 
     console.log("[bridge] Running RadarSimulator (level=%d, density=%f)...", level, density);
     const status = Run_RadarSimulator(ptrRadar, ptrTargets, level, density, rayFilter, bbRe, bbIm);
@@ -507,8 +625,8 @@ class PythonBridge {
 
     Free_Targets(ptrTargets);
     Free_Radar(ptrRadar);
-    Free_Receiver(ptrRx);
-    Free_Transmitter(ptrTx);
+    Free_Receiver(rx.ptr);
+    Free_Transmitter(tx.ptr);
 
     if (status !== 0) throw new Error(`Run_RadarSimulator failed (code ${status})`);
 
@@ -536,13 +654,16 @@ class PythonBridge {
       output.range_profile = _toDbMag3D(rpRe, rpIm, numPulses, numRx, spp);
     }
 
-    // Axis metadata
-    const f = txCfg.f || [24e9, 24.5e9];
-    const tArr = txCfg.t || [0, 80e-6];
+    // Axis metadata — normalize f/t the same way as _buildTransmitter
+    let fAxis = txCfg.f || [24e9, 24.5e9];
+    let tAxis = txCfg.t || [0, 80e-6];
+    if (!Array.isArray(fAxis)) fAxis = [fAxis];
+    if (!Array.isArray(tAxis)) tAxis = [tAxis];
+    if (fAxis.length === 1) fAxis = [fAxis[0], fAxis[0]];
+    if (tAxis.length === 1) tAxis = [0, tAxis[0]];
     const c = 3e8;
-    const bw = Array.isArray(f) && f.length >= 2 ? Math.abs(f[f.length - 1] - f[0]) : 0;
-    const sweepTime = Array.isArray(tArr) && tArr.length >= 2
-      ? Math.abs(tArr[tArr.length - 1] - tArr[0]) : 0;
+    const bw = Math.abs(fAxis[fAxis.length - 1] - fAxis[0]);
+    const sweepTime = Math.abs(tAxis[tAxis.length - 1] - tAxis[0]);
 
     if (bw > 0) {
       const rangeRes = c / (2 * bw);
@@ -551,10 +672,15 @@ class PythonBridge {
     }
 
     if (numPulses > 1) {
-      let prp = txCfg.prp;
-      if (prp == null) prp = sweepTime > 0 ? sweepTime : 1e-3;
-      const fc = Array.isArray(f) ? f.reduce((a, b) => a + b, 0) / f.length : f;
-      const maxVelocity = c / fc / (4 * prp);
+      // Use the first prp value for velocity calculation
+      let prpVal = txCfg.prp;
+      if (prpVal == null) {
+        prpVal = sweepTime > 0 ? sweepTime : 1e-3;
+      } else if (Array.isArray(prpVal)) {
+        prpVal = prpVal[0];
+      }
+      const fc = fAxis.reduce((a, b) => a + b, 0) / fAxis.length;
+      const maxVelocity = c / fc / (4 * prpVal);
       output.max_velocity = maxVelocity;
       output.velocity_axis = Array.from({ length: numPulses },
         (_, i) => -maxVelocity + (2 * maxVelocity * i) / (numPulses - 1)
