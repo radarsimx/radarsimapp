@@ -4,6 +4,54 @@
 
 const STATE_KEY = "radarsimapp_state";
 
+/** Factory that returns a fresh default state snapshot. */
+function defaultState() {
+  return {
+    fields: {
+      "tx-f-start": "24",
+      "tx-f-end": "24.5",
+      "tx-t-start": "0",
+      "tx-t-end": "80",
+      "tx-pulses": "256",
+      "tx-prp": "100",
+      "tx-power": "0",
+      "rx-fs": "2",
+      "rx-bb-type": "complex",
+      "rx-nf": "10",
+      "rx-rf-gain": "0",
+      "rx-bb-gain": "0",
+      "rx-load-r": "500",
+      "radar-loc-x": "0",
+      "radar-loc-y": "0",
+      "radar-loc-z": "0",
+      "radar-spd-x": "0",
+      "radar-spd-y": "0",
+      "radar-spd-z": "0",
+      "radar-rot-yaw": "0",
+      "radar-rot-pitch": "0",
+      "radar-rot-roll": "0",
+      "radar-rr-yaw": "0",
+      "radar-rr-pitch": "0",
+      "radar-rr-roll": "0",
+      "sim-density": "1",
+      "sim-level": "frame",
+      "proc-range-doppler": true,
+      "proc-range-profile": false,
+    },
+    txChannels: [{ location: [0, 0, 0] }],
+    rxChannels: [{ location: [0, 0, 0] }],
+    pointTargets: [{ location: [50, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 }],
+    meshTargets: [],
+  };
+}
+
+/** Reset all UI inputs and backing arrays to factory defaults. */
+function resetToDefault() {
+  localStorage.removeItem(STATE_KEY);
+  applyState(defaultState());
+  clearResultPlots();
+}
+
 /** Static input[type=number|text] / select field IDs to persist. */
 const STATIC_FIELDS = [
   "tx-f-start", "tx-f-end", "tx-t-start", "tx-t-end",

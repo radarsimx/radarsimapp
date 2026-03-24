@@ -108,6 +108,12 @@ const debouncedUpdateRadarPlots = debounce(() => {
 // Each "Add" button first snapshots the current UI state into the corresponding
 // array, appends a blank entry, then re-renders the list.
 
+document.getElementById("btn-reset-config").addEventListener("click", () => {
+  if (confirm("Reset all configuration to factory defaults?")) {
+    resetToDefault();
+  }
+});
+
 document.getElementById("btn-add-tx-ch").addEventListener("click", () => {
   saveTxChannelStates(); // persist existing card values before re-render
   txChannels.push({});
