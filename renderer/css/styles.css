@@ -811,6 +811,10 @@ select {
   content: none;
 }
 
+#plot-range-doppler {
+  min-height: 640px;
+}
+
 /* ===== Status / Progress ===== */
 .status-msg {
   font-size: 13px;

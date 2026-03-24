@@ -333,9 +333,9 @@ function updateRadarOverviewPlot() {
 
   const txXs = [], txYs = [], txZs = [], txLabels = [];
   txChannels.forEach((_, i) => {
-    const lx = parseNumber(document.getElementById(`tx-ch-${i}-loc-x`)?.value);
-    const ly = parseNumber(document.getElementById(`tx-ch-${i}-loc-y`)?.value);
-    const lz = parseNumber(document.getElementById(`tx-ch-${i}-loc-z`)?.value);
+    const lx = parseNumber(document.getElementById(`tx-ch-${i}-loc-x`)?.value) * 1e-3;
+    const ly = parseNumber(document.getElementById(`tx-ch-${i}-loc-y`)?.value) * 1e-3;
+    const lz = parseNumber(document.getElementById(`tx-ch-${i}-loc-z`)?.value) * 1e-3;
     const [rx, ry, rz] = rotatePoint(lx, ly, lz, yaw, pitch, roll);
     txXs.push(radarX + rx); txYs.push(radarY + ry); txZs.push(radarZ + rz);
     txLabels.push(`TX${i + 1}`);
@@ -354,9 +354,9 @@ function updateRadarOverviewPlot() {
 
   const rxXs = [], rxYs = [], rxZs = [], rxLabels = [];
   rxChannels.forEach((_, i) => {
-    const lx = parseNumber(document.getElementById(`rx-ch-${i}-loc-x`)?.value);
-    const ly = parseNumber(document.getElementById(`rx-ch-${i}-loc-y`)?.value);
-    const lz = parseNumber(document.getElementById(`rx-ch-${i}-loc-z`)?.value);
+    const lx = parseNumber(document.getElementById(`rx-ch-${i}-loc-x`)?.value) * 1e-3;
+    const ly = parseNumber(document.getElementById(`rx-ch-${i}-loc-y`)?.value) * 1e-3;
+    const lz = parseNumber(document.getElementById(`rx-ch-${i}-loc-z`)?.value) * 1e-3;
     const [rx, ry, rz] = rotatePoint(lx, ly, lz, yaw, pitch, roll);
     rxXs.push(radarX + rx); rxYs.push(radarY + ry); rxZs.push(radarZ + rz);
     rxLabels.push(`RX${i + 1}`);
@@ -608,6 +608,23 @@ function _plotBaseband() {
   Plotly.newPlot(container, traces, layout, plotlyConfig);
 }
 
+function clearResultPlots() {
+  _lastBasebandData = null;
+  _lastRangeProfileData = null;
+  _lastRangeAxis = null;
+  _lastRangeDopplerData = null;
+  _lastRdRangeAxis = null;
+  _lastRdVelocityAxis = null;
+
+  ["plot-baseband", "plot-range-profile", "plot-range-doppler"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.classList.remove("has-data");
+      Plotly.purge(el);
+    }
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("bb-pulse-idx")?.addEventListener("change", () => {
     _plotBaseband();
@@ -617,5 +634,19 @@ document.addEventListener("DOMContentLoaded", () => {
     _plotBaseband();
     _plotRangeProfile();
     _plotRangeDoppler();
+  });
+
+  // Clear result plots on any configuration input change (delegated for dynamic elements)
+  const debouncedClear = debounce(clearResultPlots, 200);
+  const configPanels = ["panel-transmitter", "panel-receiver", "panel-radar", "panel-targets"];
+  configPanels.forEach((panelId) => {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    panel.addEventListener("input", (e) => {
+      if (e.target.matches("input, select")) debouncedClear();
+    });
+    panel.addEventListener("change", (e) => {
+      if (e.target.matches("input, select")) debouncedClear();
+    });
   });
 });
