@@ -276,9 +276,11 @@ function _applyRangeFFT(re, im, nPulse, nRx, spp) {
   }
 }
 
-/** Apply FFT along the "pulses" axis of the flat buffer (DLL column-major layout). */
+/** Apply FFT along the "pulses" axis of the flat buffer (DLL column-major layout).
+ *  Includes fftshift so zero-Doppler is centered. */
 function _applyDopplerFFT(re, im, nPulse, nRx, spp) {
   const n = _nextPow2(nPulse);
+  const half = Math.floor(nPulse / 2);
   for (let c = 0; c < nRx; c++) {
     for (let s = 0; s < spp; s++) {
       const R = new Float64Array(n);
@@ -288,9 +290,11 @@ function _applyDopplerFFT(re, im, nPulse, nRx, spp) {
         I[p] = im[(c * nPulse + p) * spp + s];
       }
       _fft(R, I);
+      // fftshift: swap first half and second half
       for (let p = 0; p < nPulse; p++) {
-        re[(c * nPulse + p) * spp + s] = R[p];
-        im[(c * nPulse + p) * spp + s] = I[p];
+        const shifted = (p + half) % nPulse;
+        re[(c * nPulse + p) * spp + s] = R[shifted];
+        im[(c * nPulse + p) * spp + s] = I[shifted];
       }
     }
   }
@@ -707,11 +711,14 @@ class PythonBridge {
     const c = 3e8;
     const bw = Math.abs(fAxis[fAxis.length - 1] - fAxis[0]);
     const sweepTime = Math.abs(tAxis[tAxis.length - 1] - tAxis[0]);
+    const fs = rxCfg.fs || 2e6;
 
-    if (bw > 0) {
-      const rangeRes = c / (2 * bw);
-      output.range_res = rangeRes;
-      output.range_axis = Array.from({ length: spp }, (_, i) => (i / spp) * rangeRes * spp);
+    if (bw > 0 && sweepTime > 0) {
+      // FMCW range: bin k → range = k * fs * c * Tsweep / (2 * BW * spp)
+      const slope = bw / sweepTime;
+      const rangeBinWidth = fs * c / (2 * slope * spp);
+      output.range_res = c / (2 * bw);
+      output.range_axis = Array.from({ length: spp }, (_, i) => i * rangeBinWidth);
     }
 
     if (numPulses > 1) {
@@ -722,11 +729,13 @@ class PythonBridge {
       } else if (Array.isArray(prpVal)) {
         prpVal = prpVal[0];
       }
-      const fc = fAxis.reduce((a, b) => a + b, 0) / fAxis.length;
-      const maxVelocity = c / fc / (4 * prpVal);
+      const fc = (fAxis[0] + fAxis[fAxis.length - 1]) / 2;
+      const wavelength = c / fc;
+      // Unambiguous velocity: λ / (4 * PRP), centered with fftshift
+      const maxVelocity = wavelength / (4 * prpVal);
       output.max_velocity = maxVelocity;
       output.velocity_axis = Array.from({ length: numPulses },
-        (_, i) => -maxVelocity + (2 * maxVelocity * i) / (numPulses - 1)
+        (_, i) => -maxVelocity + (2 * maxVelocity * i) / numPulses
       );
     }
 

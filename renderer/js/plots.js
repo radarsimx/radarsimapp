@@ -470,30 +470,10 @@ function updateTargetsPlot() {
 // --- Plot Simulation Results ---
 function plotResults(data) {
   if (data.range_doppler) {
-    const container = document.getElementById("plot-range-doppler");
-    container.classList.add("has-data");
-    const rdData = data.range_doppler;
-    const rd = Array.isArray(rdData[0]?.[0]) ? rdData[0] : rdData;
-    const trace = {
-      z: rd,
-      type: "heatmap",
-      colorscale: "Viridis",
-      colorbar: { title: "dB" },
-    };
-    const layout = {
-      ...plotlyLayout,
-      xaxis: { ...plotlyLayout.xaxis, title: "Range Bin" },
-      yaxis: { ...plotlyLayout.yaxis, title: "Doppler Bin" },
-    };
-    if (data.range_axis) {
-      trace.x = data.range_axis;
-      layout.xaxis.title = "Range (m)";
-    }
-    if (data.velocity_axis) {
-      trace.y = data.velocity_axis;
-      layout.yaxis.title = "Velocity (m/s)";
-    }
-    Plotly.newPlot(container, [trace], layout, plotlyConfig);
+    _lastRangeDopplerData = data.range_doppler;
+    _lastRdRangeAxis = data.range_axis || null;
+    _lastRdVelocityAxis = data.velocity_axis || null;
+    _plotRangeDoppler();
   }
 
   if (data.range_profile) {
@@ -519,6 +499,52 @@ function plotResults(data) {
 let _lastBasebandData = null;
 let _lastRangeProfileData = null;
 let _lastRangeAxis = null;
+let _lastRangeDopplerData = null;
+let _lastRdRangeAxis = null;
+let _lastRdVelocityAxis = null;
+
+function _plotRangeDoppler() {
+  const container = document.getElementById("plot-range-doppler");
+  if (!_lastRangeDopplerData || !container) return;
+  const chIdx = Math.max(0, parseInt(document.getElementById("bb-ch-idx").value) || 0);
+
+  // data is [pulse][channel][sample] — extract the 2D [pulse][sample] slice for selected channel
+  const rd = [];
+  for (let p = 0; p < _lastRangeDopplerData.length; p++) {
+    const pulseData = _lastRangeDopplerData[p];
+    if (Array.isArray(pulseData?.[0])) {
+      rd.push(pulseData[Math.min(chIdx, pulseData.length - 1)]);
+    } else {
+      rd.push(pulseData);
+    }
+  }
+
+  container.classList.add("has-data");
+  const trace = {
+    z: rd,
+    type: "surface",
+    colorscale: "Viridis",
+    colorbar: { title: "dB" },
+    showscale: true,
+  };
+  const xTitle = _lastRdRangeAxis ? "Range (m)" : "Range Bin";
+  const yTitle = _lastRdVelocityAxis ? "Velocity (m/s)" : "Doppler Bin";
+  if (_lastRdRangeAxis) trace.x = _lastRdRangeAxis;
+  if (_lastRdVelocityAxis) trace.y = _lastRdVelocityAxis;
+
+  const layout = {
+    paper_bgcolor: "#12121a",
+    font: { color: "#e8e8f0", size: 12 },
+    margin: { l: 0, r: 0, t: 10, b: 0 },
+    scene: {
+      xaxis: { title: xTitle, gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
+      yaxis: { title: yTitle, gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
+      zaxis: { title: "dB", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
+      bgcolor: "#12121a",
+    },
+  };
+  Plotly.newPlot(container, [trace], layout, plotlyConfig);
+}
 
 function _plotRangeProfile() {
   const container = document.getElementById("plot-range-profile");
@@ -583,8 +609,13 @@ function _plotBaseband() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  ["bb-ch-idx", "bb-pulse-idx"].forEach((id) => {
-    const el = document.getElementById(id);
-    el?.addEventListener("change", () => { _plotBaseband(); _plotRangeProfile(); });
+  document.getElementById("bb-pulse-idx")?.addEventListener("change", () => {
+    _plotBaseband();
+    _plotRangeProfile();
+  });
+  document.getElementById("bb-ch-idx")?.addEventListener("change", () => {
+    _plotBaseband();
+    _plotRangeProfile();
+    _plotRangeDoppler();
   });
 });
