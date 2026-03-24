@@ -18,41 +18,41 @@ const Is_Licensed = lib.func("int Is_Licensed()");
 
 const Create_Transmitter = lib.func(
   "void *Create_Transmitter(double *freq, double *freq_time, int waveform_size," +
-    " double *freq_offset, double *pulse_start_time, int num_pulses, float tx_power)"
+  " double *freq_offset, double *pulse_start_time, int num_pulses, float tx_power)"
 );
 const Create_Transmitter_PhaseNoise = lib.func(
   "void *Create_Transmitter_PhaseNoise(double *freq, double *freq_time," +
-    " int waveform_size, double *freq_offset, double *pulse_start_time," +
-    " int num_pulses, float tx_power, double *phase_noise_real," +
-    " double *phase_noise_imag, int phase_noise_size)"
+  " int waveform_size, double *freq_offset, double *pulse_start_time," +
+  " int num_pulses, float tx_power, double *phase_noise_real," +
+  " double *phase_noise_imag, int phase_noise_size)"
 );
 const Add_Txchannel = lib.func(
   "int Add_Txchannel(float *location, float *polar_real, float *polar_imag," +
-    " float *phi, float *phi_ptn, int phi_length," +
-    " float *theta, float *theta_ptn, int theta_length," +
-    " float antenna_gain," +
-    " float *mod_t, float *mod_var_real, float *mod_var_imag, int mod_length," +
-    " float *pulse_mod_real, float *pulse_mod_imag," +
-    " float delay, float grid, void *ptr_tx_c)"
+  " float *phi, float *phi_ptn, int phi_length," +
+  " float *theta, float *theta_ptn, int theta_length," +
+  " float antenna_gain," +
+  " float *mod_t, float *mod_var_real, float *mod_var_imag, int mod_length," +
+  " float *pulse_mod_real, float *pulse_mod_imag," +
+  " float delay, float grid, void *ptr_tx_c)"
 );
 const Free_Transmitter = lib.func("void Free_Transmitter(void *ptr_tx_c)");
 
 const Create_Receiver = lib.func(
   "void *Create_Receiver(float fs, float rf_gain, float resistor," +
-    " float baseband_gain, float baseband_bw)"
+  " float baseband_gain, float baseband_bw)"
 );
 const Add_Rxchannel = lib.func(
   "int Add_Rxchannel(float *location, float *polar_real, float *polar_imag," +
-    " float *phi, float *phi_ptn, int phi_length," +
-    " float *theta, float *theta_ptn, int theta_length," +
-    " float antenna_gain, void *ptr_rx_c)"
+  " float *phi, float *phi_ptn, int phi_length," +
+  " float *theta, float *theta_ptn, int theta_length," +
+  " float antenna_gain, void *ptr_rx_c)"
 );
 const Free_Receiver = lib.func("void Free_Receiver(void *ptr_rx_c)");
 
 const Create_Radar = lib.func(
   "void *Create_Radar(void *ptr_tx_c, void *ptr_rx_c," +
-    " double *frame_start_time, int num_frames," +
-    " float *location, float *speed, float *rotation, float *rotation_rate)"
+  " double *frame_start_time, int num_frames," +
+  " float *location, float *speed, float *rotation, float *rotation_rate)"
 );
 const Get_BB_Size = lib.func("int Get_BB_Size(void *ptr_radar_c)");
 const Free_Radar = lib.func("void Free_Radar(void *ptr_radar_c)");
@@ -60,29 +60,29 @@ const Free_Radar = lib.func("void Free_Radar(void *ptr_radar_c)");
 const Init_Targets = lib.func("void *Init_Targets()");
 const Add_Point_Target = lib.func(
   "int Add_Point_Target(float *location, float *speed," +
-    " float rcs, float phs, void *ptr_targets_c)"
+  " float rcs, float phs, void *ptr_targets_c)"
 );
 const Add_Mesh_Target = lib.func(
   "int Add_Mesh_Target(float *points, int *cells, int cell_size," +
-    " float *origin, float *location, float *speed," +
-    " float *rotation, float *rotation_rate," +
-    " float ep_real, float ep_imag, float mu_real, float mu_imag," +
-    " bool skip_diffusion, float density, bool environment," +
-    " void *ptr_targets_c)"
+  " float *origin, float *location, float *speed," +
+  " float *rotation, float *rotation_rate," +
+  " float ep_real, float ep_imag, float mu_real, float mu_imag," +
+  " bool skip_diffusion, float density, bool environment," +
+  " void *ptr_targets_c)"
 );
 const Free_Targets = lib.func("void Free_Targets(void *ptr_targets_c)");
 
 const Run_RadarSimulator = lib.func(
   "int Run_RadarSimulator(void *ptr_radar_c, void *ptr_targets_c," +
-    " int level, float density, int *ray_filter," +
-    " double *ptr_bb_real, double *ptr_bb_imag)"
+  " int level, float density, int *ray_filter," +
+  " double *ptr_bb_real, double *ptr_bb_imag)"
 );
 const Run_RcsSimulator = lib.func(
   "int Run_RcsSimulator(void *ptr_targets_c," +
-    " double *inc_dir_array, double *obs_dir_array, int num_directions," +
-    " double *inc_polar_real, double *inc_polar_imag," +
-    " double *obs_polar_real, double *obs_polar_imag," +
-    " double frequency, double density, double *rcs_result)"
+  " double *inc_dir_array, double *obs_dir_array, int num_directions," +
+  " double *inc_polar_real, double *inc_polar_imag," +
+  " double *obs_polar_real, double *obs_polar_imag," +
+  " double frequency, double density, double *rcs_result)"
 );
 
 // ── Type helpers ──────────────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ function loadStl(filePath, unit = "m") {
     offset += 12; // skip face normal
     for (let v = 0; v < 3; v++) {
       const b = i * 9 + v * 3;
-      points[b]     = buf.readFloatLE(offset)     * scale;
+      points[b] = buf.readFloatLE(offset) * scale;
       points[b + 1] = buf.readFloatLE(offset + 4) * scale;
       points[b + 2] = buf.readFloatLE(offset + 8) * scale;
       offset += 12;
@@ -192,8 +192,8 @@ function _fft(re, im) {
         const uRe = re[i + k], uIm = im[i + k];
         const vRe = re[i + k + half] * urRe - im[i + k + half] * urIm;
         const vIm = re[i + k + half] * urIm + im[i + k + half] * urRe;
-        re[i + k]        = uRe + vRe;  im[i + k]        = uIm + vIm;
-        re[i + k + half] = uRe - vRe;  im[i + k + half] = uIm - vIm;
+        re[i + k] = uRe + vRe; im[i + k] = uIm + vIm;
+        re[i + k + half] = uRe - vRe; im[i + k + half] = uIm - vIm;
         const tmp = urRe * wRe - urIm * wIm;
         urIm = urRe * wIm + urIm * wRe;
         urRe = tmp;
@@ -258,14 +258,14 @@ function _toDbMag3D(re, im, nPulse, nRx, spp) {
 
 // ── Builders ──────────────────────────────────────────────────────────────────
 function _buildTransmitter(txCfg) {
-  const f         = txCfg.f         || [24e9, 24.5e9];
-  const t         = txCfg.t         || [0, 80e-6];
-  const numPulses = txCfg.pulses    || 1;
-  const txPower   = txCfg.tx_power  || 0;
+  const f = txCfg.f || [24e9, 24.5e9];
+  const t = txCfg.t || [0, 80e-6];
+  const numPulses = txCfg.pulses || 1;
+  const txPower = txCfg.tx_power || 0;
 
-  const freq     = toF64(f);
+  const freq = toF64(f);
   const freqTime = toF64(t);
-  const fOffset  = txCfg.f_offset ? toF64(txCfg.f_offset) : new Float64Array(numPulses);
+  const fOffset = txCfg.f_offset ? toF64(txCfg.f_offset) : new Float64Array(numPulses);
 
   // pulse_start_time: prp * [0, 1, 2, …, pulses-1]
   let prp = txCfg.prp;
@@ -277,7 +277,7 @@ function _buildTransmitter(txCfg) {
 
   let ptrTx;
   if (txCfg.pn_f && txCfg.pn_power) {
-    const pnF  = toF64(txCfg.pn_f);
+    const pnF = toF64(txCfg.pn_f);
     const pnPw = toF64(txCfg.pn_power);
     console.log("[bridge] Create_Transmitter_PhaseNoise args:",
       "freq.len=", freq.length, "freqTime.len=", freqTime.length,
@@ -315,22 +315,22 @@ function _buildTransmitter(txCfg) {
 
     let phi = null, phiPtn = null, phiLen = 0;
     if (ch.azimuth_angle && ch.azimuth_pattern && ch.azimuth_angle.length > 0) {
-      phi    = deg2rad(ch.azimuth_angle);
+      phi = deg2rad(ch.azimuth_angle);
       phiPtn = toF32(ch.azimuth_pattern);
       phiLen = phi.length;
     } else {
       // Provide a minimal omnidirectional pattern (required by DLL — cannot be null/empty)
-      phi    = new Float32Array([-Math.PI / 2, Math.PI / 2]);
+      phi = new Float32Array([-Math.PI / 2, Math.PI / 2]);
       phiPtn = new Float32Array([0, 0]);
       phiLen = 2;
     }
     let theta = null, thetaPtn = null, thetaLen = 0;
     if (ch.elevation_angle && ch.elevation_pattern && ch.elevation_angle.length > 0) {
-      theta    = deg2rad(ch.elevation_angle);
+      theta = deg2rad(ch.elevation_angle);
       thetaPtn = toF32(ch.elevation_pattern);
       thetaLen = theta.length;
     } else {
-      theta    = new Float32Array([-Math.PI / 2, Math.PI / 2]);
+      theta = new Float32Array([-Math.PI / 2, Math.PI / 2]);
       thetaPtn = new Float32Array([0, 0]);
       thetaLen = 2;
     }
@@ -358,11 +358,11 @@ function _buildTransmitter(txCfg) {
 }
 
 function _buildReceiver(rxCfg) {
-  const fs      = rxCfg.fs             || 2e6;
-  const rfGain  = rxCfg.rf_gain        || 0;
-  const res     = rxCfg.load_resistor  || 500;
-  const bbGain  = rxCfg.baseband_gain  || 0;
-  const bbBw    = fs / 2; // Nyquist bandwidth
+  const fs = rxCfg.fs || 2e6;
+  const rfGain = rxCfg.rf_gain || 0;
+  const res = rxCfg.load_resistor || 500;
+  const bbGain = rxCfg.baseband_gain || 0;
+  const bbBw = fs / 2; // Nyquist bandwidth
 
   const ptrRx = Create_Receiver(fs, rfGain, res, bbGain, bbBw);
   if (!ptrRx) throw new Error("Create_Receiver returned null");
@@ -382,21 +382,21 @@ function _buildReceiver(rxCfg) {
 
     let phi = null, phiPtn = null, phiLen = 0;
     if (ch.azimuth_angle && ch.azimuth_pattern && ch.azimuth_angle.length > 0) {
-      phi    = deg2rad(ch.azimuth_angle);
+      phi = deg2rad(ch.azimuth_angle);
       phiPtn = toF32(ch.azimuth_pattern);
       phiLen = phi.length;
     } else {
-      phi    = new Float32Array([-Math.PI / 2, Math.PI / 2]);
+      phi = new Float32Array([-Math.PI / 2, Math.PI / 2]);
       phiPtn = new Float32Array([0, 0]);
       phiLen = 2;
     }
     let theta = null, thetaPtn = null, thetaLen = 0;
     if (ch.elevation_angle && ch.elevation_pattern && ch.elevation_angle.length > 0) {
-      theta    = deg2rad(ch.elevation_angle);
+      theta = deg2rad(ch.elevation_angle);
       thetaPtn = toF32(ch.elevation_pattern);
       thetaLen = theta.length;
     } else {
-      theta    = new Float32Array([-Math.PI / 2, Math.PI / 2]);
+      theta = new Float32Array([-Math.PI / 2, Math.PI / 2]);
       thetaPtn = new Float32Array([0, 0]);
       thetaLen = 2;
     }
@@ -418,15 +418,15 @@ function _buildTargets(targetsCfg, density = 1) {
   if (!ptrTargets) throw new Error("Init_Targets returned null");
 
   for (const t of targetsCfg) {
-    const loc     = toF32(t.location      || [0, 0, 0]);
-    const speed   = toF32(t.speed         || [0, 0, 0]);
-    const rot     = toF32(t.rotation      || [0, 0, 0]);
+    const loc = toF32(t.location || [0, 0, 0]);
+    const speed = toF32(t.speed || [0, 0, 0]);
+    const rot = toF32(t.rotation || [0, 0, 0]);
     const rotRate = toF32(t.rotation_rate || [0, 0, 0]);
 
     if (t.model) {
-      const mesh   = loadStl(t.model, t.unit || "m");
+      const mesh = loadStl(t.model, t.unit || "m");
       const origin = toF32(t.origin || [0, 0, 0]);
-      const perm   = t.permittivity ? parseComplex(t.permittivity) : { re: 1, im: 0 };
+      const perm = t.permittivity ? parseComplex(t.permittivity) : { re: 1, im: 0 };
       const ret = Add_Mesh_Target(
         mesh.points, mesh.cells, mesh.cellSize,
         origin, loc, speed, rot, rotRate,
@@ -437,7 +437,7 @@ function _buildTargets(targetsCfg, density = 1) {
     } else {
       const ret = Add_Point_Target(
         loc, speed,
-        t.rcs   !== undefined ? t.rcs   : 0,
+        t.rcs !== undefined ? t.rcs : 0,
         t.phase !== undefined ? t.phase : 0,
         ptrTargets
       );
@@ -449,14 +449,14 @@ function _buildTargets(targetsCfg, density = 1) {
 
 // ── PythonBridge (same public API as before) ──────────────────────────────────
 class PythonBridge {
-  constructor() {}
+  constructor() { }
 
   async runSimulation(config) {
-    const txCfg    = config.transmitter || {};
-    const rxCfg    = config.receiver    || {};
-    const radarCfg = config.radar       || {};
-    const simCfg   = config.simulation  || {};
-    const procCfg  = config.processing  || {};
+    const txCfg = config.transmitter || {};
+    const rxCfg = config.receiver || {};
+    const radarCfg = config.radar || {};
+    const simCfg = config.simulation || {};
+    const procCfg = config.processing || {};
 
     console.log("[bridge] runSimulation config:", JSON.stringify({
       tx_f: txCfg.f, tx_t: txCfg.t, tx_pulses: txCfg.pulses, tx_prp: txCfg.prp,
@@ -478,27 +478,27 @@ class PythonBridge {
     const frameStart = new Float64Array([0.0]);
     const ptrRadar = Create_Radar(
       ptrTx, ptrRx, frameStart, 1,
-      toF32(radarCfg.location      || [0, 0, 0]),
-      toF32(radarCfg.speed         || [0, 0, 0]),
-      toF32(radarCfg.rotation      || [0, 0, 0]),
+      toF32(radarCfg.location || [0, 0, 0]),
+      toF32(radarCfg.speed || [0, 0, 0]),
+      toF32(radarCfg.rotation || [0, 0, 0]),
       toF32(radarCfg.rotation_rate || [0, 0, 0])
     );
     console.log("[bridge] Radar pointer:", ptrRadar);
     if (!ptrRadar) throw new Error("Create_Radar returned null");
 
     const density = simCfg.density || 1;
-    const level   = simCfg.level   || 0;
+    const level = simCfg.level || 0;
 
     console.log("[bridge] Building targets...");
     const ptrTargets = _buildTargets(config.targets || [], density);
     console.log("[bridge] Targets pointer:", ptrTargets);
 
     console.log("[bridge] Getting BB size...");
-    const bbSize   = Get_BB_Size(ptrRadar);
+    const bbSize = Get_BB_Size(ptrRadar);
     console.log("[bridge] BB size:", bbSize);
     if (bbSize <= 0) throw new Error(`Get_BB_Size returned ${bbSize} — check radar configuration`);
-    const bbRe     = new Float64Array(bbSize);
-    const bbIm     = new Float64Array(bbSize);
+    const bbRe = new Float64Array(bbSize);
+    const bbIm = new Float64Array(bbSize);
     const rayFilter = new Int32Array([0, 1000000]); // include all reflection orders
 
     console.log("[bridge] Running RadarSimulator (level=%d, density=%f)...", level, density);
@@ -513,8 +513,8 @@ class PythonBridge {
     if (status !== 0) throw new Error(`Run_RadarSimulator failed (code ${status})`);
 
     const numPulses = txCfg.pulses || 1;
-    const numRx     = (rxCfg.channels || [{}]).length;
-    const spp       = Math.round(bbSize / (numPulses * numRx));
+    const numRx = (rxCfg.channels || [{}]).length;
+    const spp = Math.round(bbSize / (numPulses * numRx));
 
     const output = { baseband_shape: [numPulses, numRx, spp] };
 
@@ -537,25 +537,25 @@ class PythonBridge {
     }
 
     // Axis metadata
-    const f    = txCfg.f || [24e9, 24.5e9];
+    const f = txCfg.f || [24e9, 24.5e9];
     const tArr = txCfg.t || [0, 80e-6];
-    const c    = 3e8;
-    const bw   = Array.isArray(f) && f.length >= 2 ? Math.abs(f[f.length - 1] - f[0]) : 0;
+    const c = 3e8;
+    const bw = Array.isArray(f) && f.length >= 2 ? Math.abs(f[f.length - 1] - f[0]) : 0;
     const sweepTime = Array.isArray(tArr) && tArr.length >= 2
       ? Math.abs(tArr[tArr.length - 1] - tArr[0]) : 0;
 
     if (bw > 0) {
       const rangeRes = c / (2 * bw);
-      output.range_res  = rangeRes;
+      output.range_res = rangeRes;
       output.range_axis = Array.from({ length: spp }, (_, i) => (i / spp) * rangeRes * spp);
     }
 
     if (numPulses > 1) {
       let prp = txCfg.prp;
       if (prp == null) prp = sweepTime > 0 ? sweepTime : 1e-3;
-      const fc         = Array.isArray(f) ? f.reduce((a, b) => a + b, 0) / f.length : f;
+      const fc = Array.isArray(f) ? f.reduce((a, b) => a + b, 0) / f.length : f;
       const maxVelocity = c / fc / (4 * prp);
-      output.max_velocity  = maxVelocity;
+      output.max_velocity = maxVelocity;
       output.velocity_axis = Array.from({ length: numPulses },
         (_, i) => -maxVelocity + (2 * maxVelocity * i) / (numPulses - 1)
       );
@@ -565,16 +565,16 @@ class PythonBridge {
   }
 
   async runRcsSimulation(config) {
-    const rcsCfg  = config.rcs || {};
+    const rcsCfg = config.rcs || {};
     const density = rcsCfg.density || 1;
 
     const ptrTargets = _buildTargets(config.targets || [], density);
 
-    const incPhi   = (rcsCfg.inc_phi   || [0]).map(Number);
+    const incPhi = (rcsCfg.inc_phi || [0]).map(Number);
     const incTheta = (rcsCfg.inc_theta || [90]).map(Number);
-    const obsPhi   = rcsCfg.obs_phi   ? rcsCfg.obs_phi.map(Number)   : incPhi;
+    const obsPhi = rcsCfg.obs_phi ? rcsCfg.obs_phi.map(Number) : incPhi;
     const obsTheta = rcsCfg.obs_theta ? rcsCfg.obs_theta.map(Number) : incTheta;
-    const numDirs  = incPhi.length;
+    const numDirs = incPhi.length;
 
     const incDirs = new Float64Array(numDirs * 3);
     const obsDirs = new Float64Array(numDirs * 3);
@@ -583,8 +583,8 @@ class PythonBridge {
       obsDirs.set(sphericalToXyz(obsPhi[i], obsTheta[i]), i * 3);
     }
 
-    const ipCfg  = rcsCfg.inc_pol || [0, 0, 1];
-    const opCfg  = rcsCfg.obs_pol || ipCfg;
+    const ipCfg = rcsCfg.inc_pol || [0, 0, 1];
+    const opCfg = rcsCfg.obs_pol || ipCfg;
     const incPolRe = new Float64Array(3), incPolIm = new Float64Array(3);
     const obsPolRe = new Float64Array(3), obsPolIm = new Float64Array(3);
     for (let i = 0; i < 3; i++) {
@@ -607,19 +607,19 @@ class PythonBridge {
     if (status !== 0) throw new Error(`Run_RcsSimulator failed (code ${status})`);
 
     const rcsLinear = Array.from(rcsResult);
-    const rcsDbsm   = rcsLinear.map((v) => 10 * Math.log10(Math.abs(v) + 1e-30));
+    const rcsDbsm = rcsLinear.map((v) => 10 * Math.log10(Math.abs(v) + 1e-30));
 
     return { rcs_linear: rcsLinear, rcs_dbsm: rcsDbsm, inc_phi: incPhi, inc_theta: incTheta };
   }
 
   async checkPython() {
-    const version  = new Int32Array(3);
+    const version = new Int32Array(3);
     Get_Version(version);
     const licensed = Is_Licensed();
     return {
-      radarsimlib_version:   `${version[0]}.${version[1]}.${version[2]}`,
+      radarsimlib_version: `${version[0]}.${version[1]}.${version[2]}`,
       radarsimlib_available: true,
-      licensed:              licensed === 1,
+      licensed: licensed === 1,
     };
   }
 
