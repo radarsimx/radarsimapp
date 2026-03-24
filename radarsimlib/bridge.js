@@ -15,6 +15,21 @@ const lib = koffi.load(dllPath);
 // ── Function bindings ─────────────────────────────────────────────────────────
 const Get_Version = lib.func("void Get_Version(int *version)");
 const Is_Licensed = lib.func("int Is_Licensed()");
+const Set_License = lib.func("void Set_License(const char *license_file_path, const char *product)");
+
+// ── License activation (Matlab License.m set_license) ─────────────────────────
+{
+  const licPattern = /^license_RadarSimM_.*\.lic$/;
+  const licFiles = fs.readdirSync(__dirname).filter((f) => licPattern.test(f));
+  for (const f of licFiles) {
+    const licPath = path.join(__dirname, f);
+    console.log("[bridge] Activating license:", licPath);
+    Set_License(licPath, "RadarSimM");
+  }
+  if (licFiles.length === 0) {
+    console.warn("[bridge] No license files found in", __dirname);
+  }
+}
 
 const Create_Transmitter = lib.func(
   "void *Create_Transmitter(double *freq, double *freq_time, int waveform_size," +

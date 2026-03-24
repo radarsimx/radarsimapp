@@ -7,3 +7,4 @@ out/
 radarsimlib/radarsim.h
 radarsimlib/radarsimc.dll
 radarsimlib/radarsimc.lib
+*.lic
