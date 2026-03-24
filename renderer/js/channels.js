@@ -223,6 +223,7 @@ async function removeChannel(prefix, index) {
     rxChannels.splice(index, 1);
     renderRxChannels();
   }
+  debouncedAutoSave();
 }
 
 function attachLocationListeners() {

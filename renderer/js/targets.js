@@ -92,6 +92,7 @@ function renderPointTargets() {
               pointTargets.splice(i, 1);
               renderPointTargets();
               updateTargetsPlot();
+              debouncedAutoSave();
             }
           }, [createSVG("trash"), " Remove Target"]),
         ]),
@@ -299,6 +300,7 @@ function renderMeshTargets() {
               meshTargets.splice(i, 1);
               renderMeshTargets();
               updateTargetsPlot();
+              debouncedAutoSave();
             }
           }, [createSVG("trash"), " Remove Mesh"]),
         ]),

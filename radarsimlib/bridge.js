@@ -118,15 +118,6 @@ function sphericalToXyz(phiDeg, thetaDeg) {
   return [Math.sin(theta) * Math.cos(phi), Math.sin(theta) * Math.sin(phi), Math.cos(theta)];
 }
 
-/** Wrap a koffi .async callback-based call in a Promise. */
-function callAsync(fn, ...args) {
-  return new Promise((resolve, reject) => {
-    fn.async(...args, (err, result) => {
-      if (err) reject(err);
-      else resolve(result);
-    });
-  });
-}
 
 // ── Mesh (STL) loader ─────────────────────────────────────────────────────────
 const UNIT_SCALE = { mm: 1e-3, cm: 1e-2, m: 1.0, in: 0.0254 };
@@ -330,13 +321,14 @@ function _buildTransmitter(txCfg) {
       pModIm = new Float32Array(ch.pulse_amp.map((a, i) => a * Math.sin(ch.pulse_phs[i])));
     }
 
+    const emptyF32 = new Float32Array(0);
     const ret = Add_Txchannel(
       loc, polarRe, polarIm,
-      phi, phiPtn, phiLen,
-      theta, thetaPtn, thetaLen,
+      phi ?? emptyF32, phiPtn ?? emptyF32, phiLen,
+      theta ?? emptyF32, thetaPtn ?? emptyF32, thetaLen,
       ch.antenna_gain || 0,
-      null, null, null, 0,  // no in-flight waveform modulation
-      pModRe, pModIm,
+      emptyF32, emptyF32, emptyF32, 0,  // no in-flight waveform modulation
+      pModRe ?? emptyF32, pModIm ?? emptyF32,
       ch.delay || 0, ch.grid || 0.5, ptrTx
     );
     if (ret !== 0) throw new Error("Add_Txchannel failed");
@@ -380,10 +372,11 @@ function _buildReceiver(rxCfg) {
       thetaLen = theta.length;
     }
 
+    const emptyF32 = new Float32Array(0);
     const ret = Add_Rxchannel(
       loc, polarRe, polarIm,
-      phi, phiPtn, phiLen,
-      theta, thetaPtn, thetaLen,
+      phi ?? emptyF32, phiPtn ?? emptyF32, phiLen,
+      theta ?? emptyF32, thetaPtn ?? emptyF32, thetaLen,
       ch.antenna_gain || 0, ptrRx
     );
     if (ret !== 0) throw new Error("Add_Rxchannel failed");
@@ -455,13 +448,12 @@ class PythonBridge {
     const ptrTargets = _buildTargets(config.targets || [], density);
 
     const bbSize   = Get_BB_Size(ptrRadar);
+    if (bbSize <= 0) throw new Error(`Get_BB_Size returned ${bbSize} — check radar configuration`);
     const bbRe     = new Float64Array(bbSize);
     const bbIm     = new Float64Array(bbSize);
-    const rayFilter = new Int32Array([-1, -1]);
+    const rayFilter = new Int32Array([0, 1000000]); // include all reflection orders
 
-    const status = await callAsync(
-      Run_RadarSimulator, ptrRadar, ptrTargets, level, density, rayFilter, bbRe, bbIm
-    );
+    const status = Run_RadarSimulator(ptrRadar, ptrTargets, level, density, rayFilter, bbRe, bbIm);
 
     Free_Targets(ptrTargets);
     Free_Radar(ptrRadar);
@@ -555,8 +547,7 @@ class PythonBridge {
     const frequency = rcsCfg.frequency || 24e9;
     const rcsResult = new Float64Array(numDirs);
 
-    const status = await callAsync(
-      Run_RcsSimulator,
+    const status = Run_RcsSimulator(
       ptrTargets, incDirs, obsDirs, numDirs,
       incPolRe, incPolIm, obsPolRe, obsPolIm,
       frequency, density, rcsResult
