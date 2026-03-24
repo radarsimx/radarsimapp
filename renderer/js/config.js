@@ -163,7 +163,6 @@ function collectConfig() {
   const simConfig = {
     density: parseNumber(document.getElementById("sim-density").value, 1),
     level: document.getElementById("sim-level").value || null,
-    device: document.getElementById("sim-device").value || "cpu",
   };
 
   // Processing

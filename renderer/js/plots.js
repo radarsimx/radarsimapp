@@ -5,7 +5,7 @@ const plotlyLayout = {
   paper_bgcolor: "#12121a",
   plot_bgcolor: "#12121a",
   font: { color: "#e8e8f0", size: 12 },
-  margin: { l: 60, r: 20, t: 40, b: 50 },
+  margin: { l: 60, r: 20, t: 10, b: 50 },
   xaxis: {
     gridcolor: "#2a2a3e",
     zerolinecolor: "#2a2a3e",
@@ -482,7 +482,6 @@ function plotResults(data) {
     };
     const layout = {
       ...plotlyLayout,
-      title: "Range-Doppler Map",
       xaxis: { ...plotlyLayout.xaxis, title: "Range Bin" },
       yaxis: { ...plotlyLayout.yaxis, title: "Doppler Bin" },
     };
@@ -520,7 +519,6 @@ function plotResults(data) {
     }
     const layout = {
       ...plotlyLayout,
-      title: "Range Profile",
       xaxis: { ...plotlyLayout.xaxis, title: data.range_axis ? "Range (m)" : "Range Bin" },
       yaxis: { ...plotlyLayout.yaxis, title: "Magnitude (dB)" },
     };
@@ -547,7 +545,6 @@ function plotResults(data) {
     };
     const layout = {
       ...plotlyLayout,
-      title: "Baseband Signal (First Channel, First Pulse)",
       xaxis: { ...plotlyLayout.xaxis, title: "Sample" },
       yaxis: { ...plotlyLayout.yaxis, title: "Magnitude (dB)" },
     };

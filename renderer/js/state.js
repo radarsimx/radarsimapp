@@ -13,7 +13,7 @@ const STATIC_FIELDS = [
   "radar-spd-x", "radar-spd-y", "radar-spd-z",
   "radar-rot-yaw", "radar-rot-pitch", "radar-rot-roll",
   "radar-rr-yaw", "radar-rr-pitch", "radar-rr-roll",
-  "sim-density", "sim-level", "sim-device",
+  "sim-density", "sim-level",
 ];
 
 /** Checkbox field IDs to persist. */

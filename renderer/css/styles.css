@@ -879,6 +879,10 @@ select {
   margin-top: 24px;
 }
 
+.panel-split + .config-grid {
+  margin-top: 24px;
+}
+
 .panel-split-left {
   flex: 1;
   min-width: 0;
