@@ -279,12 +279,24 @@ function _buildTransmitter(txCfg) {
   if (txCfg.pn_f && txCfg.pn_power) {
     const pnF  = toF64(txCfg.pn_f);
     const pnPw = toF64(txCfg.pn_power);
+    console.log("[bridge] Create_Transmitter_PhaseNoise args:",
+      "freq.len=", freq.length, "freqTime.len=", freqTime.length,
+      "waveform_size=", freq.length, "fOffset.len=", fOffset.length,
+      "pst.len=", pst.length, "numPulses=", numPulses, "txPower=", txPower,
+      "pnF.len=", pnF.length);
     ptrTx = Create_Transmitter_PhaseNoise(
       freq, freqTime, freq.length, fOffset, pst, numPulses, txPower,
       pnF, pnPw, pnF.length
     );
   } else {
+    console.log("[bridge] Create_Transmitter args:",
+      "freq=", Array.from(freq), "freqTime=", Array.from(freqTime),
+      "waveform_size=", freq.length,
+      "fOffset.len=", fOffset.length, "fOffset[0]=", fOffset[0],
+      "pst.len=", pst.length, "pst[0]=", pst[0], "pst[last]=", pst[pst.length - 1],
+      "numPulses=", numPulses, "txPower=", txPower);
     ptrTx = Create_Transmitter(freq, freqTime, freq.length, fOffset, pst, numPulses, txPower);
+    console.log("[bridge] Create_Transmitter returned:", ptrTx);
   }
   if (!ptrTx) throw new Error("Create_Transmitter returned null");
 
@@ -302,33 +314,42 @@ function _buildTransmitter(txCfg) {
     }
 
     let phi = null, phiPtn = null, phiLen = 0;
-    if (ch.azimuth_angle && ch.azimuth_pattern) {
+    if (ch.azimuth_angle && ch.azimuth_pattern && ch.azimuth_angle.length > 0) {
       phi    = deg2rad(ch.azimuth_angle);
       phiPtn = toF32(ch.azimuth_pattern);
       phiLen = phi.length;
+    } else {
+      // Provide a minimal omnidirectional pattern (required by DLL — cannot be null/empty)
+      phi    = new Float32Array([-Math.PI / 2, Math.PI / 2]);
+      phiPtn = new Float32Array([0, 0]);
+      phiLen = 2;
     }
     let theta = null, thetaPtn = null, thetaLen = 0;
-    if (ch.elevation_angle && ch.elevation_pattern) {
+    if (ch.elevation_angle && ch.elevation_pattern && ch.elevation_angle.length > 0) {
       theta    = deg2rad(ch.elevation_angle);
       thetaPtn = toF32(ch.elevation_pattern);
       thetaLen = theta.length;
+    } else {
+      theta    = new Float32Array([-Math.PI / 2, Math.PI / 2]);
+      thetaPtn = new Float32Array([0, 0]);
+      thetaLen = 2;
     }
 
-    // pulse_amp + pulse_phs → complex pulse modulation
-    let pModRe = null, pModIm = null;
+    // pulse_mod_real/imag must always be valid arrays sized to numPulses (DLL requirement)
+    let pModRe = new Float32Array(numPulses).fill(1);
+    let pModIm = new Float32Array(numPulses);
     if (ch.pulse_amp && ch.pulse_phs) {
       pModRe = new Float32Array(ch.pulse_amp.map((a, i) => a * Math.cos(ch.pulse_phs[i])));
       pModIm = new Float32Array(ch.pulse_amp.map((a, i) => a * Math.sin(ch.pulse_phs[i])));
     }
 
-    const emptyF32 = new Float32Array(0);
     const ret = Add_Txchannel(
       loc, polarRe, polarIm,
-      phi ?? emptyF32, phiPtn ?? emptyF32, phiLen,
-      theta ?? emptyF32, thetaPtn ?? emptyF32, thetaLen,
+      phi, phiPtn, phiLen,
+      theta, thetaPtn, thetaLen,
       ch.antenna_gain || 0,
-      emptyF32, emptyF32, emptyF32, 0,  // no in-flight waveform modulation
-      pModRe ?? emptyF32, pModIm ?? emptyF32,
+      null, null, null, 0,  // no in-flight waveform modulation
+      pModRe, pModIm,
       ch.delay || 0, ch.grid || 0.5, ptrTx
     );
     if (ret !== 0) throw new Error("Add_Txchannel failed");
@@ -360,23 +381,31 @@ function _buildReceiver(rxCfg) {
     }
 
     let phi = null, phiPtn = null, phiLen = 0;
-    if (ch.azimuth_angle && ch.azimuth_pattern) {
+    if (ch.azimuth_angle && ch.azimuth_pattern && ch.azimuth_angle.length > 0) {
       phi    = deg2rad(ch.azimuth_angle);
       phiPtn = toF32(ch.azimuth_pattern);
       phiLen = phi.length;
+    } else {
+      phi    = new Float32Array([-Math.PI / 2, Math.PI / 2]);
+      phiPtn = new Float32Array([0, 0]);
+      phiLen = 2;
     }
     let theta = null, thetaPtn = null, thetaLen = 0;
-    if (ch.elevation_angle && ch.elevation_pattern) {
+    if (ch.elevation_angle && ch.elevation_pattern && ch.elevation_angle.length > 0) {
       theta    = deg2rad(ch.elevation_angle);
       thetaPtn = toF32(ch.elevation_pattern);
       thetaLen = theta.length;
+    } else {
+      theta    = new Float32Array([-Math.PI / 2, Math.PI / 2]);
+      thetaPtn = new Float32Array([0, 0]);
+      thetaLen = 2;
     }
 
     const emptyF32 = new Float32Array(0);
     const ret = Add_Rxchannel(
       loc, polarRe, polarIm,
-      phi ?? emptyF32, phiPtn ?? emptyF32, phiLen,
-      theta ?? emptyF32, thetaPtn ?? emptyF32, thetaLen,
+      phi, phiPtn, phiLen,
+      theta, thetaPtn, thetaLen,
       ch.antenna_gain || 0, ptrRx
     );
     if (ret !== 0) throw new Error("Add_Rxchannel failed");
@@ -429,9 +458,23 @@ class PythonBridge {
     const simCfg   = config.simulation  || {};
     const procCfg  = config.processing  || {};
 
-    const ptrTx = _buildTransmitter(txCfg);
-    const ptrRx = _buildReceiver(rxCfg);
+    console.log("[bridge] runSimulation config:", JSON.stringify({
+      tx_f: txCfg.f, tx_t: txCfg.t, tx_pulses: txCfg.pulses, tx_prp: txCfg.prp,
+      tx_channels: txCfg.channels?.length,
+      rx_fs: rxCfg.fs, rx_channels: rxCfg.channels?.length,
+      num_targets: config.targets?.length,
+      density: simCfg.density, level: simCfg.level,
+    }));
 
+    console.log("[bridge] Building transmitter...");
+    const ptrTx = _buildTransmitter(txCfg);
+    console.log("[bridge] TX pointer:", ptrTx);
+
+    console.log("[bridge] Building receiver...");
+    const ptrRx = _buildReceiver(rxCfg);
+    console.log("[bridge] RX pointer:", ptrRx);
+
+    console.log("[bridge] Creating radar...");
     const frameStart = new Float64Array([0.0]);
     const ptrRadar = Create_Radar(
       ptrTx, ptrRx, frameStart, 1,
@@ -440,20 +483,27 @@ class PythonBridge {
       toF32(radarCfg.rotation      || [0, 0, 0]),
       toF32(radarCfg.rotation_rate || [0, 0, 0])
     );
+    console.log("[bridge] Radar pointer:", ptrRadar);
     if (!ptrRadar) throw new Error("Create_Radar returned null");
 
     const density = simCfg.density || 1;
     const level   = simCfg.level   || 0;
 
+    console.log("[bridge] Building targets...");
     const ptrTargets = _buildTargets(config.targets || [], density);
+    console.log("[bridge] Targets pointer:", ptrTargets);
 
+    console.log("[bridge] Getting BB size...");
     const bbSize   = Get_BB_Size(ptrRadar);
+    console.log("[bridge] BB size:", bbSize);
     if (bbSize <= 0) throw new Error(`Get_BB_Size returned ${bbSize} — check radar configuration`);
     const bbRe     = new Float64Array(bbSize);
     const bbIm     = new Float64Array(bbSize);
     const rayFilter = new Int32Array([0, 1000000]); // include all reflection orders
 
+    console.log("[bridge] Running RadarSimulator (level=%d, density=%f)...", level, density);
     const status = Run_RadarSimulator(ptrRadar, ptrTargets, level, density, rayFilter, bbRe, bbIm);
+    console.log("[bridge] Run_RadarSimulator status:", status);
 
     Free_Targets(ptrTargets);
     Free_Radar(ptrRadar);
