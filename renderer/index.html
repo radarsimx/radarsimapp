@@ -517,16 +517,24 @@
               <h3>Results</h3>
               <div class="results-grid">
                 <div class="result-card">
-                  <h3>Range-Doppler Map</h3>
-                  <div id="plot-range-doppler" class="result-plot"></div>
+                  <div class="result-card-header">
+                    <h3>Baseband Signal</h3>
+                    <div class="result-card-controls">
+                      <label for="bb-ch-idx">Ch</label>
+                      <input type="number" id="bb-ch-idx" value="0" min="0" step="1" />
+                      <label for="bb-pulse-idx">Pulse</label>
+                      <input type="number" id="bb-pulse-idx" value="0" min="0" step="1" />
+                    </div>
+                  </div>
+                  <div id="plot-baseband" class="result-plot"></div>
                 </div>
                 <div class="result-card">
                   <h3>Range Profile</h3>
                   <div id="plot-range-profile" class="result-plot"></div>
                 </div>
                 <div class="result-card full-width">
-                  <h3>Baseband Signal</h3>
-                  <div id="plot-baseband" class="result-plot"></div>
+                  <h3>Range-Doppler Map</h3>
+                  <div id="plot-range-doppler" class="result-plot"></div>
                 </div>
               </div>
             </section>

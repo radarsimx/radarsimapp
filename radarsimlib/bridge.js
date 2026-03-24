@@ -246,12 +246,12 @@ function _fft(re, im) {
   }
 }
 
-/** Apply FFT along the "samples" axis (last axis) of a [pulses × rx × spp] flat buffer. */
+/** Apply FFT along the "samples" axis of the flat buffer (DLL column-major layout). */
 function _applyRangeFFT(re, im, nPulse, nRx, spp) {
   const n = _nextPow2(spp);
-  for (let p = 0; p < nPulse; p++) {
-    for (let r = 0; r < nRx; r++) {
-      const base = (p * nRx + r) * spp;
+  for (let c = 0; c < nRx; c++) {
+    for (let p = 0; p < nPulse; p++) {
+      const base = (c * nPulse + p) * spp;
       const R = new Float64Array(n); R.set(re.subarray(base, base + spp));
       const I = new Float64Array(n); I.set(im.subarray(base, base + spp));
       _fft(R, I);
@@ -261,39 +261,60 @@ function _applyRangeFFT(re, im, nPulse, nRx, spp) {
   }
 }
 
-/** Apply FFT along the "pulses" axis (first axis) of a [pulses × rx × spp] flat buffer. */
+/** Apply FFT along the "pulses" axis of the flat buffer (DLL column-major layout). */
 function _applyDopplerFFT(re, im, nPulse, nRx, spp) {
   const n = _nextPow2(nPulse);
-  for (let r = 0; r < nRx; r++) {
+  for (let c = 0; c < nRx; c++) {
     for (let s = 0; s < spp; s++) {
       const R = new Float64Array(n);
       const I = new Float64Array(n);
       for (let p = 0; p < nPulse; p++) {
-        R[p] = re[(p * nRx + r) * spp + s];
-        I[p] = im[(p * nRx + r) * spp + s];
+        R[p] = re[(c * nPulse + p) * spp + s];
+        I[p] = im[(c * nPulse + p) * spp + s];
       }
       _fft(R, I);
       for (let p = 0; p < nPulse; p++) {
-        re[(p * nRx + r) * spp + s] = R[p];
-        im[(p * nRx + r) * spp + s] = I[p];
+        re[(c * nPulse + p) * spp + s] = R[p];
+        im[(c * nPulse + p) * spp + s] = I[p];
       }
     }
   }
 }
 
-/** Convert flat re/im arrays → nested [pulse][rx][sample] dB-magnitude array. */
+/** Convert flat re/im arrays → nested [pulse][channel][sample] dB-magnitude array.
+ * DLL flat layout (Matlab column-major): flat[s + spp*p + spp*nPulse*c]
+ */
 function _toDbMag3D(re, im, nPulse, nRx, spp) {
   const out = [];
   for (let p = 0; p < nPulse; p++) {
     const rxArr = [];
     for (let r = 0; r < nRx; r++) {
       const row = new Array(spp);
-      const base = (p * nRx + r) * spp;
+      const base = (r * nPulse + p) * spp;  // channel varies slowest
       for (let s = 0; s < spp; s++) {
         const mag = Math.sqrt(re[base + s] ** 2 + im[base + s] ** 2);
         row[s] = 20 * Math.log10(mag + 1e-12);
       }
       rxArr.push(row);
+    }
+    out.push(rxArr);
+  }
+  return out;
+}
+
+/** Convert flat re/im arrays → nested [pulse][channel]{re, im} complex array.
+ * DLL flat layout (Matlab column-major): flat[s + spp*p + spp*nPulse*c]
+ */
+function _toComplex3D(re, im, nPulse, nRx, spp) {
+  const out = [];
+  for (let p = 0; p < nPulse; p++) {
+    const rxArr = [];
+    for (let r = 0; r < nRx; r++) {
+      const base = (r * nPulse + p) * spp;
+      rxArr.push({
+        re: Array.from(re.subarray(base, base + spp)),
+        im: Array.from(im.subarray(base, base + spp)),
+      });
     }
     out.push(rxArr);
   }
@@ -420,7 +441,7 @@ function _buildTransmitter(txCfg) {
     }
 
     // ── Waveform modulation (Matlab TxChannel.m lines 101-115) ───────
-    let modT = null, modVarRe = null, modVarIm = null, modLen = 0;
+    let modT, modVarRe, modVarIm, modLen = 0;
     if (ch.mod_t && (ch.phs != null || ch.amp != null)) {
       modT = toF32(ch.mod_t);
       const amp = ch.amp || new Array(modT.length).fill(1);
@@ -429,6 +450,10 @@ function _buildTransmitter(txCfg) {
       modVarRe = new Float32Array(amp.map((a, i) => a * Math.cos(phs[i])));
       modVarIm = new Float32Array(amp.map((a, i) => a * Math.sin(phs[i])));
       modLen = modT.length;
+    } else {
+      modT = new Float32Array(0);
+      modVarRe = new Float32Array(0);
+      modVarIm = new Float32Array(0);
     }
 
     const chDelay = ch.delay || 0;
@@ -631,27 +656,30 @@ class PythonBridge {
     if (status !== 0) throw new Error(`Run_RadarSimulator failed (code ${status})`);
 
     const numPulses = txCfg.pulses || 1;
-    const numRx = (rxCfg.channels || [{}]).length;
-    const spp = Math.round(bbSize / (numPulses * numRx));
+    // Total channels = num_tx * num_rx (Matlab: num_tx_*num_rx_*num_frame_)
+    const numTxCh = (txCfg.channels || [{}]).length;
+    const numRxCh = (rxCfg.channels || [{}]).length;
+    const numChannels = numTxCh * numRxCh;
+    const spp = Math.round(bbSize / (numPulses * numChannels));
 
-    const output = { baseband_shape: [numPulses, numRx, spp] };
+    const output = { baseband_shape: [spp, numPulses, numChannels] };
 
-    // Raw baseband magnitude
-    output.baseband = _toDbMag3D(bbRe, bbIm, numPulses, numRx, spp);
+    // Raw baseband as complex {re, im} per [pulse][channel]
+    output.baseband = _toComplex3D(bbRe, bbIm, numPulses, numChannels, spp);
 
     // Range-Doppler (default on when there are multiple pulses)
     if (procCfg.range_doppler !== false && numPulses > 1) {
       const rdRe = bbRe.slice(), rdIm = bbIm.slice();
-      _applyRangeFFT(rdRe, rdIm, numPulses, numRx, spp);
-      _applyDopplerFFT(rdRe, rdIm, numPulses, numRx, spp);
-      output.range_doppler = _toDbMag3D(rdRe, rdIm, numPulses, numRx, spp);
+      _applyRangeFFT(rdRe, rdIm, numPulses, numChannels, spp);
+      _applyDopplerFFT(rdRe, rdIm, numPulses, numChannels, spp);
+      output.range_doppler = _toDbMag3D(rdRe, rdIm, numPulses, numChannels, spp);
     }
 
     // Range profile (on request)
     if (procCfg.range_profile) {
       const rpRe = bbRe.slice(), rpIm = bbIm.slice();
-      _applyRangeFFT(rpRe, rpIm, numPulses, numRx, spp);
-      output.range_profile = _toDbMag3D(rpRe, rpIm, numPulses, numRx, spp);
+      _applyRangeFFT(rpRe, rpIm, numPulses, numChannels, spp);
+      output.range_profile = _toDbMag3D(rpRe, rpIm, numPulses, numChannels, spp);
     }
 
     // Axis metadata — normalize f/t the same way as _buildTransmitter

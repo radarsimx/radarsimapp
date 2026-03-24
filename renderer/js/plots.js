@@ -497,57 +497,94 @@ function plotResults(data) {
   }
 
   if (data.range_profile) {
-    const container = document.getElementById("plot-range-profile");
-    container.classList.add("has-data");
-    const rpData = data.range_profile;
-    let rp;
-    if (Array.isArray(rpData[0]?.[0])) {
-      rp = rpData[0][0];
-    } else if (Array.isArray(rpData[0])) {
-      rp = rpData[0];
-    } else {
-      rp = rpData;
-    }
-    const trace = {
-      y: rp,
-      type: "scatter",
-      mode: "lines",
-      line: { color: "#689f38", width: 1.5 },
-    };
-    if (data.range_axis) {
-      trace.x = data.range_axis;
-    }
-    const layout = {
-      ...plotlyLayout,
-      xaxis: { ...plotlyLayout.xaxis, title: data.range_axis ? "Range (m)" : "Range Bin" },
-      yaxis: { ...plotlyLayout.yaxis, title: "Magnitude (dB)" },
-    };
-    Plotly.newPlot(container, [trace], layout, plotlyConfig);
+    _lastRangeProfileData = data.range_profile;
+    _lastRangeAxis = data.range_axis || null;
+    _plotRangeProfile();
   }
 
   if (data.baseband) {
-    const container = document.getElementById("plot-baseband");
-    container.classList.add("has-data");
-    const bbData = data.baseband;
-    let bb;
-    if (Array.isArray(bbData[0]?.[0])) {
-      bb = bbData[0][0];
-    } else if (Array.isArray(bbData[0])) {
-      bb = bbData[0];
-    } else {
-      bb = bbData;
-    }
-    const trace = {
-      y: bb,
-      type: "scatter",
-      mode: "lines",
-      line: { color: "#8bc34a", width: 1 },
-    };
-    const layout = {
-      ...plotlyLayout,
-      xaxis: { ...plotlyLayout.xaxis, title: "Sample" },
-      yaxis: { ...plotlyLayout.yaxis, title: "Magnitude (dB)" },
-    };
-    Plotly.newPlot(container, [trace], layout, plotlyConfig);
+    _lastBasebandData = data.baseband;
+    const numPulses = data.baseband.length;
+    const numCh = Array.isArray(data.baseband[0]) ? data.baseband[0].length : 1;
+    const pulseInput = document.getElementById("bb-pulse-idx");
+    const chInput = document.getElementById("bb-ch-idx");
+    pulseInput.max = numPulses - 1;
+    chInput.max = numCh - 1;
+    pulseInput.value = Math.min(parseInt(pulseInput.value) || 0, numPulses - 1);
+    chInput.value = Math.min(parseInt(chInput.value) || 0, numCh - 1);
+    _plotBaseband();
   }
 }
+
+let _lastBasebandData = null;
+let _lastRangeProfileData = null;
+let _lastRangeAxis = null;
+
+function _plotRangeProfile() {
+  const container = document.getElementById("plot-range-profile");
+  if (!_lastRangeProfileData || !container) return;
+  const pulseIdx = Math.max(0, parseInt(document.getElementById("bb-pulse-idx").value) || 0);
+  const chIdx = Math.max(0, parseInt(document.getElementById("bb-ch-idx").value) || 0);
+
+  // data is [pulse][channel][sample]
+  const pulseData = _lastRangeProfileData[Math.min(pulseIdx, _lastRangeProfileData.length - 1)];
+  const rp = Array.isArray(pulseData?.[0])
+    ? pulseData[Math.min(chIdx, pulseData.length - 1)]
+    : Array.isArray(pulseData) ? pulseData : _lastRangeProfileData;
+
+  container.classList.add("has-data");
+  const trace = {
+    y: rp,
+    type: "scatter", mode: "lines",
+    line: { color: "#689f38", width: 1.5 },
+  };
+  if (_lastRangeAxis) trace.x = _lastRangeAxis;
+  const layout = {
+    ...plotlyLayout,
+    xaxis: { ...plotlyLayout.xaxis, title: _lastRangeAxis ? "Range (m)" : "Range Bin" },
+    yaxis: { ...plotlyLayout.yaxis, title: "Magnitude (dB)" },
+  };
+  Plotly.newPlot(container, [trace], layout, plotlyConfig);
+}
+
+function _plotBaseband() {
+  const container = document.getElementById("plot-baseband");
+  if (!_lastBasebandData || !container) return;
+  const pulseIdx = Math.max(0, parseInt(document.getElementById("bb-pulse-idx").value) || 0);
+  const chIdx = Math.max(0, parseInt(document.getElementById("bb-ch-idx").value) || 0);
+
+  // data is [pulse][channel]{re, im}
+  const pulseData = _lastBasebandData[Math.min(pulseIdx, _lastBasebandData.length - 1)];
+  const chData = Array.isArray(pulseData)
+    ? pulseData[Math.min(chIdx, pulseData.length - 1)]
+    : pulseData;
+
+  container.classList.add("has-data");
+  const traces = [
+    {
+      y: chData.re,
+      type: "scatter", mode: "lines", name: "Real",
+      line: { color: "#8bc34a", width: 1 },
+    },
+    {
+      y: chData.im,
+      type: "scatter", mode: "lines", name: "Imag",
+      line: { color: "#00D2B4", width: 1 },
+    },
+  ];
+  const layout = {
+    ...plotlyLayout,
+    showlegend: true,
+    legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
+    xaxis: { ...plotlyLayout.xaxis, title: "Sample" },
+    yaxis: { ...plotlyLayout.yaxis, title: "Amplitude" },
+  };
+  Plotly.newPlot(container, traces, layout, plotlyConfig);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  ["bb-ch-idx", "bb-pulse-idx"].forEach((id) => {
+    const el = document.getElementById(id);
+    el?.addEventListener("change", () => { _plotBaseband(); _plotRangeProfile(); });
+  });
+});
