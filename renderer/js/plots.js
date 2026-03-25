@@ -21,7 +21,7 @@ const plotlyLayout = {
 
 const plotlyConfig = {
   responsive: true,
-  displayModeBar: true,
+  displayModeBar: "hover",
   displaylogo: false,
 };
 
@@ -597,7 +597,7 @@ function _plotBaseband() {
     traces.push({
       y: chData.im,
       type: "scatter", mode: "lines", name: "Imag",
-      line: { color: "#00D2B4", width: 1 },
+      line: { color: "#e17055", width: 1 },
     });
   }
   const layout = {
