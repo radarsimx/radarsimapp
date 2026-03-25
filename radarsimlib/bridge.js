@@ -694,6 +694,10 @@ class PythonBridge {
 
     if (status !== 0) throw new Error(`Run_RadarSimulator failed (code ${status})`);
 
+    // Discard imaginary part for real baseband
+    const bbType = rxCfg.bb_type || "complex";
+    if (bbType === "real") bbIm.fill(0);
+
     const numPulses = txCfg.pulses || 1;
     // Total channels = num_tx * num_rx (Matlab: num_tx_*num_rx_*num_frame_)
     const numTxCh = (txCfg.channels || [{}]).length;
@@ -755,6 +759,7 @@ class PythonBridge {
 
     // Raw baseband as complex {re, im} per [pulse][channel]
     output.baseband = _toComplex3D(bbRe, bbIm, numPulses, numChannels, spp);
+    output.bb_type = rxCfg.bb_type || "complex";
 
     // Range-Doppler (default on when there are multiple pulses)
     if (procCfg.range_doppler !== false && numPulses > 1) {

@@ -484,6 +484,7 @@ function plotResults(data) {
 
   if (data.baseband) {
     _lastBasebandData = data.baseband;
+    _lastBbType = data.bb_type || "complex";
     const numPulses = data.baseband.length;
     const numCh = Array.isArray(data.baseband[0]) ? data.baseband[0].length : 1;
     const pulseInput = document.getElementById("bb-pulse-idx");
@@ -497,6 +498,7 @@ function plotResults(data) {
 }
 
 let _lastBasebandData = null;
+let _lastBbType = "complex";
 let _lastRangeProfileData = null;
 let _lastRangeAxis = null;
 let _lastRangeDopplerData = null;
@@ -590,12 +592,14 @@ function _plotBaseband() {
       type: "scatter", mode: "lines", name: "Real",
       line: { color: "#8bc34a", width: 1 },
     },
-    {
+  ];
+  if (_lastBbType !== "real") {
+    traces.push({
       y: chData.im,
       type: "scatter", mode: "lines", name: "Imag",
       line: { color: "#00D2B4", width: 1 },
-    },
-  ];
+    });
+  }
   const layout = {
     ...plotlyLayout,
     showlegend: true,
@@ -613,6 +617,12 @@ function clearResultPlots() {
   _lastRangeDopplerData = null;
   _lastRdRangeAxis = null;
   _lastRdVelocityAxis = null;
+
+  const statusEl = document.getElementById("sim-status");
+  if (statusEl) { statusEl.textContent = ""; statusEl.className = "status-msg"; }
+
+  const exportBtn = document.getElementById("btn-export");
+  if (exportBtn) exportBtn.disabled = true;
 
   ["plot-baseband", "plot-range-profile", "plot-range-doppler"].forEach((id) => {
     const el = document.getElementById(id);

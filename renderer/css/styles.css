@@ -1080,9 +1080,10 @@ select {
 /* ===== Run Controls ===== */
 .run-controls {
   display: flex;
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 /* ===== Responsive ===== */
