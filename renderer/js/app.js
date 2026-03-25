@@ -221,8 +221,22 @@ function _syncProcSubOptions() {
   const rdOn = document.getElementById("proc-range-doppler").checked;
   document.getElementById("proc-range-profile-opts").classList.toggle("disabled", !rpOn);
   document.getElementById("proc-range-doppler-opts").classList.toggle("disabled", !rdOn);
-  if (!rpOn) document.getElementById("proc-rd-range-fft-enable").checked = false, document.getElementById("proc-rd-range-fft").disabled = true;
-  if (!rdOn) document.getElementById("proc-rd-doppler-fft-enable").checked = false, document.getElementById("proc-rd-doppler-fft").disabled = true;
+  if (!rpOn) {
+    document.getElementById("proc-rd-range-fft-enable").checked = false;
+    const rpFft = document.getElementById("proc-rd-range-fft");
+    rpFft.disabled = true;
+    rpFft.classList.remove('is-invalid');
+    const rpWrap = rpFft.closest('.proc-sub-input-wrap');
+    if (rpWrap) rpWrap.removeAttribute('data-error');
+  }
+  if (!rdOn) {
+    document.getElementById("proc-rd-doppler-fft-enable").checked = false;
+    const rdFft = document.getElementById("proc-rd-doppler-fft");
+    rdFft.disabled = true;
+    rdFft.classList.remove('is-invalid');
+    const rdWrap = rdFft.closest('.proc-sub-input-wrap');
+    if (rdWrap) rdWrap.removeAttribute('data-error');
+  }
   _updateAutoFftValues();
 }
 
@@ -282,7 +296,6 @@ document.getElementById("btn-add-mesh-target").addEventListener("click", () => {
 document.getElementById("btn-run-sim").addEventListener("click", async () => {
   const btn = document.getElementById("btn-run-sim");
   const status = document.getElementById("sim-status");
-  const progress = document.getElementById("sim-progress");
 
   // Validate custom FFT sizes before running
   _validateFftInputs();
@@ -295,7 +308,11 @@ document.getElementById("btn-run-sim").addEventListener("click", async () => {
   btn.disabled = true;
   status.className = "status-msg running";
   status.textContent = "Running simulation...";
-  progress.classList.remove("hidden");
+
+  const overlay = document.getElementById("sim-overlay");
+  const overlaySub = document.getElementById("sim-overlay-sub");
+  overlaySub.textContent = "";
+  overlay.classList.remove("hidden");
 
   try {
     const config = collectConfig();
@@ -322,7 +339,7 @@ document.getElementById("btn-run-sim").addEventListener("click", async () => {
     status.textContent = "Error: " + err.message;
   } finally {
     btn.disabled = false;
-    progress.classList.add("hidden");
+    document.getElementById("sim-overlay").classList.add("hidden");
   }
 });
 
