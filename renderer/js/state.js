@@ -44,7 +44,7 @@ function defaultState() {
     },
     txChannels: [{ location: [0, 0, 0] }],
     rxChannels: [{ location: [0, 0, 0] }],
-    pointTargets: [{ location: [50, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 }],
+    pointTargets: [{ location: [10, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 }],
     meshTargets: [],
   };
 }
@@ -272,7 +272,7 @@ document.getElementById("btn-load-config").addEventListener("click", async () =>
   if (!restored) {
     txChannels.push({});
     rxChannels.push({});
-    pointTargets.push({ location: [50, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 });
+    pointTargets.push({ location: [10, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 });
     renderTxChannels();
     renderRxChannels();
     renderPointTargets();

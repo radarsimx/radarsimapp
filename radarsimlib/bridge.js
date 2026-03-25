@@ -273,43 +273,51 @@ function _fft(re, im) {
   }
 }
 
-/** Apply FFT along the "samples" axis of the flat buffer (DLL column-major layout). */
+/** Apply FFT along the "samples" axis. Returns new buffers of size n * nPulse * nRx. */
 function _applyRangeFFT(re, im, nPulse, nRx, spp, n) {
   if (!n) n = _nextPow2(spp);
+  const outRe = new Float64Array(n * nPulse * nRx);
+  const outIm = new Float64Array(n * nPulse * nRx);
   for (let c = 0; c < nRx; c++) {
     for (let p = 0; p < nPulse; p++) {
-      const base = (c * nPulse + p) * spp;
-      const R = new Float64Array(n); R.set(re.subarray(base, base + Math.min(spp, n)));
-      const I = new Float64Array(n); I.set(im.subarray(base, base + Math.min(spp, n)));
+      const inBase = (c * nPulse + p) * spp;
+      const outBase = (c * nPulse + p) * n;
+      const R = new Float64Array(n); R.set(re.subarray(inBase, inBase + Math.min(spp, n)));
+      const I = new Float64Array(n); I.set(im.subarray(inBase, inBase + Math.min(spp, n)));
       _fft(R, I);
-      re.set(R.subarray(0, spp), base);
-      im.set(I.subarray(0, spp), base);
+      outRe.set(R, outBase);
+      outIm.set(I, outBase);
     }
   }
+  return { re: outRe, im: outIm };
 }
 
-/** Apply FFT along the "pulses" axis of the flat buffer (DLL column-major layout).
- *  Includes fftshift so zero-Doppler is centered. */
-function _applyDopplerFFT(re, im, nPulse, nRx, spp, n) {
+/** Apply FFT along the "pulses" axis. Returns new buffers of size rangeDim * n * nRx.
+ *  Includes fftshift so zero-Doppler is centered.
+ *  @param rangeDim - number of range bins per pulse (may differ from original spp after range FFT) */
+function _applyDopplerFFT(re, im, nPulse, nRx, rangeDim, n) {
   if (!n) n = _nextPow2(nPulse);
-  const half = Math.floor(nPulse / 2);
+  const outRe = new Float64Array(rangeDim * n * nRx);
+  const outIm = new Float64Array(rangeDim * n * nRx);
+  const half = Math.floor(n / 2);
   for (let c = 0; c < nRx; c++) {
-    for (let s = 0; s < spp; s++) {
+    for (let s = 0; s < rangeDim; s++) {
       const R = new Float64Array(n);
       const I = new Float64Array(n);
       for (let p = 0; p < nPulse; p++) {
-        R[p] = re[(c * nPulse + p) * spp + s];
-        I[p] = im[(c * nPulse + p) * spp + s];
+        R[p] = re[(c * nPulse + p) * rangeDim + s];
+        I[p] = im[(c * nPulse + p) * rangeDim + s];
       }
       _fft(R, I);
       // fftshift: swap first half and second half
-      for (let p = 0; p < nPulse; p++) {
-        const shifted = (p + half) % nPulse;
-        re[(c * nPulse + p) * spp + s] = R[shifted];
-        im[(c * nPulse + p) * spp + s] = I[shifted];
+      for (let p = 0; p < n; p++) {
+        const shifted = (p + half) % n;
+        outRe[(c * n + p) * rangeDim + s] = R[shifted];
+        outIm[(c * n + p) * rangeDim + s] = I[shifted];
       }
     }
   }
+  return { re: outRe, im: outIm };
 }
 
 /** Convert flat re/im arrays → nested [pulse][channel][sample] dB-magnitude array.
@@ -750,60 +758,34 @@ class PythonBridge {
 
     // Range-Doppler (default on when there are multiple pulses)
     if (procCfg.range_doppler !== false && numPulses > 1) {
-      const rdRe = bbRe.slice(), rdIm = bbIm.slice();
       const rdRangeN = procCfg.rd_range_fft || _nextPow2(spp);
       const rdDopplerN = procCfg.rd_doppler_fft || _nextPow2(numPulses);
-      _applyRangeFFT(rdRe, rdIm, numPulses, numChannels, spp, rdRangeN);
-      _applyDopplerFFT(rdRe, rdIm, numPulses, numChannels, spp, rdDopplerN);
-      output.range_doppler = _toDbMag3D(rdRe, rdIm, numPulses, numChannels, spp);
+      const rangeOut = _applyRangeFFT(bbRe, bbIm, numPulses, numChannels, spp, rdRangeN);
+      const rdOut = _applyDopplerFFT(rangeOut.re, rangeOut.im, numPulses, numChannels, rdRangeN, rdDopplerN);
+      output.range_doppler = _toDbMag3D(rdOut.re, rdOut.im, rdDopplerN, numChannels, rdRangeN);
       output.rd_range_fft_size = rdRangeN;
       output.rd_doppler_fft_size = rdDopplerN;
+      output.rd_range_axis = Array.from({ length: rdRangeN }, (_, i) => i);
+      const rdHalf = Math.floor(rdDopplerN / 2);
+      output.rd_doppler_axis = Array.from({ length: rdDopplerN }, (_, i) => i - rdHalf);
     }
 
     // Range profile (on request)
     if (procCfg.range_profile) {
-      const rpRe = bbRe.slice(), rpIm = bbIm.slice();
       const rpRangeN = procCfg.rp_range_fft || _nextPow2(spp);
-      _applyRangeFFT(rpRe, rpIm, numPulses, numChannels, spp, rpRangeN);
-      output.range_profile = _toDbMag3D(rpRe, rpIm, numPulses, numChannels, spp);
+      const rpOut = _applyRangeFFT(bbRe, bbIm, numPulses, numChannels, spp, rpRangeN);
+      output.range_profile = _toDbMag3D(rpOut.re, rpOut.im, numPulses, numChannels, rpRangeN);
       output.rp_range_fft_size = rpRangeN;
+      output.rp_range_axis = Array.from({ length: rpRangeN }, (_, i) => i);
     }
 
-    // Axis metadata — normalize f/t the same way as _buildTransmitter
-    let fAxis = txCfg.f || [24e9, 24.5e9];
-    let tAxis = txCfg.t || [0, 80e-6];
-    if (!Array.isArray(fAxis)) fAxis = [fAxis];
-    if (!Array.isArray(tAxis)) tAxis = [tAxis];
-    if (fAxis.length === 1) fAxis = [fAxis[0], fAxis[0]];
-    if (tAxis.length === 1) tAxis = [0, tAxis[0]];
-    const c = 3e8;
-    const bw = Math.abs(fAxis[fAxis.length - 1] - fAxis[0]);
-    const sweepTime = Math.abs(tAxis[tAxis.length - 1] - tAxis[0]);
-    const fs = rxCfg.fs || 2e6;
-
-    if (bw > 0 && sweepTime > 0) {
-      // FMCW range: bin k → range = k * fs * c * Tsweep / (2 * BW * spp)
-      const slope = bw / sweepTime;
-      const rangeBinWidth = fs * c / (2 * slope * spp);
-      output.range_res = c / (2 * bw);
-      output.range_axis = Array.from({ length: spp }, (_, i) => i * rangeBinWidth);
-    }
+    // Baseband axis
+    output.range_axis = Array.from({ length: spp }, (_, i) => i);
 
     if (numPulses > 1) {
-      // Use the first prp value for velocity calculation
-      let prpVal = txCfg.prp;
-      if (prpVal == null) {
-        prpVal = sweepTime > 0 ? sweepTime : 1e-3;
-      } else if (Array.isArray(prpVal)) {
-        prpVal = prpVal[0];
-      }
-      const fc = (fAxis[0] + fAxis[fAxis.length - 1]) / 2;
-      const wavelength = c / fc;
-      // Unambiguous velocity: λ / (4 * PRP), centered with fftshift
-      const maxVelocity = wavelength / (4 * prpVal);
-      output.max_velocity = maxVelocity;
+      const half = Math.floor(numPulses / 2);
       output.velocity_axis = Array.from({ length: numPulses },
-        (_, i) => -maxVelocity + (2 * maxVelocity * i) / numPulses
+        (_, i) => i - half
       );
     }
 

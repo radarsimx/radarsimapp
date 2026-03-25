@@ -115,7 +115,7 @@ function collectConfig() {
   pointTargets.forEach((_, i) => {
     targets.push({
       location: [
-        parseNumber(document.getElementById(`pt-${i}-loc-x`)?.value, 50),
+        parseNumber(document.getElementById(`pt-${i}-loc-x`)?.value, 10),
         parseNumber(document.getElementById(`pt-${i}-loc-y`)?.value),
         parseNumber(document.getElementById(`pt-${i}-loc-z`)?.value),
       ],

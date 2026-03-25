@@ -5,7 +5,7 @@ function savePointTargetStates() {
   pointTargets.forEach((t, i) => {
     const g = (id) => document.getElementById(id)?.value;
     t.location = [
-      parseNumber(g(`pt-${i}-loc-x`), 50),
+      parseNumber(g(`pt-${i}-loc-x`), 10),
       parseNumber(g(`pt-${i}-loc-y`)),
       parseNumber(g(`pt-${i}-loc-z`)),
     ];
@@ -44,7 +44,7 @@ function renderPointTargets() {
           el("div", { className: "form-row triple" }, [
             el("div", { className: "form-group" }, [
               el("label", { textContent: "x" }),
-              createInput(`pt-${i}-loc-x`, t.location?.[0] ?? 50, 1),
+              createInput(`pt-${i}-loc-x`, t.location?.[0] ?? 10, 1),
             ]),
             el("div", { className: "form-group" }, [
               el("label", { textContent: "y" }),

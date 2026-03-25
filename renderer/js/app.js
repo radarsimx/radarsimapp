@@ -244,8 +244,8 @@ document.getElementById("btn-add-rx-ch").addEventListener("click", () => {
 
 document.getElementById("btn-add-point-target").addEventListener("click", () => {
   savePointTargetStates();
-  // Default point target: 50 m ahead on the X axis, 20 dBsm, stationary.
-  pointTargets.push({ location: [50, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 });
+  // Default point target: 10 m ahead on the X axis, 20 dBsm, stationary.
+  pointTargets.push({ location: [10, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 });
   renderPointTargets();
   updateTargetsPlot();
   debouncedAutoSave();

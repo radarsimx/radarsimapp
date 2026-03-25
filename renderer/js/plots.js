@@ -471,14 +471,14 @@ function updateTargetsPlot() {
 function plotResults(data) {
   if (data.range_doppler) {
     _lastRangeDopplerData = data.range_doppler;
-    _lastRdRangeAxis = data.range_axis || null;
-    _lastRdVelocityAxis = data.velocity_axis || null;
+    _lastRdRangeAxis = data.rd_range_axis || null;
+    _lastRdVelocityAxis = data.rd_doppler_axis || null;
     _plotRangeDoppler();
   }
 
   if (data.range_profile) {
     _lastRangeProfileData = data.range_profile;
-    _lastRangeAxis = data.range_axis || null;
+    _lastRangeAxis = data.rp_range_axis || null;
     _plotRangeProfile();
   }
 
@@ -527,8 +527,6 @@ function _plotRangeDoppler() {
     colorbar: { title: "dB" },
     showscale: true,
   };
-  const xTitle = _lastRdRangeAxis ? "Range (m)" : "Range Bin";
-  const yTitle = _lastRdVelocityAxis ? "Velocity (m/s)" : "Doppler Bin";
   if (_lastRdRangeAxis) trace.x = _lastRdRangeAxis;
   if (_lastRdVelocityAxis) trace.y = _lastRdVelocityAxis;
 
@@ -537,8 +535,8 @@ function _plotRangeDoppler() {
     font: { color: "#e8e8f0", size: 12 },
     margin: { l: 0, r: 0, t: 10, b: 0 },
     scene: {
-      xaxis: { title: xTitle, gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
-      yaxis: { title: yTitle, gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
+      xaxis: { title: "Range Bin", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
+      yaxis: { title: "Doppler Bin", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
       zaxis: { title: "dB", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
       bgcolor: "#12121a",
     },
@@ -567,7 +565,7 @@ function _plotRangeProfile() {
   if (_lastRangeAxis) trace.x = _lastRangeAxis;
   const layout = {
     ...plotlyLayout,
-    xaxis: { ...plotlyLayout.xaxis, title: _lastRangeAxis ? "Range (m)" : "Range Bin" },
+    xaxis: { ...plotlyLayout.xaxis, title: "Range Bin" },
     yaxis: { ...plotlyLayout.yaxis, title: "Magnitude (dB)" },
   };
   Plotly.newPlot(container, [trace], layout, plotlyConfig);
