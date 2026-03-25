@@ -333,7 +333,10 @@ document.getElementById("btn-run-sim").addEventListener("click", async () => {
     status.textContent = `Simulation complete. Baseband shape: [${result.data.baseband_shape.join(" × ")}]`;
     document.getElementById("btn-export").disabled = false;
 
-    plotResults(result.data);
+    // Defer plot rendering until after the overlay has hidden and the browser
+    // has had a chance to paint, so the loading animation closes cleanly.
+    const _resultData = result.data;
+    setTimeout(() => plotResults(_resultData), 0);
   } catch (err) {
     status.className = "status-msg error";
     status.textContent = "Error: " + err.message;

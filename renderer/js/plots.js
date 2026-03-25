@@ -603,7 +603,6 @@ function _plotBaseband() {
   const layout = {
     ...plotlyLayout,
     showlegend: true,
-    legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
     xaxis: { ...plotlyLayout.xaxis, title: "Sample" },
     yaxis: { ...plotlyLayout.yaxis, title: "Amplitude" },
   };
