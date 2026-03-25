@@ -485,19 +485,37 @@
                       </select>
                     </div>
                   </div>
-                  <hr />
-                  <h4 class="subsection-label">Processing</h4>
                   <div class="form-group">
                     <label>
-                      <input type="checkbox" id="proc-range-doppler" checked />
-                      Compute Range-Doppler Map
+                      <input type="checkbox" id="proc-noise" checked />
+                      Add Receiver Noise
                     </label>
                   </div>
+                  <hr />
+                  <h4 class="subsection-label">Processing</h4>
                   <div class="form-group">
                     <label>
                       <input type="checkbox" id="proc-range-profile" />
                       Compute Range Profile
                     </label>
+                    <div class="form-row" style="margin-top:6px; padding-left:20px;">
+                      <div class="form-group">
+                        <label for="proc-rd-range-fft">Range FFT</label>
+                        <input type="number" id="proc-rd-range-fft" value="0" min="0" step="1" />
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label>
+                      <input type="checkbox" id="proc-range-doppler" checked />
+                      Compute Range-Doppler Map
+                    </label>
+                    <div class="form-row" style="margin-top:6px; padding-left:20px;">
+                      <div class="form-group">
+                        <label for="proc-rd-doppler-fft">Doppler FFT</label>
+                        <input type="number" id="proc-rd-doppler-fft" value="0" min="0" step="1" />
+                      </div>
+                    </div>
                   </div>
                 </section>
               </div>

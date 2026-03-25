@@ -124,6 +124,23 @@ document.getElementById("btn-reset-config").addEventListener("click", () => {
   }
 });
 
+// Auto-enable Range Profile when Range-Doppler Map is enabled
+document.getElementById("proc-range-doppler").addEventListener("change", (e) => {
+  const rpCheckbox = document.getElementById("proc-range-profile");
+  if (e.target.checked) {
+    rpCheckbox.checked = true;
+    rpCheckbox.disabled = true;
+  } else {
+    rpCheckbox.disabled = false;
+  }
+});
+// Set initial disabled state
+(function () {
+  const rdCb = document.getElementById("proc-range-doppler");
+  const rpCb = document.getElementById("proc-range-profile");
+  if (rdCb.checked) { rpCb.checked = true; rpCb.disabled = true; }
+})();
+
 document.getElementById("btn-add-tx-ch").addEventListener("click", () => {
   saveTxChannelStates(); // persist existing card values before re-render
   txChannels.push({});

@@ -225,6 +225,18 @@ function _loadAsciiStl(text, scale) {
   return { points: new Float32Array(pts), cells, cellSize: Math.floor(idx / 3) };
 }
 
+// ── Noise Utilities ──────────────────────────────────────────────────────────
+/** Box-Muller transform: returns a standard-normal random variate. */
+let _randnSpare = null;
+function _randn() {
+  if (_randnSpare !== null) { const v = _randnSpare; _randnSpare = null; return v; }
+  let u, v, s;
+  do { u = Math.random() * 2 - 1; v = Math.random() * 2 - 1; s = u * u + v * v; } while (s >= 1 || s === 0);
+  const mul = Math.sqrt(-2 * Math.log(s) / s);
+  _randnSpare = v * mul;
+  return u * mul;
+}
+
 // ── FFT ───────────────────────────────────────────────────────────────────────
 function _nextPow2(n) { let p = 1; while (p < n) p <<= 1; return p; }
 
@@ -262,13 +274,13 @@ function _fft(re, im) {
 }
 
 /** Apply FFT along the "samples" axis of the flat buffer (DLL column-major layout). */
-function _applyRangeFFT(re, im, nPulse, nRx, spp) {
-  const n = _nextPow2(spp);
+function _applyRangeFFT(re, im, nPulse, nRx, spp, n) {
+  if (!n) n = _nextPow2(spp);
   for (let c = 0; c < nRx; c++) {
     for (let p = 0; p < nPulse; p++) {
       const base = (c * nPulse + p) * spp;
-      const R = new Float64Array(n); R.set(re.subarray(base, base + spp));
-      const I = new Float64Array(n); I.set(im.subarray(base, base + spp));
+      const R = new Float64Array(n); R.set(re.subarray(base, base + Math.min(spp, n)));
+      const I = new Float64Array(n); I.set(im.subarray(base, base + Math.min(spp, n)));
       _fft(R, I);
       re.set(R.subarray(0, spp), base);
       im.set(I.subarray(0, spp), base);
@@ -278,8 +290,8 @@ function _applyRangeFFT(re, im, nPulse, nRx, spp) {
 
 /** Apply FFT along the "pulses" axis of the flat buffer (DLL column-major layout).
  *  Includes fftshift so zero-Doppler is centered. */
-function _applyDopplerFFT(re, im, nPulse, nRx, spp) {
-  const n = _nextPow2(nPulse);
+function _applyDopplerFFT(re, im, nPulse, nRx, spp, n) {
+  if (!n) n = _nextPow2(nPulse);
   const half = Math.floor(nPulse / 2);
   for (let c = 0; c < nRx; c++) {
     for (let s = 0; s < spp; s++) {
@@ -683,22 +695,78 @@ class PythonBridge {
 
     const output = { baseband_shape: [spp, numPulses, numChannels] };
 
+    // --- Add receiver noise (reference: RadarSimulator.m generate_noise()) ---
+    if (procCfg.noise !== false) {
+      const boltzmannConst = 1.38064852e-23;
+      const Ts = 290;
+      const inputNoiseDbm = 10 * Math.log10(boltzmannConst * Ts * 1000); // dBm/Hz
+      const noiseFigure = rxCfg.noise_figure || 0;
+      const rfGain = rxCfg.rf_gain || 0;
+      const bbGain = rxCfg.baseband_gain || 0;
+      const fs = rxCfg.fs || 2e6;
+      const loadR = rxCfg.load_resistor || 500;
+      const bbType = rxCfg.bb_type || "complex";
+
+      // noise_bandwidth = fs (same as Matlab Receiver.m)
+      const noiseBandwidth = fs;
+      const receiverNoiseDbm = inputNoiseDbm + rfGain + noiseFigure + 10 * Math.log10(noiseBandwidth) + bbGain;
+      const receiverNoiseWatts = 1e-3 * Math.pow(10, receiverNoiseDbm / 10);
+      const noiseAmplitude = Math.sqrt(receiverNoiseWatts * loadR);
+
+      // Generate noise per RX channel, then map to each virtual channel
+      // DLL flat layout: flat[s + spp*p + spp*nPulse*c]
+      const scale = bbType === "real" ? noiseAmplitude : noiseAmplitude / Math.SQRT2;
+      // Pre-generate noise for each physical RX channel (all samples contiguous)
+      const totalSamplesPerRx = numPulses * spp;
+      const noisePerRx = new Array(numRxCh);
+      for (let r = 0; r < numRxCh; r++) {
+        const reNoise = new Float64Array(totalSamplesPerRx);
+        const imNoise = new Float64Array(totalSamplesPerRx);
+        for (let i = 0; i < totalSamplesPerRx; i++) {
+          reNoise[i] = _randn() * scale;
+          if (bbType !== "real") imNoise[i] = _randn() * scale;
+        }
+        noisePerRx[r] = { re: reNoise, im: imNoise };
+      }
+      // Add noise to baseband: virtual channel c → physical RX = c % numRxCh
+      for (let c = 0; c < numChannels; c++) {
+        const rxIdx = c % numRxCh;
+        const nRe = noisePerRx[rxIdx].re;
+        const nIm = noisePerRx[rxIdx].im;
+        for (let p = 0; p < numPulses; p++) {
+          const base = (c * numPulses + p) * spp;
+          const nBase = p * spp;
+          for (let s = 0; s < spp; s++) {
+            bbRe[base + s] += nRe[nBase + s];
+            bbIm[base + s] += nIm[nBase + s];
+          }
+        }
+      }
+      console.log("[bridge] Noise added (amplitude=%.3e, type=%s)", noiseAmplitude, bbType);
+    }
+
     // Raw baseband as complex {re, im} per [pulse][channel]
     output.baseband = _toComplex3D(bbRe, bbIm, numPulses, numChannels, spp);
 
     // Range-Doppler (default on when there are multiple pulses)
     if (procCfg.range_doppler !== false && numPulses > 1) {
       const rdRe = bbRe.slice(), rdIm = bbIm.slice();
-      _applyRangeFFT(rdRe, rdIm, numPulses, numChannels, spp);
-      _applyDopplerFFT(rdRe, rdIm, numPulses, numChannels, spp);
+      const rdRangeN = procCfg.rd_range_fft || _nextPow2(spp);
+      const rdDopplerN = procCfg.rd_doppler_fft || _nextPow2(numPulses);
+      _applyRangeFFT(rdRe, rdIm, numPulses, numChannels, spp, rdRangeN);
+      _applyDopplerFFT(rdRe, rdIm, numPulses, numChannels, spp, rdDopplerN);
       output.range_doppler = _toDbMag3D(rdRe, rdIm, numPulses, numChannels, spp);
+      output.rd_range_fft_size = rdRangeN;
+      output.rd_doppler_fft_size = rdDopplerN;
     }
 
     // Range profile (on request)
     if (procCfg.range_profile) {
       const rpRe = bbRe.slice(), rpIm = bbIm.slice();
-      _applyRangeFFT(rpRe, rpIm, numPulses, numChannels, spp);
+      const rpRangeN = procCfg.rp_range_fft || _nextPow2(spp);
+      _applyRangeFFT(rpRe, rpIm, numPulses, numChannels, spp, rpRangeN);
       output.range_profile = _toDbMag3D(rpRe, rpIm, numPulses, numChannels, spp);
+      output.rp_range_fft_size = rpRangeN;
     }
 
     // Axis metadata — normalize f/t the same way as _buildTransmitter

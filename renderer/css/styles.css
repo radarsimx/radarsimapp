@@ -506,6 +506,22 @@ body {
 .form-group label input[type="checkbox"] {
   margin-right: 6px;
   accent-color: var(--accent);
+  flex-shrink: 0;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+
+.form-group > label {
+  display: flex;
+  align-items: center;
+}
+
+/* Keep checked appearance when disabled (auto-enabled by dependency) */
+.form-group label input[type="checkbox"]:disabled:checked {
+  opacity: 1;
+  accent-color: var(--accent);
+  filter: none;
 }
 
 .form-row {

@@ -35,8 +35,10 @@ function defaultState() {
       "radar-rr-roll": "0",
       "sim-density": "1",
       "sim-level": "frame",
+      "proc-noise": true,
       "proc-range-doppler": true,
-      "proc-range-profile": false,
+      "proc-rd-range-fft": "0",
+      "proc-rd-doppler-fft": "0",
     },
     txChannels: [{ location: [0, 0, 0] }],
     rxChannels: [{ location: [0, 0, 0] }],
@@ -62,10 +64,11 @@ const STATIC_FIELDS = [
   "radar-rot-yaw", "radar-rot-pitch", "radar-rot-roll",
   "radar-rr-yaw", "radar-rr-pitch", "radar-rr-roll",
   "sim-density", "sim-level",
+  "proc-rd-range-fft", "proc-rd-doppler-fft",
 ];
 
 /** Checkbox field IDs to persist. */
-const CHECKBOX_FIELDS = ["proc-range-doppler", "proc-range-profile"];
+const CHECKBOX_FIELDS = ["proc-noise", "proc-range-doppler", "proc-range-profile"];
 
 /**
  * Snapshots the entire UI state into a plain object.

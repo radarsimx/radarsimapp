@@ -166,9 +166,17 @@ function collectConfig() {
   };
 
   // Processing
+  const rdRangeFft = parseInt(document.getElementById("proc-rd-range-fft").value, 10) || 0;
+  const rdDopplerFft = parseInt(document.getElementById("proc-rd-doppler-fft").value, 10) || 0;
+  const rdEnabled = document.getElementById("proc-range-doppler").checked;
   const processing = {
-    range_doppler: document.getElementById("proc-range-doppler").checked,
-    range_profile: document.getElementById("proc-range-profile").checked,
+    range_doppler: rdEnabled,
+    rd_range_fft: rdRangeFft > 0 ? rdRangeFft : null,
+    rd_doppler_fft: rdDopplerFft > 0 ? rdDopplerFft : null,
+    // Range profile is auto-enabled by RD and reuses rd_range_fft
+    range_profile: document.getElementById("proc-range-profile").checked || rdEnabled,
+    rp_range_fft: rdRangeFft > 0 ? rdRangeFft : null,
+    noise: document.getElementById("proc-noise").checked,
   };
 
   return {
