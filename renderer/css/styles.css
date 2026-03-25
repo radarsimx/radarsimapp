@@ -722,7 +722,7 @@ button.nav-item {
 
 .proc-sub-option {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   margin-top: 5px;
   padding-left: 22px;
@@ -744,7 +744,6 @@ button.nav-item {
   font-size: 12px;
   min-width: 0;
   flex-shrink: 0;
-  padding-top: 5px;
 }
 
 .proc-sub-input-wrap {
