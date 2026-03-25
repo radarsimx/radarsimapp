@@ -42,16 +42,26 @@
           </div>
           <ul class="nav-sublist">
             <li class="nav-item" data-panel="transmitter" data-tooltip="Transmitter">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 20V10" />
-                <path d="M18 4l-6 6-6-6" />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="19" x2="12" y2="9" />
+                <polyline points="9,12 12,9 15,12" />
+                <path d="M7,17 Q4,13 7,9" />
+                <path d="M17,17 Q20,13 17,9" />
+                <path d="M4,19.5 Q0,13 4,6.5" />
+                <path d="M20,19.5 Q24,13 20,6.5" />
               </svg>
               <span>Transmitter</span>
             </li>
             <li class="nav-item" data-panel="receiver" data-tooltip="Receiver">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 4v10" />
-                <path d="M6 20l6-6 6 6" />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="15" />
+                <polyline points="9,12 12,15 15,12" />
+                <path d="M7,7 Q4,11 7,15" />
+                <path d="M17,7 Q20,11 17,15" />
+                <path d="M4,4.5 Q0,11 4,17.5" />
+                <path d="M20,4.5 Q24,11 20,17.5" />
               </svg>
               <span>Receiver</span>
             </li>
@@ -70,7 +80,8 @@
           <span>Targets</span>
         </li>
         <li class="nav-item" data-panel="simulation" data-tooltip="Simulation">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
             <polygon points="6 3 20 12 6 21 6 3" />
           </svg>
           <span>Simulation</span>
@@ -94,7 +105,8 @@
             </svg>
             Load
           </button>
-          <button id="btn-reset-config" class="btn-secondary btn-sm btn-icon-only" title="Reset all settings to factory defaults">
+          <button id="btn-reset-config" class="btn-secondary btn-sm btn-icon-only"
+            title="Reset all settings to factory defaults">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="1 4 1 10 7 10" />
               <path d="M3.51 15a9 9 0 1 0 .49-4.95" />
@@ -496,13 +508,15 @@
                   <h3>Run</h3>
                   <div class="run-controls">
                     <button id="btn-run-sim" class="btn-primary btn-lg">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
                         <polygon points="5 3 19 12 5 21 5 3" />
                       </svg>
                       Run Simulation
                     </button>
                     <button id="btn-export" class="btn-secondary" disabled>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                         <polyline points="7 10 12 15 17 10" />
                         <line x1="12" y1="15" x2="12" y2="3" />
