@@ -602,6 +602,22 @@ body {
   border-color: var(--accent);
 }
 
+/* Small toggle variant */
+.toggle-switch--sm .toggle-track {
+  width: 24px;
+  height: 14px;
+  border-radius: 7px;
+}
+
+.toggle-switch--sm .toggle-thumb {
+  width: 9px;
+  height: 9px;
+}
+
+.toggle-switch--sm input:checked ~ .toggle-track .toggle-thumb {
+  transform: translateX(10px);
+}
+
 .proc-sub-option {
   display: flex;
   align-items: flex-start;
