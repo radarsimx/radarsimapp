@@ -125,18 +125,21 @@ document.getElementById("btn-reset-config").addEventListener("click", () => {
   }
 });
 
-// Auto-enable Range Profile when Range-Doppler Map is enabled
+// Range Profile ↔ Range-Doppler dependency
 document.getElementById("proc-range-doppler").addEventListener("change", (e) => {
   const rpCheckbox = document.getElementById("proc-range-profile");
   if (e.target.checked) {
     rpCheckbox.checked = true;
-    rpCheckbox.disabled = true;
-  } else {
-    rpCheckbox.disabled = false;
   }
   _syncProcSubOptions();
 });
-document.getElementById("proc-range-profile").addEventListener("change", _syncProcSubOptions);
+document.getElementById("proc-range-profile").addEventListener("change", (e) => {
+  const rdCheckbox = document.getElementById("proc-range-doppler");
+  if (!e.target.checked && rdCheckbox.checked) {
+    rdCheckbox.checked = false;
+  }
+  _syncProcSubOptions();
+});
 
 function _isPow2(n) { return n > 0 && (n & (n - 1)) === 0; }
 
@@ -224,7 +227,7 @@ function _syncProcSubOptions() {
 (function () {
   const rdCb = document.getElementById("proc-range-doppler");
   const rpCb = document.getElementById("proc-range-profile");
-  if (rdCb.checked) { rpCb.checked = true; rpCb.disabled = true; }
+  if (rdCb.checked) { rpCb.checked = true; }
   _syncProcSubOptions();
 })();
 

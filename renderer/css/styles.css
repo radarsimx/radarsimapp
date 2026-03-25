@@ -525,6 +525,83 @@ body {
 }
 
 /* Processing sub-options (inline enable-checkbox + number input) */
+.proc-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.proc-toggle-label {
+  font-size: 13px;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.proc-toggle-row .proc-sub-option {
+  flex-basis: 100%;
+  margin-top: 2px;
+  padding-left: 40px;
+}
+
+/* Toggle switch */
+.toggle-switch {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.toggle-switch input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-track {
+  width: 32px;
+  height: 18px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  transition: background 0.2s, border-color 0.2s;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+}
+
+.toggle-thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
+  flex-shrink: 0;
+}
+
+.toggle-switch input:checked ~ .toggle-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.toggle-switch input:checked ~ .toggle-track .toggle-thumb {
+  transform: translateX(14px);
+  background: #fff;
+}
+
+.toggle-switch input:disabled ~ .toggle-track {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.toggle-switch input:disabled:checked ~ .toggle-track {
+  opacity: 1;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .proc-sub-option {
   display: flex;
   align-items: flex-start;
