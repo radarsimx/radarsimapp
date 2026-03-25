@@ -86,11 +86,18 @@ body {
   overflow: visible;
 }
 
-/* Hide text labels and footer when collapsed */
-#app.sidebar-collapsed .sidebar-footer,
+/* Hide text labels and footer content when collapsed */
+#app.sidebar-collapsed .sidebar-footer .config-controls,
+#app.sidebar-collapsed .sidebar-footer .config-status,
+#app.sidebar-collapsed .sidebar-footer #env-status,
 #app.sidebar-collapsed .nav-item span,
 #app.sidebar-collapsed .nav-item-label span {
   display: none;
+}
+
+#app.sidebar-collapsed .sidebar-footer {
+  padding: 8px 4px;
+  align-items: center;
 }
 
 /* Show sublist but collapse its indentation */
@@ -146,11 +153,9 @@ body {
   align-items: center;
   justify-content: center;
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 0px;
   color: var(--text-muted);
   cursor: pointer;
-  margin-bottom: 8px;
 }
 
 #btn-sidebar-toggle:hover {
@@ -217,6 +222,14 @@ body {
   transition: all var(--transition);
   margin-bottom: 2px;
   font-size: 13px;
+}
+
+button.nav-item {
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
 }
 
 .nav-item:hover {
@@ -342,6 +355,95 @@ body {
 
 .env-status.err {
   color: var(--error);
+}
+
+/* ===== About Dialog ===== */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog-overlay.hidden {
+  display: none;
+}
+
+.dialog-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  width: 340px;
+  max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dialog-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.dialog-close {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.dialog-body {
+  padding: 20px 24px 24px;
+  text-align: center;
+}
+
+.about-logo {
+  margin-bottom: 10px;
+}
+
+.about-logo img {
+  opacity: 0.9;
+}
+
+.about-app-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+}
+
+.about-version {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0 0 16px;
+}
+
+.about-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+
+.about-copy {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 4px 0;
+}
+
+.about-license {
+  font-size: 11px;
+  margin-top: 8px;
+  color: var(--text-secondary);
 }
 
 /* ===== Main Content ===== */

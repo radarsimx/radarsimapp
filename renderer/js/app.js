@@ -23,6 +23,9 @@ document.querySelectorAll(".nav-item").forEach((item) => {
     // child item doesn't also fire on its parent (nav-item--has-sub).
     if (e.target.closest(".nav-item") !== item) return;
 
+    // Skip nav items without a panel (e.g. About button)
+    if (!item.dataset.panel) return;
+
     // Deactivate all nav items and panels before activating the selected one.
     document.querySelectorAll(".nav-item").forEach((n) => n.classList.remove("active"));
     document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
@@ -521,29 +524,41 @@ document.getElementById("btn-export").addEventListener("click", async () => {
  * is missing or the check fails.
  */
 document.getElementById("btn-check-env").addEventListener("click", async () => {
-  const status = document.getElementById("env-status");
-  status.className = "env-status";
-  status.textContent = "Checking...";
+  const overlay = document.getElementById("about-dialog-overlay");
+  const versionEl = document.getElementById("about-version");
+  const licenseEl = document.getElementById("about-license");
+  const yearEl = document.getElementById("about-year");
+  yearEl.textContent = new Date().getFullYear();
+  versionEl.textContent = "Checking...";
+  licenseEl.textContent = "";
+  overlay.classList.remove("hidden");
+
   try {
     const result = await window.api.checkPython();
     if (result.success && result.data) {
       const d = result.data;
       if (d.radarsimlib_available) {
-        status.className = "env-status ok";
-        status.innerHTML = `RadarSimLib: ${d.radarsimlib_version}` +
-          (d.licensed ? " (Licensed)" : " (Unlicensed)");
+        versionEl.textContent = `RadarSimLib v${d.radarsimlib_version}`;
+        licenseEl.textContent = d.licensed ? "License: Active" : "License: Unlicensed";
+        licenseEl.style.color = d.licensed ? "var(--success)" : "var(--error)";
       } else {
-        status.className = "env-status err";
-        status.textContent = "radarsimc.dll not found or failed to load";
+        versionEl.textContent = "RadarSimLib not found";
+        licenseEl.textContent = "";
       }
     } else {
-      status.className = "env-status err";
-      status.textContent = result.error || "Failed to check environment";
+      versionEl.textContent = result.error || "Failed to check";
     }
   } catch (err) {
-    status.className = "env-status err";
-    status.textContent = err.message;
+    versionEl.textContent = err.message;
   }
+});
+
+document.getElementById("btn-about-close").addEventListener("click", () => {
+  document.getElementById("about-dialog-overlay").classList.add("hidden");
+});
+
+document.getElementById("about-dialog-overlay").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.add("hidden");
 });
 
 // --- Init ---

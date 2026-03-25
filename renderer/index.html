@@ -114,16 +114,44 @@
           </button>
         </div>
         <div id="config-status" class="config-status"></div>
-        <button id="btn-check-env" class="btn-secondary btn-sm">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-            <polyline points="22 4 12 14.01 9 11.01" />
+        <button id="btn-check-env" class="nav-item" data-tooltip="About">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
-          Check Environment
+          <span>About RadarSimApp</span>
         </button>
-        <div id="env-status" class="env-status"></div>
+        <div id="env-status" class="env-status" style="display:none"></div>
       </div>
     </nav>
+
+    <!-- About Dialog -->
+    <div id="about-dialog-overlay" class="dialog-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="about-dialog-title">
+      <div class="dialog-box">
+        <div class="dialog-header">
+          <h2 id="about-dialog-title">About RadarSimApp</h2>
+          <button class="btn-icon dialog-close" id="btn-about-close" aria-label="Close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div class="dialog-body">
+          <div class="about-logo">
+            <img src="assets/logo.svg" width="64" height="64" alt="RadarSimApp" />
+          </div>
+          <p class="about-app-name">RadarSimApp</p>
+          <p id="about-version" class="about-version">Checking...</p>
+          <hr class="about-divider" />
+          <p class="about-copy">&copy; <span id="about-year"></span> RadarSimX, LLC. All rights reserved.</p>
+          <p class="about-copy">Powered by <strong>RadarSimLib</strong>.</p>
+          <p id="about-license" class="about-license"></p>
+        </div>
+      </div>
+    </div>
 
     <!-- Main Content -->
     <main id="content">
