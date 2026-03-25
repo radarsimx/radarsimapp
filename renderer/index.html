@@ -498,10 +498,13 @@
                       <input type="checkbox" id="proc-range-profile" />
                       Compute Range Profile
                     </label>
-                    <div class="form-row" style="margin-top:6px; padding-left:20px;">
-                      <div class="form-group">
-                        <label for="proc-rd-range-fft">Range FFT</label>
-                        <input type="number" id="proc-rd-range-fft" value="0" min="0" step="1" />
+                    <div class="proc-sub-option" id="proc-range-profile-opts">
+                      <label class="proc-sub-label">
+                        <input type="checkbox" id="proc-rd-range-fft-enable" />
+                        Range FFT
+                      </label>
+                      <div class="proc-sub-input-wrap">
+                        <input type="number" id="proc-rd-range-fft" value="128" min="1" step="1" disabled />
                       </div>
                     </div>
                   </div>
@@ -510,10 +513,13 @@
                       <input type="checkbox" id="proc-range-doppler" checked />
                       Compute Range-Doppler Map
                     </label>
-                    <div class="form-row" style="margin-top:6px; padding-left:20px;">
-                      <div class="form-group">
-                        <label for="proc-rd-doppler-fft">Doppler FFT</label>
-                        <input type="number" id="proc-rd-doppler-fft" value="0" min="0" step="1" />
+                    <div class="proc-sub-option" id="proc-range-doppler-opts">
+                      <label class="proc-sub-label">
+                        <input type="checkbox" id="proc-rd-doppler-fft-enable" />
+                        Doppler FFT
+                      </label>
+                      <div class="proc-sub-input-wrap">
+                        <input type="number" id="proc-rd-doppler-fft" value="256" min="1" step="1" disabled />
                       </div>
                     </div>
                   </div>

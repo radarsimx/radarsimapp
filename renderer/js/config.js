@@ -166,16 +166,18 @@ function collectConfig() {
   };
 
   // Processing
-  const rdRangeFft = parseInt(document.getElementById("proc-rd-range-fft").value, 10) || 0;
-  const rdDopplerFft = parseInt(document.getElementById("proc-rd-doppler-fft").value, 10) || 0;
+  const rdRangeFftEnabled = document.getElementById("proc-rd-range-fft-enable").checked;
+  const rdDopplerFftEnabled = document.getElementById("proc-rd-doppler-fft-enable").checked;
+  const rdRangeFft = rdRangeFftEnabled ? (parseInt(document.getElementById("proc-rd-range-fft").value, 10) || null) : null;
+  const rdDopplerFft = rdDopplerFftEnabled ? (parseInt(document.getElementById("proc-rd-doppler-fft").value, 10) || null) : null;
   const rdEnabled = document.getElementById("proc-range-doppler").checked;
   const processing = {
     range_doppler: rdEnabled,
-    rd_range_fft: rdRangeFft > 0 ? rdRangeFft : null,
-    rd_doppler_fft: rdDopplerFft > 0 ? rdDopplerFft : null,
+    rd_range_fft: rdRangeFft,
+    rd_doppler_fft: rdDopplerFft,
     // Range profile is auto-enabled by RD and reuses rd_range_fft
     range_profile: document.getElementById("proc-range-profile").checked || rdEnabled,
-    rp_range_fft: rdRangeFft > 0 ? rdRangeFft : null,
+    rp_range_fft: rdRangeFft,
     noise: document.getElementById("proc-noise").checked,
   };
 

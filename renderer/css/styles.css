@@ -524,6 +524,69 @@ body {
   filter: none;
 }
 
+/* Processing sub-options (inline enable-checkbox + number input) */
+.proc-sub-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 5px;
+  padding-left: 22px;
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+
+.proc-sub-option.disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.proc-sub-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 12px;
+  min-width: 0;
+  flex-shrink: 0;
+  padding-top: 5px;
+}
+
+.proc-sub-input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: relative;
+}
+
+.proc-sub-input-wrap[data-error]::after {
+  content: attr(data-error);
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: #2a1a1e;
+  color: var(--error);
+  border: 1px solid var(--error);
+  border-radius: var(--radius);
+  padding: 4px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.proc-sub-input-wrap[data-error]:hover::after,
+.proc-sub-input-wrap[data-error]:focus-within::after {
+  opacity: 1;
+}
+
+.proc-sub-option input[type="number"] {
+  width: 72px;
+  flex-shrink: 0;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -558,9 +621,14 @@ select:focus {
   box-shadow: 0 0 0 2px var(--accent-dim);
 }
 
-input[type="text"].is-invalid {
+input[type="text"].is-invalid,
+input[type="number"].is-invalid {
   border-color: var(--error);
   box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.2);
+}
+
+.fft-err {
+  display: none;
 }
 
 /* Number input: hide native spin buttons */
@@ -576,7 +644,8 @@ input[type="number"] {
   appearance: textfield;
 }
 
-input[readonly] {
+input[readonly],
+input:disabled {
   background: var(--bg-secondary);
   opacity: 0.7;
   cursor: default;
@@ -613,6 +682,11 @@ input[readonly] {
 .number-input-wrapper:hover .number-input-spinner,
 .number-input-wrapper input:focus ~ .number-input-spinner {
   opacity: 1;
+}
+
+/* Hide spinners when the input is disabled */
+.number-input-wrapper input:disabled ~ .number-input-spinner {
+  display: none;
 }
 
 .spin-btn {

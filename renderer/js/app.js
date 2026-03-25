@@ -41,6 +41,7 @@ document.querySelectorAll(".nav-item").forEach((item) => {
     else if (panel === "radar") updateRadarOverviewPlot();
     else if (panel === "transmitter") { updateTxLocationsPlot(); updateTxWaveformPlot(); }
     else if (panel === "receiver") updateRxLocationsPlot();
+    else if (panel === "simulation") _updateAutoFftValues();
   });
 });
 
@@ -133,12 +134,98 @@ document.getElementById("proc-range-doppler").addEventListener("change", (e) => 
   } else {
     rpCheckbox.disabled = false;
   }
+  _syncProcSubOptions();
 });
-// Set initial disabled state
+document.getElementById("proc-range-profile").addEventListener("change", _syncProcSubOptions);
+
+function _isPow2(n) { return n > 0 && (n & (n - 1)) === 0; }
+
+function _validateFftInput(inputEl, minVal, label) {
+  const val = parseInt(inputEl.value, 10);
+  let msg = '';
+  if (!_isPow2(val)) msg = `${label} must be a power of 2`;
+  else if (val < minVal) msg = `${label} must be \u2265 ${minVal} (next: ${_nextPow2UI(minVal)})`;
+  const wrap = inputEl.closest('.proc-sub-input-wrap');
+  inputEl.classList.toggle('is-invalid', !!msg);
+  if (wrap) {
+    if (msg) wrap.setAttribute('data-error', msg);
+    else wrap.removeAttribute('data-error');
+  }
+  return !msg;
+}
+
+function _validateFftInputs() {
+  const tStart = parseFloat(document.getElementById('tx-t-start').value) || 0;
+  const tEnd = parseFloat(document.getElementById('tx-t-end').value) || 0;
+  const fs = (parseFloat(document.getElementById('rx-fs').value) || 2) * 1e6;
+  const pulses = parseInt(document.getElementById('tx-pulses').value, 10) || 1;
+  const spp = Math.ceil(Math.abs(tEnd - tStart) * 1e-6 * fs) || 1;
+  if (document.getElementById('proc-rd-range-fft-enable').checked) {
+    _validateFftInput(document.getElementById('proc-rd-range-fft'), spp, 'Range FFT');
+  }
+  if (document.getElementById('proc-rd-doppler-fft-enable').checked) {
+    _validateFftInput(document.getElementById('proc-rd-doppler-fft'), pulses, 'Doppler FFT');
+  }
+}
+
+// Custom FFT size toggles
+["proc-rd-range-fft", "proc-rd-doppler-fft"].forEach((id) => {
+  const enableCb = document.getElementById(id + "-enable");
+  const input = document.getElementById(id);
+  enableCb.addEventListener("change", () => {
+    input.disabled = !enableCb.checked;
+    if (!enableCb.checked) {
+      input.classList.remove('is-invalid');
+      const wrap = input.closest('.proc-sub-input-wrap');
+      if (wrap) wrap.removeAttribute('data-error');
+      _updateAutoFftValues();
+    } else {
+      _validateFftInputs();
+    }
+  });
+  input.addEventListener('input', _validateFftInputs);
+});
+
+function _nextPow2UI(n) { let p = 1; while (p < n) p <<= 1; return p; }
+
+function _updateAutoFftValues() {
+  const tStart = parseFloat(document.getElementById("tx-t-start").value) || 0;
+  const tEnd = parseFloat(document.getElementById("tx-t-end").value) || 0;
+  const fs = (parseFloat(document.getElementById("rx-fs").value) || 2) * 1e6;
+  const pulses = parseInt(document.getElementById("tx-pulses").value, 10) || 1;
+  const spp = Math.ceil(Math.abs(tEnd - tStart) * 1e-6 * fs) || 1;
+
+  const rangeFftInput = document.getElementById("proc-rd-range-fft");
+  const dopplerFftInput = document.getElementById("proc-rd-doppler-fft");
+  if (!document.getElementById("proc-rd-range-fft-enable").checked) {
+    rangeFftInput.value = _nextPow2UI(spp);
+  }
+  if (!document.getElementById("proc-rd-doppler-fft-enable").checked) {
+    dopplerFftInput.value = _nextPow2UI(pulses);
+  }
+}
+
+// Update auto FFT values when relevant inputs change
+["tx-t-start", "tx-t-end", "rx-fs", "tx-pulses"].forEach((id) => {
+  document.getElementById(id)?.addEventListener("input", _updateAutoFftValues);
+});
+
+function _syncProcSubOptions() {
+  const rpOn = document.getElementById("proc-range-profile").checked;
+  const rdOn = document.getElementById("proc-range-doppler").checked;
+  document.getElementById("proc-range-profile-opts").classList.toggle("disabled", !rpOn);
+  document.getElementById("proc-range-doppler-opts").classList.toggle("disabled", !rdOn);
+  if (!rpOn) document.getElementById("proc-rd-range-fft-enable").checked = false, document.getElementById("proc-rd-range-fft").disabled = true;
+  if (!rdOn) document.getElementById("proc-rd-doppler-fft-enable").checked = false, document.getElementById("proc-rd-doppler-fft").disabled = true;
+  _updateAutoFftValues();
+}
+
+// Set initial state
 (function () {
   const rdCb = document.getElementById("proc-range-doppler");
   const rpCb = document.getElementById("proc-range-profile");
   if (rdCb.checked) { rpCb.checked = true; rpCb.disabled = true; }
+  _syncProcSubOptions();
 })();
 
 document.getElementById("btn-add-tx-ch").addEventListener("click", () => {
@@ -190,6 +277,14 @@ document.getElementById("btn-run-sim").addEventListener("click", async () => {
   const btn = document.getElementById("btn-run-sim");
   const status = document.getElementById("sim-status");
   const progress = document.getElementById("sim-progress");
+
+  // Validate custom FFT sizes before running
+  _validateFftInputs();
+  if (document.querySelector('#proc-range-profile-opts .is-invalid, #proc-range-doppler-opts .is-invalid')) {
+    status.className = "status-msg error";
+    status.textContent = "Invalid FFT size. Fix the errors above before running.";
+    return;
+  }
 
   btn.disabled = true;
   status.className = "status-msg running";

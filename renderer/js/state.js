@@ -37,8 +37,10 @@ function defaultState() {
       "sim-level": "frame",
       "proc-noise": true,
       "proc-range-doppler": true,
-      "proc-rd-range-fft": "0",
-      "proc-rd-doppler-fft": "0",
+      "proc-rd-range-fft-enable": false,
+      "proc-rd-range-fft": "128",
+      "proc-rd-doppler-fft-enable": false,
+      "proc-rd-doppler-fft": "256",
     },
     txChannels: [{ location: [0, 0, 0] }],
     rxChannels: [{ location: [0, 0, 0] }],
@@ -68,7 +70,7 @@ const STATIC_FIELDS = [
 ];
 
 /** Checkbox field IDs to persist. */
-const CHECKBOX_FIELDS = ["proc-noise", "proc-range-doppler", "proc-range-profile"];
+const CHECKBOX_FIELDS = ["proc-noise", "proc-range-doppler", "proc-range-profile", "proc-rd-range-fft-enable", "proc-rd-doppler-fft-enable"];
 
 /**
  * Snapshots the entire UI state into a plain object.
