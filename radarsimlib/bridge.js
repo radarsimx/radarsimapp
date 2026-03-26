@@ -16,17 +16,17 @@ const lib = koffi.load(dllPath);
 const Get_Version = lib.func("void Get_Version(int *version)");
 const Is_Licensed = lib.func("int Is_Licensed()");
 const Set_License = lib.func("void Set_License(const char *license_file_path, const char *product)");
+const Set_License_Files = lib.func("void Set_License_Files(const char **license_file_paths, int num_files, const char *product)");
 
 // ── License activation ─────────────────────────────────────────────────────────
 {
   const licPattern = /^license_RadarSimApp_.*\.lic$/;
   const licFiles = fs.readdirSync(baseDir).filter((f) => licPattern.test(f));
-  for (const f of licFiles) {
-    const licPath = path.join(baseDir, f);
-    console.log("[bridge] Activating license:", licPath);
-    Set_License(licPath, "RadarSimApp");
-  }
-  if (licFiles.length === 0) {
+  if (licFiles.length > 0) {
+    const licPaths = licFiles.map((f) => path.join(baseDir, f));
+    console.log("[bridge] Activating license files:", licPaths);
+    Set_License_Files(licPaths, licPaths.length, "RadarSimApp");
+  } else {
     console.warn("[bridge] No license files found in", baseDir);
   }
 }
@@ -877,7 +877,7 @@ class RadarSimBridge {
     const dest = path.join(baseDir, fileName);
     fs.copyFileSync(licFilePath, dest);
     console.log("[bridge] Copied license file to:", dest);
-    Set_License(dest, "RadarSimApp");
+    Set_License_Files([dest], 1, "RadarSimApp");
     const licensed = Is_Licensed();
     return { licensed: licensed === 1 };
   }
