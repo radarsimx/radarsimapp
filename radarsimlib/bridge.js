@@ -100,6 +100,22 @@ const Run_RcsSimulator = lib.func(
   " double frequency, double density, double *rcs_result)"
 );
 
+// ── Error codes (radarsim.h) ───────────────────────────────────────────────────
+const ERROR_MESSAGES = {
+  0: "Success",
+  1: "Null pointer encountered",
+  2: "Invalid parameter provided",
+  3: "Memory allocation failed",
+  4: "Free tier limit reached — purchase a license at https://radarsimx.com/ to unlock full capabilities",
+  5: "Unhandled exception occurred",
+  6: "Ray count exceeds grid capacity",
+};
+
+function _errorMsg(code, context) {
+  const desc = ERROR_MESSAGES[code] || `Unknown error`;
+  return `${context}: ${desc} (code ${code})`;
+}
+
 // ── Type helpers ──────────────────────────────────────────────────────────────
 function toF32(arr) {
   return arr instanceof Float32Array ? arr : new Float32Array(arr);
@@ -508,7 +524,7 @@ function _buildTransmitter(txCfg) {
       pModRe, pModIm,
       chDelay, (1 / 180) * Math.PI, ptrTx
     );
-    if (ret !== 0) throw new Error("Add_Txchannel failed");
+    if (ret !== 0) throw new Error(_errorMsg(ret, "Add_Txchannel"));
   }
 
   return {
@@ -558,7 +574,7 @@ function _buildReceiver(rxCfg) {
       theta, thetaPtn, theta.length,
       antennaGain, ptrRx
     );
-    if (ret !== 0) throw new Error("Add_Rxchannel failed");
+    if (ret !== 0) throw new Error(_errorMsg(ret, "Add_Rxchannel"));
   }
 
   return {
@@ -610,7 +626,7 @@ function _buildTargets(targetsCfg, density = 1) {
         t.environment || false,
         ptrTargets
       );
-      if (ret !== 0) throw new Error("Add_Mesh_Target failed");
+      if (ret !== 0) throw new Error(_errorMsg(ret, "Add_Mesh_Target"));
     } else {
       // Phase: degrees → radians
       const phaseRad = t.phase != null ? (t.phase * Math.PI) / 180 : 0;
@@ -620,7 +636,7 @@ function _buildTargets(targetsCfg, density = 1) {
         phaseRad,
         ptrTargets
       );
-      if (ret !== 0) throw new Error("Add_Point_Target failed");
+      if (ret !== 0) throw new Error(_errorMsg(ret, "Add_Point_Target"));
     }
   }
   return ptrTargets;
@@ -692,7 +708,7 @@ class RadarSimBridge {
     Free_Receiver(rx.ptr);
     Free_Transmitter(tx.ptr);
 
-    if (status !== 0) throw new Error(`Run_RadarSimulator failed (code ${status})`);
+    if (status !== 0) throw new Error(_errorMsg(status, "Run_RadarSimulator"));
 
     // Discard imaginary part for real baseband
     const bbType = rxCfg.bb_type || "complex";
@@ -837,7 +853,7 @@ class RadarSimBridge {
     );
 
     Free_Targets(ptrTargets);
-    if (status !== 0) throw new Error(`Run_RcsSimulator failed (code ${status})`);
+    if (status !== 0) throw new Error(_errorMsg(status, "Run_RcsSimulator"));
 
     const rcsLinear = Array.from(rcsResult);
     const rcsDbsm = rcsLinear.map((v) => 10 * Math.log10(Math.abs(v) + 1e-30));
