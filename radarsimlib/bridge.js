@@ -845,7 +845,7 @@ class RadarSimBridge {
     return { rcs_linear: rcsLinear, rcs_dbsm: rcsDbsm, inc_phi: incPhi, inc_theta: incTheta };
   }
 
-  async checkPython() {
+  async checkLibrary() {
     const version = new Int32Array(3);
     Get_Version(version);
     const licensed = Is_Licensed();

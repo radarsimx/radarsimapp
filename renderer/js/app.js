@@ -536,12 +536,10 @@ document.getElementById("btn-export").addEventListener("click", async () => {
 
 // --- Check Environment ---
 /**
- * Checks whether the Python environment has all required dependencies
- * (Python itself, NumPy, and RadarSimPy) by invoking the main-process
- * checkPython IPC handler.
+ * Checks whether the native RadarSimLib is available and licensed by invoking
+ * the main-process check-library IPC handler.
  *
- * Displays version info on success, or an error message if any dependency
- * is missing or the check fails.
+ * Displays version and license info on success, or an error message on failure.
  */
 document.getElementById("btn-check-env").addEventListener("click", async () => {
   const overlay = document.getElementById("about-dialog-overlay");
@@ -554,7 +552,7 @@ document.getElementById("btn-check-env").addEventListener("click", async () => {
   overlay.classList.remove("hidden");
 
   try {
-    const result = await window.api.checkPython();
+    const result = await window.api.checkLibrary();
     if (result.success && result.data) {
       const d = result.data;
       if (d.radarsimlib_available) {

@@ -112,9 +112,9 @@ ipcMain.handle("run-rcs-simulation", async (_event, config) => {
  *
  * @returns {{ success: boolean, data?: Object, error?: string }}
  */
-ipcMain.handle("check-python", async () => {
+ipcMain.handle("check-library", async () => {
   try {
-    const result = await bridge.checkPython();
+    const result = await bridge.checkLibrary();
     return { success: true, data: result };
   } catch (err) {
     return { success: false, error: err.message || String(err) };
