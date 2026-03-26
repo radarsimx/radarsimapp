@@ -526,6 +526,57 @@ button.nav-item {
   color: var(--text-secondary);
 }
 
+/* ===== License Activation Dialog ===== */
+.license-dialog-box {
+  width: 400px;
+}
+
+.license-dialog-icon {
+  margin-bottom: 14px;
+  color: var(--warning, #f0a030);
+}
+
+.license-dialog-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 10px;
+}
+
+.license-dialog-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+.license-dialog-desc code {
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 12px;
+  color: var(--accent-light);
+}
+
+.license-dialog-status {
+  font-size: 12px;
+  min-height: 18px;
+  margin: 4px 0 0;
+}
+
+.dialog-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 24px 20px;
+}
+
+.dialog-footer .btn-primary,
+.dialog-footer .btn-secondary {
+  width: 100%;
+  justify-content: center;
+}
+
 /* ===== Simulation Loading Overlay ===== */
 .sim-overlay {
   position: fixed;

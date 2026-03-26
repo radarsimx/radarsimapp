@@ -573,33 +573,10 @@ document.getElementById("btn-check-env").addEventListener("click", async () => {
   }
 });
 
-// --- Activate License ---
-document.getElementById("btn-activate").addEventListener("click", async () => {
-  const btn = document.getElementById("btn-activate");
-  const origText = btn.querySelector("span").textContent;
-  btn.querySelector("span").textContent = "Activating...";
-  btn.disabled = true;
-
-  try {
-    const result = await window.api.activateLicense();
-    if (result.cancelled) return;
-    if (result.success && result.data?.licensed) {
-      btn.classList.add("hidden");
-      // Refresh the About dialog license status if open
-      const licenseEl = document.getElementById("about-license");
-      if (licenseEl) {
-        licenseEl.textContent = "License: Active";
-        licenseEl.style.color = "var(--success)";
-      }
-    } else {
-      alert(result.error || "License activation failed. Please check the license file.");
-    }
-  } catch (err) {
-    alert("Activation error: " + err.message);
-  } finally {
-    btn.querySelector("span").textContent = origText;
-    btn.disabled = false;
-  }
+// --- Activate License (sidebar button) ---
+document.getElementById("btn-activate").addEventListener("click", () => {
+  document.getElementById("license-dialog-status").textContent = "";
+  document.getElementById("license-dialog-overlay").classList.remove("hidden");
 });
 
 document.getElementById("btn-about-close").addEventListener("click", () => {
@@ -615,10 +592,52 @@ document.getElementById("about-dialog-overlay").addEventListener("click", (e) =>
   try {
     const result = await window.api.checkLibrary();
     if (result.success && result.data) {
-      document.getElementById("btn-activate").classList.toggle("hidden", result.data.licensed);
+      const licensed = result.data.licensed;
+      document.getElementById("btn-activate").classList.toggle("hidden", licensed);
+      if (!licensed) {
+        document.getElementById("license-dialog-overlay").classList.remove("hidden");
+      }
     }
-  } catch (_) { /* ignore — About dialog will show details */ }
+  } catch (_) { /* ignore */ }
 })();
+
+// --- License dialog handlers ---
+async function _doLicenseActivation() {
+  const statusEl = document.getElementById("license-dialog-status");
+  const btn = document.getElementById("btn-license-select");
+  btn.disabled = true;
+  statusEl.textContent = "Activating...";
+  statusEl.style.color = "var(--text-secondary)";
+  try {
+    const result = await window.api.activateLicense();
+    if (result.cancelled) {
+      statusEl.textContent = "";
+      return;
+    }
+    if (result.success && result.data?.licensed) {
+      document.getElementById("license-dialog-overlay").classList.add("hidden");
+      document.getElementById("btn-activate").classList.add("hidden");
+      const licenseEl = document.getElementById("about-license");
+      if (licenseEl) { licenseEl.textContent = "License: Active"; licenseEl.style.color = "var(--success)"; }
+    } else {
+      statusEl.textContent = result.error || "Activation failed. Please check the license file.";
+      statusEl.style.color = "var(--error)";
+    }
+  } catch (err) {
+    statusEl.textContent = "Error: " + err.message;
+    statusEl.style.color = "var(--error)";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("btn-license-select").addEventListener("click", _doLicenseActivation);
+document.getElementById("btn-license-cancel").addEventListener("click", () => {
+  document.getElementById("license-dialog-overlay").classList.add("hidden");
+});
+document.getElementById("btn-license-close").addEventListener("click", () => {
+  document.getElementById("license-dialog-overlay").classList.add("hidden");
+});
 
 // --- Init ---
 // Initialization is handled by state.js (loaded after this script), which
