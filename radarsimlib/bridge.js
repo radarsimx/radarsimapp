@@ -458,7 +458,7 @@ function _buildTransmitter(txCfg) {
     // ── Antenna pattern (Matlab TxChannel.m lines 71-86) ─────────────
     const { phi, phiPtn, theta, thetaPtn, antennaGain } =
       _buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
-                           ch.elevation_angle, ch.elevation_pattern);
+        ch.elevation_angle, ch.elevation_pattern);
 
     // ── Pulse modulation (Matlab TxChannel.m lines 88-99) ────────────
     let pModRe, pModIm;
@@ -485,7 +485,7 @@ function _buildTransmitter(txCfg) {
       modT = toF32(ch.mod_t);
       const amp = ch.amp || new Array(modT.length).fill(1);
       const phs = ch.phs ? ch.phs.map((v) => (v * Math.PI) / 180)
-                         : new Array(modT.length).fill(0);
+        : new Array(modT.length).fill(0);
       modVarRe = new Float32Array(amp.map((a, i) => a * Math.cos(phs[i])));
       modVarIm = new Float32Array(amp.map((a, i) => a * Math.sin(phs[i])));
       modLen = modT.length;
@@ -550,7 +550,7 @@ function _buildReceiver(rxCfg) {
     // ── Antenna pattern (Matlab RxChannel.m lines 51-66) ─────────────
     const { phi, phiPtn, theta, thetaPtn, antennaGain } =
       _buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
-                           ch.elevation_angle, ch.elevation_pattern);
+        ch.elevation_angle, ch.elevation_pattern);
 
     const ret = Add_Rxchannel(
       loc, polarRe, polarIm,
