@@ -1,0 +1,104 @@
+END USER LICENSE AGREEMENT (EULA)
+
+RadarSimApp
+Copyright (c) 2026 RadarSimX, LLC. All rights reserved.
+
+PLEASE READ THIS END USER LICENSE AGREEMENT ("AGREEMENT") CAREFULLY BEFORE
+INSTALLING OR USING RADARSIMAPP (THE "SOFTWARE"). BY CLICKING "I AGREE",
+INSTALLING, COPYING, OR OTHERWISE USING THE SOFTWARE, YOU ("LICENSEE") AGREE
+TO BE BOUND BY THE TERMS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+INSTALL OR USE THE SOFTWARE.
+
+1. GRANT OF LICENSE
+
+   RadarSimX, LLC ("Licensor") grants Licensee a non-exclusive,
+   non-transferable, revocable license to install and use one (1) copy of
+   the Software on a single computer owned or controlled by Licensee, solely
+   for Licensee's own internal business or personal purposes.
+
+2. RESTRICTIONS
+
+   Licensee shall not:
+
+   a) Copy or duplicate the Software except for a single backup copy;
+   b) Modify, adapt, translate, or create derivative works based on the
+      Software;
+   c) Reverse engineer, disassemble, decompile, or attempt to derive the
+      source code of the Software or any component thereof;
+   d) Rent, lease, lend, sell, sublicense, assign, distribute, or otherwise
+      transfer the Software or any rights herein to any third party;
+   e) Remove, alter, or obscure any proprietary notices, trademarks, or
+      labels on or within the Software;
+   f) Use the Software to develop a product or service that competes with
+      the Software or with any product or service of Licensor.
+
+3. INTELLECTUAL PROPERTY
+
+   The Software, including all intellectual property rights therein, is and
+   shall remain the sole and exclusive property of Licensor. This Agreement
+   does not convey to Licensee any ownership interest in the Software, but
+   only a limited right of use revocable in accordance with the terms hereof.
+
+4. UPDATES AND SUPPORT
+
+   Licensor is under no obligation to provide updates, patches, bug fixes,
+   or technical support under this Agreement unless separately agreed in
+   writing.
+
+5. COLLECTION OF DATA
+
+   The Software does not collect, transmit, or share any personal data or
+   usage telemetry. All simulation data remains entirely on the Licensee's
+   local machine.
+
+6. DISCLAIMER OF WARRANTIES
+
+   THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTY OF
+   ANY KIND. LICENSOR EXPRESSLY DISCLAIMS ALL WARRANTIES, EXPRESS, IMPLIED,
+   OR STATUTORY, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND
+   NON-INFRINGEMENT. LICENSOR DOES NOT WARRANT THAT THE SOFTWARE WILL BE
+   ERROR-FREE, UNINTERRUPTED, SECURE, OR THAT DEFECTS WILL BE CORRECTED.
+
+7. LIMITATION OF LIABILITY
+
+   TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL
+   LICENSOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+   PUNITIVE, OR CONSEQUENTIAL DAMAGES (INCLUDING, WITHOUT LIMITATION, LOSS
+   OF PROFITS, REVENUE, DATA, BUSINESS, OR GOODWILL) ARISING OUT OF OR IN
+   CONNECTION WITH THIS AGREEMENT OR THE USE OR INABILITY TO USE THE
+   SOFTWARE, EVEN IF LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH
+   DAMAGES. LICENSOR'S TOTAL CUMULATIVE LIABILITY ARISING OUT OF OR RELATED
+   TO THIS AGREEMENT SHALL NOT EXCEED THE AMOUNT PAID BY LICENSEE FOR THE
+   SOFTWARE IN THE TWELVE (12) MONTHS PRECEDING THE CLAIM.
+
+8. TERMINATION
+
+   This Agreement is effective upon installation of the Software and shall
+   continue until terminated. Licensor may terminate this Agreement
+   immediately upon written notice if Licensee breaches any term hereof.
+   Licensee may terminate this Agreement at any time by uninstalling and
+   destroying all copies of the Software. Upon termination for any reason,
+   Licensee must immediately cease all use of the Software and destroy all
+   copies in its possession or control. Sections 2, 3, 6, 7, 9, and 10
+   shall survive termination.
+
+9. GOVERNING LAW AND DISPUTE RESOLUTION
+
+   This Agreement shall be governed by and construed in accordance with the
+   laws of the State of Delaware, United States, without regard to its
+   conflict of law provisions. Any dispute arising out of or relating to
+   this Agreement shall be subject to the exclusive jurisdiction of the
+   state and federal courts located in Delaware.
+
+10. ENTIRE AGREEMENT
+
+    This Agreement constitutes the entire agreement between the parties with
+    respect to the subject matter hereof and supersedes all prior or
+    contemporaneous understandings, representations, or agreements, whether
+    written or oral, relating to the Software.
+
+    If any provision of this Agreement is held invalid or unenforceable, the
+    remaining provisions shall continue in full force and effect.
+
+Contact: support@radarsimx.com

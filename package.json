@@ -1,18 +1,21 @@
 {
   "name": "radarsimapp",
   "version": "1.0.0",
-  "description": "Desktop radar simulation application powered by RadarSimPy",
+  "description": "Radar simulation desktop app — model waveforms, targets, and antenna arrays with real-time Range-Doppler visualization",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win",
+    "generate-gif": "node scripts/generate-install-gif.js"
   },
   "author": "RadarSimX",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE.txt",
   "devDependencies": {
+    "@napi-rs/canvas": "^0.1.97",
     "electron": "^41.0.3",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^26.8.1",
+    "gif-encoder-2": "^1.0.5"
   },
   "dependencies": {
     "koffi": "^2.9.0",
@@ -21,9 +24,14 @@
   "build": {
     "appId": "com.radarsimx.radarsimapp",
     "productName": "RadarSimApp",
+    "copyright": "Copyright © 2026 RadarSimX, LLC",
     "win": {
-      "target": "nsis",
-      "icon": "renderer/assets/logo.ico"
+      "target": "squirrel",
+      "icon": "renderer/assets/logo.ico",
+      "legalTrademarks": "RadarSimX, LLC"
+    },
+    "squirrelWindows": {
+      "loadingGif": "renderer/assets/install.gif"
     },
     "files": [
       "main.js",
