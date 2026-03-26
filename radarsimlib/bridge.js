@@ -1,8 +1,5 @@
 "use strict";
 // ===== RadarSimApp - Native C Bridge =====
-// Calls radarsimc.dll directly via koffi (FFI), replacing the Python/radarsimpy
-// dependency. The public API (runSimulation, runRcsSimulation, checkPython,
-// kill) is identical to the old PythonBridge so main.js needs no changes.
 
 const koffi = require("koffi");
 const path = require("path");
@@ -626,7 +623,7 @@ function _buildTargets(targetsCfg, density = 1) {
   return ptrTargets;
 }
 
-// ── PythonBridge (same public API as before) ──────────────────────────────────
+// ── PythonBridge ─────────────────────────────────────────────────────────────
 class PythonBridge {
   constructor() { }
 
