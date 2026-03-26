@@ -152,26 +152,62 @@ function sceneArrowLen(xs, ys, zs, minLen = 0.1) {
 function boresightTraces(arrowLen, color, origin = [0, 0, 0], dir = [1, 0, 0]) {
   const [ox, oy, oz] = origin;
   const [dx, dy, dz] = dir;
-  const shaft = [ox, ox + dx * arrowLen * 0.85];
-  const shaftY = [oy, oy + dy * arrowLen * 0.85];
-  const shaftZ = [oz, oz + dz * arrowLen * 0.85];
-  const labelX = ox + dx * arrowLen * 1.12;
-  const labelY = oy + dy * arrowLen * 1.12;
-  const labelZ = oz + dz * arrowLen * 1.12;
+
+  // Tip of the arrow
+  const tipX = ox + dx * arrowLen;
+  const tipY = oy + dy * arrowLen;
+  const tipZ = oz + dz * arrowLen;
+
+  // Build two perpendicular vectors to create arrowhead barbs
+  // Choose a reference that isn't parallel to dir
+  let refX = 0, refY = 1, refZ = 0;
+  if (Math.abs(dy) > 0.9) { refX = 0; refY = 0; refZ = 1; }
+  // Cross product: perp1 = dir × ref
+  const p1x = dy * refZ - dz * refY;
+  const p1y = dz * refX - dx * refZ;
+  const p1z = dx * refY - dy * refX;
+  const p1len = Math.sqrt(p1x * p1x + p1y * p1y + p1z * p1z) || 1;
+  const n1x = p1x / p1len, n1y = p1y / p1len, n1z = p1z / p1len;
+  // Cross product: perp2 = dir × perp1
+  const n2x = dy * n1z - dz * n1y;
+  const n2y = dz * n1x - dx * n1z;
+  const n2z = dx * n1y - dy * n1x;
+
+  const headLen = arrowLen * 0.12;
+  const headW = arrowLen * 0.04;
+
+  // 4 barb endpoints forming a cross pattern
+  const barbs = [
+    [n1x, n1y, n1z],
+    [-n1x, -n1y, -n1z],
+    [n2x, n2y, n2z],
+    [-n2x, -n2y, -n2z],
+  ];
+
+  const headXs = [], headYs = [], headZs = [];
+  for (const [bx, by, bz] of barbs) {
+    headXs.push(tipX, tipX - dx * headLen + bx * headW, null);
+    headYs.push(tipY, tipY - dy * headLen + by * headW, null);
+    headZs.push(tipZ, tipZ - dz * headLen + bz * headW, null);
+  }
+
+  // Label position past the tip
+  const labelX = ox + dx * arrowLen * 1.15;
+  const labelY = oy + dy * arrowLen * 1.15;
+  const labelZ = oz + dz * arrowLen * 1.15;
+
   return [
     {
-      x: shaft, y: shaftY, z: shaftZ,
+      x: [ox, tipX], y: [oy, tipY], z: [oz, tipZ],
       type: "scatter3d", mode: "lines",
-      line: { color, width: 3 },
+      line: { color, width: 4 },
       showlegend: false, hoverinfo: "none", name: "",
     },
     {
-      x: [ox + dx * arrowLen * 0.85], y: [oy + dy * arrowLen * 0.85], z: [oz + dz * arrowLen * 0.85],
-      u: [dx * arrowLen * 0.15], v: [dy * arrowLen * 0.15], w: [dz * arrowLen * 0.15],
-      type: "cone",
-      colorscale: [[0, color], [1, color]],
-      showscale: false, showlegend: false,
-      hoverinfo: "none", anchor: "tail",
+      x: headXs, y: headYs, z: headZs,
+      type: "scatter3d", mode: "lines",
+      line: { color, width: 4 },
+      showlegend: false, hoverinfo: "none", name: "",
     },
     {
       x: [labelX], y: [labelY], z: [labelZ],
@@ -375,7 +411,7 @@ function updateRadarOverviewPlot() {
 
   const boresightDir = rotatePoint(1, 0, 0, yaw, pitch, roll);
   const arrow = boresightTraces(
-    sceneArrowLen([radarX, ...txXs, ...rxXs], [radarY, ...txYs, ...rxYs], [radarZ, ...txZs, ...rxZs]),
+    sceneArrowLen([radarX, ...txXs, ...rxXs], [radarY, ...txYs, ...rxYs], [radarZ, ...txZs, ...rxZs], 0.001),
     "#fd7e14", [radarX, radarY, radarZ], boresightDir
   );
 
@@ -453,7 +489,7 @@ function updateTargetsPlot() {
 
   const boresightDir = rotatePoint(1, 0, 0, yaw, pitch, roll);
   const arrow = boresightTraces(
-    sceneArrowLen([radarX, ...ptXs, ...mxs], [radarY, ...ptYs, ...mys], [radarZ, ...ptZs, ...mzs]),
+    sceneArrowLen([radarX], [radarY], [radarZ], 1),
     "#fd7e14", [radarX, radarY, radarZ], boresightDir
   );
 
