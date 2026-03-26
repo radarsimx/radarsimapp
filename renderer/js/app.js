@@ -559,6 +559,8 @@ document.getElementById("btn-check-env").addEventListener("click", async () => {
         versionEl.textContent = `RadarSimLib v${d.radarsimlib_version}`;
         licenseEl.textContent = d.licensed ? "License: Active" : "License: Unlicensed";
         licenseEl.style.color = d.licensed ? "var(--success)" : "var(--error)";
+        // Show/hide the activate button based on license status
+        document.getElementById("btn-activate").classList.toggle("hidden", d.licensed);
       } else {
         versionEl.textContent = "RadarSimLib not found";
         licenseEl.textContent = "";
@@ -571,6 +573,35 @@ document.getElementById("btn-check-env").addEventListener("click", async () => {
   }
 });
 
+// --- Activate License ---
+document.getElementById("btn-activate").addEventListener("click", async () => {
+  const btn = document.getElementById("btn-activate");
+  const origText = btn.querySelector("span").textContent;
+  btn.querySelector("span").textContent = "Activating...";
+  btn.disabled = true;
+
+  try {
+    const result = await window.api.activateLicense();
+    if (result.cancelled) return;
+    if (result.success && result.data?.licensed) {
+      btn.classList.add("hidden");
+      // Refresh the About dialog license status if open
+      const licenseEl = document.getElementById("about-license");
+      if (licenseEl) {
+        licenseEl.textContent = "License: Active";
+        licenseEl.style.color = "var(--success)";
+      }
+    } else {
+      alert(result.error || "License activation failed. Please check the license file.");
+    }
+  } catch (err) {
+    alert("Activation error: " + err.message);
+  } finally {
+    btn.querySelector("span").textContent = origText;
+    btn.disabled = false;
+  }
+});
+
 document.getElementById("btn-about-close").addEventListener("click", () => {
   document.getElementById("about-dialog-overlay").classList.add("hidden");
 });
@@ -578,6 +609,16 @@ document.getElementById("btn-about-close").addEventListener("click", () => {
 document.getElementById("about-dialog-overlay").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) e.currentTarget.classList.add("hidden");
 });
+
+// --- Check license on startup ---
+(async () => {
+  try {
+    const result = await window.api.checkLibrary();
+    if (result.success && result.data) {
+      document.getElementById("btn-activate").classList.toggle("hidden", result.data.licensed);
+    }
+  } catch (_) { /* ignore — About dialog will show details */ }
+})();
 
 // --- Init ---
 // Initialization is handled by state.js (loaded after this script), which

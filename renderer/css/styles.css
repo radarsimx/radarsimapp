@@ -33,6 +33,10 @@
   box-sizing: border-box;
 }
 
+.hidden {
+  display: none !important;
+}
+
 html,
 html,
 body {
@@ -317,6 +321,15 @@ button.nav-item {
 
 .nav-item.active svg {
   opacity: 1;
+}
+
+.nav-item-activate {
+  color: var(--warning, #f0a030);
+}
+
+.nav-item-activate svg {
+  opacity: 1 !important;
+  color: var(--warning, #f0a030);
 }
 
 .nav-item--has-sub {

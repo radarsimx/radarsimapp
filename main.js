@@ -121,6 +121,21 @@ ipcMain.handle("check-library", async () => {
   }
 });
 
+ipcMain.handle("activate-license", async () => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "Select License File",
+      properties: ["openFile"],
+      filters: [{ name: "License Files", extensions: ["lic"] }],
+    });
+    if (result.canceled) return { success: false, cancelled: true };
+    const data = await bridge.activateLicense(result.filePaths[0]);
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err.message || String(err) };
+  }
+});
+
 /**
  * Opens a URL in the system default browser.
  *

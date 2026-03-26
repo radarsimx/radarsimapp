@@ -872,6 +872,16 @@ class RadarSimBridge {
     };
   }
 
+  async activateLicense(licFilePath) {
+    const fileName = path.basename(licFilePath);
+    const dest = path.join(baseDir, fileName);
+    fs.copyFileSync(licFilePath, dest);
+    console.log("[bridge] Copied license file to:", dest);
+    Set_License(dest, "RadarSimApp");
+    const licensed = Is_Licensed();
+    return { licensed: licensed === 1 };
+  }
+
   kill() {
     // No persistent process — DLL cleanup is automatic on process exit.
   }
