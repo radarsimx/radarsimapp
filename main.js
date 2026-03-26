@@ -1,16 +1,16 @@
 // ===== RadarSimApp - Main Process =====
 // Electron main process entry point. Responsible for creating the browser
-// window, managing the Python bridge lifecycle, and handling all IPC calls
+// window, managing the bridge lifecycle, and handling all IPC calls
 // from the renderer process.
 
 const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
-const { PythonBridge } = require("./radarsimlib/bridge");
+const { RadarSimBridge } = require("./radarsimlib/bridge");
 
 /** @type {BrowserWindow|undefined} The single application window instance. */
 let mainWindow;
-/** @type {PythonBridge|undefined} Bridge to the Python backend process. */
-let pythonBridge;
+/** @type {RadarSimBridge|undefined} */
+let bridge;
 
 /**
  * Creates and configures the main application window.
@@ -53,9 +53,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  // Initialise the Python bridge before the window opens so it is ready
-  // to accept IPC calls as soon as the renderer loads.
-  pythonBridge = new PythonBridge();
+  bridge = new RadarSimBridge();
 
   createWindow();
 
@@ -67,14 +65,13 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
-  // Terminate the Python subprocess before quitting to avoid orphaned processes.
-  if (pythonBridge) pythonBridge.kill();
+  if (bridge) bridge.kill();
   // On macOS apps conventionally stay running until the user quits explicitly.
   if (process.platform !== "darwin") app.quit();
 });
 
 // --- IPC Handlers ---
-// All handlers follow the same pattern: delegate to the PythonBridge, wrap the
+// All handlers follow the same pattern: delegate to the bridge, wrap the
 // result in { success, data } on success, or { success, error } on failure, so
 // the renderer always receives a consistent response shape.
 
@@ -86,7 +83,7 @@ app.on("window-all-closed", () => {
  */
 ipcMain.handle("run-simulation", async (_event, config) => {
   try {
-    const result = await pythonBridge.runSimulation(config);
+    const result = await bridge.runSimulation(config);
     return { success: true, data: result };
   } catch (err) {
     return { success: false, error: err.message || String(err) };
@@ -101,7 +98,7 @@ ipcMain.handle("run-simulation", async (_event, config) => {
  */
 ipcMain.handle("run-rcs-simulation", async (_event, config) => {
   try {
-    const result = await pythonBridge.runRcsSimulation(config);
+    const result = await bridge.runRcsSimulation(config);
     return { success: true, data: result };
   } catch (err) {
     return { success: false, error: err.message || String(err) };
@@ -109,14 +106,13 @@ ipcMain.handle("run-rcs-simulation", async (_event, config) => {
 });
 
 /**
- * Checks whether the Python environment has the required dependencies
- * (Python, NumPy, RadarSimPy) and returns their version strings.
+ * Checks whether the native library is available and licensed.
  *
  * @returns {{ success: boolean, data?: Object, error?: string }}
  */
 ipcMain.handle("check-python", async () => {
   try {
-    const result = await pythonBridge.checkPython();
+    const result = await bridge.checkPython();
     return { success: true, data: result };
   } catch (err) {
     return { success: false, error: err.message || String(err) };

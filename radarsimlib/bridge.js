@@ -623,8 +623,8 @@ function _buildTargets(targetsCfg, density = 1) {
   return ptrTargets;
 }
 
-// ── PythonBridge ─────────────────────────────────────────────────────────────
-class PythonBridge {
+// ── RadarSimBridge ───────────────────────────────────────────────────────────
+class RadarSimBridge {
   constructor() { }
 
   async runSimulation(config) {
@@ -858,4 +858,4 @@ class PythonBridge {
   }
 }
 
-module.exports = { PythonBridge };
+module.exports = { RadarSimBridge };
