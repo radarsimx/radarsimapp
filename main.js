@@ -22,8 +22,8 @@ let bridge;
  */
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: 1200,
+    height: 800,
     minWidth: 800,
     minHeight: 500,
     title: "RadarSimApp",
