@@ -17,14 +17,14 @@ const Get_Version = lib.func("void Get_Version(int *version)");
 const Is_Licensed = lib.func("int Is_Licensed()");
 const Set_License = lib.func("void Set_License(const char *license_file_path, const char *product)");
 
-// ── License activation (Matlab License.m set_license) ─────────────────────────
+// ── License activation ─────────────────────────────────────────────────────────
 {
-  const licPattern = /^license_RadarSimM_.*\.lic$/;
+  const licPattern = /^license_RadarSimApp_.*\.lic$/;
   const licFiles = fs.readdirSync(baseDir).filter((f) => licPattern.test(f));
   for (const f of licFiles) {
     const licPath = path.join(baseDir, f);
     console.log("[bridge] Activating license:", licPath);
-    Set_License(licPath, "RadarSimM");
+    Set_License(licPath, "RadarSimApp");
   }
   if (licFiles.length === 0) {
     console.warn("[bridge] No license files found in", baseDir);
@@ -134,7 +134,7 @@ function sphericalToXyz(phiDeg, thetaDeg) {
 }
 
 /**
- * Build normalized antenna pattern arrays following Matlab TxChannel.m / RxChannel.m.
+ * Build normalized antenna pattern arrays.
  *   phi     = azimuth_angle / 180 * pi
  *   phi_ptn = azimuth_pattern - max(azimuth_pattern)
  *   theta   = flip(90 - elevation_angle) / 180 * pi
@@ -163,7 +163,7 @@ function _buildAntennaPattern(azAngle, azPattern, elAngle, elPattern) {
       throw new Error("The length of elevation_angle and elevation_pattern must be the same.");
     }
     const elMax = Math.max(...elPattern);
-    // flip(90 - elevation_angle) / 180 * pi  (Matlab TxChannel.m lines 79-80)
+    // flip(90 - elevation_angle) / 180 * pi
     const transformed = elAngle.map((v) => (90 - v) * Math.PI / 180).reverse();
     const ptnFlipped = [...elPattern].reverse().map((v) => v - elMax);
     theta = new Float32Array(transformed);
@@ -321,7 +321,7 @@ function _applyDopplerFFT(re, im, nPulse, nRx, rangeDim, n) {
 }
 
 /** Convert flat re/im arrays → nested [pulse][channel][sample] dB-magnitude array.
- * DLL flat layout (Matlab column-major): flat[s + spp*p + spp*nPulse*c]
+ * DLL flat layout (column-major): flat[s + spp*p + spp*nPulse*c]
  */
 function _toDbMag3D(re, im, nPulse, nRx, spp) {
   const out = [];
@@ -342,7 +342,7 @@ function _toDbMag3D(re, im, nPulse, nRx, spp) {
 }
 
 /** Convert flat re/im arrays → nested [pulse][channel]{re, im} complex array.
- * DLL flat layout (Matlab column-major): flat[s + spp*p + spp*nPulse*c]
+ * DLL flat layout (column-major): flat[s + spp*p + spp*nPulse*c]
  */
 function _toComplex3D(re, im, nPulse, nRx, spp) {
   const out = [];
@@ -362,7 +362,7 @@ function _toComplex3D(re, im, nPulse, nRx, spp) {
 
 // ── Builders ──────────────────────────────────────────────────────────────────
 function _buildTransmitter(txCfg) {
-  // ── Normalize f and t (Matlab Transmitter.m lines 78-87) ──────────────
+  // ── Normalize f and t ────────────────────────────────────────────────────
   let f = txCfg.f || [24e9, 24.5e9];
   let t = txCfg.t || [0, 80e-6];
   if (!Array.isArray(f)) f = [f];
@@ -381,7 +381,7 @@ function _buildTransmitter(txCfg) {
 
   const pulseDuration = t[t.length - 1] - t[0];
 
-  // ── PRP → pulse_start_time (Matlab Transmitter.m lines 91-107) ───────
+  // ── PRP → pulse_start_time ───────────────────────────────────────────────
   let prpArr;
   if (txCfg.prp == null) {
     prpArr = new Float64Array(numPulses).fill(pulseDuration);
@@ -398,12 +398,12 @@ function _buildTransmitter(txCfg) {
       throw new Error("prp can't be smaller than the pulse length.");
     }
   }
-  // pulse_start_time = cumsum(prp) - prp[0]  (Matlab line 109)
+  // pulse_start_time = cumsum(prp) - prp[0]
   const pst = new Float64Array(numPulses);
   pst[0] = 0;
   for (let i = 1; i < numPulses; i++) pst[i] = pst[i - 1] + prpArr[i - 1];
 
-  // ── f_offset (Matlab Transmitter.m lines 105-111) ────────────────────
+  // ── f_offset ──────────────────────────────────────────────────────────────
   let fOffset;
   if (txCfg.f_offset == null) {
     fOffset = new Float64Array(numPulses);
@@ -455,12 +455,12 @@ function _buildTransmitter(txCfg) {
       polarIm = new Float32Array(3);
     }
 
-    // ── Antenna pattern (Matlab TxChannel.m lines 71-86) ─────────────
+    // ── Antenna pattern ───────────────────────────────────────────────────
     const { phi, phiPtn, theta, thetaPtn, antennaGain } =
       _buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
         ch.elevation_angle, ch.elevation_pattern);
 
-    // ── Pulse modulation (Matlab TxChannel.m lines 88-99) ────────────
+    // ── Pulse modulation ────────────────────────────────────────────────
     let pModRe, pModIm;
     if (ch.pulse_amp && ch.pulse_phs) {
       const phsRad = ch.pulse_phs.map((v) => (v * Math.PI) / 180);
@@ -474,12 +474,12 @@ function _buildTransmitter(txCfg) {
       pModRe = toF32(ch.pulse_amp);
       pModIm = new Float32Array(ch.pulse_amp.length);
     } else {
-      // Default: ones (Matlab Transmitter.m add_txchannel line 143)
+      // Default: ones
       pModRe = new Float32Array(numPulses).fill(1);
       pModIm = new Float32Array(numPulses);
     }
 
-    // ── Waveform modulation (Matlab TxChannel.m lines 101-115) ───────
+    // ── Waveform modulation ───────────────────────────────────────────────
     let modT, modVarRe, modVarIm, modLen = 0;
     if (ch.mod_t && (ch.phs != null || ch.amp != null)) {
       modT = toF32(ch.mod_t);
@@ -498,7 +498,7 @@ function _buildTransmitter(txCfg) {
     const chDelay = ch.delay || 0;
     txDelays.push(chDelay);
 
-    // grid = 1/180*pi ≈ 0.01745 rad (Matlab Transmitter.m line 157)
+    // grid = 1/180*pi ≈ 0.01745 rad
     const ret = Add_Txchannel(
       loc, polarRe, polarIm,
       phi, phiPtn, phi.length,
@@ -528,7 +528,7 @@ function _buildReceiver(rxCfg) {
   const bbGain = rxCfg.baseband_gain || 0;
   const bbType = rxCfg.bb_type || "complex";
 
-  // Noise bandwidth depends on bb_type (Matlab Receiver.m lines 78-82)
+  // Noise bandwidth depends on bb_type
   const noiseBw = bbType === "real" ? fs / 2 : fs;
 
   const ptrRx = Create_Receiver(fs, rfGain, res, bbGain, noiseBw);
@@ -547,7 +547,7 @@ function _buildReceiver(rxCfg) {
       polarIm = new Float32Array(3);
     }
 
-    // ── Antenna pattern (Matlab RxChannel.m lines 51-66) ─────────────
+    // ── Antenna pattern ───────────────────────────────────────────────────
     const { phi, phiPtn, theta, thetaPtn, antennaGain } =
       _buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
         ch.elevation_angle, ch.elevation_pattern);
@@ -586,11 +586,11 @@ function _buildTargets(targetsCfg, density = 1) {
       const mesh = loadStl(t.model, t.unit || "m");
       const origin = toF32(t.origin || [0, 0, 0]);
 
-      // Convert rotation/rotation_rate degrees → radians (Matlab MeshTarget.m line 75-76)
+      // Convert rotation/rotation_rate degrees → radians
       const rot = toF32((t.rotation || [0, 0, 0]).map((v) => (v * Math.PI) / 180));
       const rotRate = toF32((t.rotation_rate || [0, 0, 0]).map((v) => (v * Math.PI) / 180));
 
-      // Permittivity: 'PEC' → {-1, 0} (Matlab RadarSimulator.m add_mesh_target lines 175-182)
+      // Permittivity: 'PEC' → {-1, 0}
       let epReal, epImag;
       if (!t.permittivity || t.permittivity === "PEC") {
         epReal = -1;
@@ -612,7 +612,7 @@ function _buildTargets(targetsCfg, density = 1) {
       );
       if (ret !== 0) throw new Error("Add_Mesh_Target failed");
     } else {
-      // Phase: degrees → radians (Matlab PointTarget.m line 53)
+      // Phase: degrees → radians
       const phaseRad = t.phase != null ? (t.phase * Math.PI) / 180 : 0;
       const ret = Add_Point_Target(
         loc, speed,
@@ -666,7 +666,7 @@ class RadarSimBridge {
     if (!ptrRadar) throw new Error("Create_Radar returned null");
 
     const density = Number(simCfg.density) || 1;
-    // Map level strings to ints (Matlab RadarSimulator.m lines 93-99)
+    // Map level strings to ints
     const levelMap = { frame: 0, pulse: 1, sample: 2 };
     const level = levelMap[simCfg.level] ?? 0;
 
@@ -680,7 +680,7 @@ class RadarSimBridge {
     if (bbSize <= 0) throw new Error(`Get_BB_Size returned ${bbSize} — check radar configuration`);
     const bbRe = new Float64Array(bbSize);
     const bbIm = new Float64Array(bbSize);
-    // ray_filter default [0, 10] (Matlab RadarSimulator.m line 78)
+    // ray_filter default [0, 10]
     const rayFilter = new Int32Array(simCfg.ray_filter || [0, 10]);
 
     console.log("[bridge] Running RadarSimulator (level=%d, density=%f)...", level, density);
@@ -699,7 +699,7 @@ class RadarSimBridge {
     if (bbType === "real") bbIm.fill(0);
 
     const numPulses = txCfg.pulses || 1;
-    // Total channels = num_tx * num_rx (Matlab: num_tx_*num_rx_*num_frame_)
+    // Total channels = num_tx * num_rx
     const numTxCh = (txCfg.channels || [{}]).length;
     const numRxCh = (rxCfg.channels || [{}]).length;
     const numChannels = numTxCh * numRxCh;
@@ -707,7 +707,7 @@ class RadarSimBridge {
 
     const output = { baseband_shape: [spp, numPulses, numChannels] };
 
-    // --- Add receiver noise (reference: RadarSimulator.m generate_noise()) ---
+    // --- Add receiver noise ---
     if (procCfg.noise !== false) {
       const boltzmannConst = 1.38064852e-23;
       const Ts = 290;
@@ -719,7 +719,7 @@ class RadarSimBridge {
       const loadR = rxCfg.load_resistor || 500;
       const bbType = rxCfg.bb_type || "complex";
 
-      // noise_bandwidth = fs (same as Matlab Receiver.m)
+      // noise_bandwidth = fs
       const noiseBandwidth = fs;
       const receiverNoiseDbm = inputNoiseDbm + rfGain + noiseFigure + 10 * Math.log10(noiseBandwidth) + bbGain;
       const receiverNoiseWatts = 1e-3 * Math.pow(10, receiverNoiseDbm / 10);
