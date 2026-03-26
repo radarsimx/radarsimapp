@@ -50,6 +50,47 @@ radarsimapp/
 └── package.json
 ```
 
+## Packaging (Windows .exe)
+
+Install [electron-builder](https://www.electron.build/) and add the build script:
+
+```bash
+npm install --save-dev electron-builder
+```
+
+Add to `package.json`:
+
+```json
+"scripts": {
+  "dist": "electron-builder --win"
+},
+"build": {
+  "appId": "com.radarsimx.radarsimapp",
+  "productName": "RadarSimApp",
+  "win": {
+    "target": "nsis",
+    "icon": "renderer/assets/logo.ico"
+  },
+  "files": [
+    "main.js",
+    "preload.js",
+    "renderer/**",
+    "radarsimlib/**"
+  ],
+  "asarUnpack": [
+    "radarsimlib/**"
+  ]
+}
+```
+
+Then build:
+
+```bash
+npm run dist
+```
+
+The installer will be output to `dist/`. `asarUnpack` is required so that `radarsimc.dll` and the license file can be loaded from a real path at runtime. To produce a portable single executable instead of an installer, change `"target"` to `"portable"`.
+
 ## Usage
 
 1. **Check Environment** — Click the button in the sidebar footer to verify Python + RadarSimPy are available

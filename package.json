@@ -5,15 +5,36 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --dev"
+    "dev": "electron . --dev",
+    "dist": "electron-builder --win"
   },
   "author": "RadarSimX",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^41.0.3"
+    "electron": "^41.0.3",
+    "electron-builder": "^26.8.1"
   },
   "dependencies": {
     "koffi": "^2.9.0",
     "plotly.js-dist": "^2.35.0"
+  },
+  "build": {
+    "appId": "com.radarsimx.radarsimapp",
+    "productName": "RadarSimApp",
+    "win": {
+      "target": "nsis",
+      "icon": "renderer/assets/logo.ico"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**",
+      "radarsimlib/**",
+      "node_modules/**"
+    ],
+    "asarUnpack": [
+      "radarsimlib/**",
+      "node_modules/koffi/**"
+    ]
   }
 }

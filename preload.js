@@ -10,4 +10,8 @@ contextBridge.exposeInMainWorld("api", {
   openExternal: (url) => ipcRenderer.invoke("open-external", url),
   saveConfig: (jsonData) => ipcRenderer.invoke("save-config", jsonData),
   loadConfig: () => ipcRenderer.invoke("load-config"),
+  windowMinimize: () => ipcRenderer.send("window-minimize"),
+  windowMaximize: () => ipcRenderer.send("window-maximize"),
+  windowClose: () => ipcRenderer.send("window-close"),
+  windowIsMaximized: () => ipcRenderer.invoke("window-is-maximized"),
 });

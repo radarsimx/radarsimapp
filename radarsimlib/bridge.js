@@ -5,8 +5,11 @@ const koffi = require("koffi");
 const path = require("path");
 const fs = require("fs");
 
+// ── Resolve real filesystem path (asar-unpacked in packaged builds) ──────────
+const baseDir = __dirname.replace("app.asar", "app.asar.unpacked");
+
 // ── DLL ──────────────────────────────────────────────────────────────────────
-const dllPath = path.join(__dirname, "radarsimc.dll");
+const dllPath = path.join(baseDir, "radarsimc.dll");
 const lib = koffi.load(dllPath);
 
 // ── Function bindings ─────────────────────────────────────────────────────────
@@ -17,14 +20,14 @@ const Set_License = lib.func("void Set_License(const char *license_file_path, co
 // ── License activation (Matlab License.m set_license) ─────────────────────────
 {
   const licPattern = /^license_RadarSimM_.*\.lic$/;
-  const licFiles = fs.readdirSync(__dirname).filter((f) => licPattern.test(f));
+  const licFiles = fs.readdirSync(baseDir).filter((f) => licPattern.test(f));
   for (const f of licFiles) {
-    const licPath = path.join(__dirname, f);
+    const licPath = path.join(baseDir, f);
     console.log("[bridge] Activating license:", licPath);
     Set_License(licPath, "RadarSimM");
   }
   if (licFiles.length === 0) {
-    console.warn("[bridge] No license files found in", __dirname);
+    console.warn("[bridge] No license files found in", baseDir);
   }
 }
 

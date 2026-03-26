@@ -3,7 +3,7 @@
 // window, managing the bridge lifecycle, and handling all IPC calls
 // from the renderer process.
 
-const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require("electron");
 const path = require("path");
 const { RadarSimBridge } = require("./radarsimlib/bridge");
 
@@ -27,6 +27,7 @@ function createWindow() {
     minWidth: 800,
     minHeight: 500,
     title: "RadarSimApp",
+    frame: false,
     icon: path.join(
       __dirname,
       "renderer",
@@ -53,6 +54,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   bridge = new RadarSimBridge();
 
   createWindow();
@@ -207,3 +209,12 @@ ipcMain.handle("load-config", async () => {
   const fs = require("fs");
   return fs.readFileSync(result.filePaths[0], "utf8");
 });
+
+// --- Window control handlers ---
+ipcMain.on("window-minimize", () => mainWindow.minimize());
+ipcMain.on("window-maximize", () => {
+  if (mainWindow.isMaximized()) mainWindow.unmaximize();
+  else mainWindow.maximize();
+});
+ipcMain.on("window-close", () => mainWindow.close());
+ipcMain.handle("window-is-maximized", () => mainWindow.isMaximized());

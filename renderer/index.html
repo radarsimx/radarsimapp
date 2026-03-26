@@ -11,6 +11,25 @@
 </head>
 
 <body>
+  <!-- Custom titlebar -->
+  <div id="titlebar">
+    <div id="titlebar-drag">
+      <img src="assets/logo.svg" width="16" height="16" alt="" />
+      <span>RadarSimApp</span>
+    </div>
+    <div id="window-controls">
+      <button id="btn-win-minimize" title="Minimize" aria-label="Minimize">
+        <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+      </button>
+      <button id="btn-win-maximize" title="Maximize" aria-label="Maximize">
+        <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor"/></svg>
+      </button>
+      <button id="btn-win-close" title="Close" aria-label="Close">
+        <svg width="10" height="10" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2"/><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
+    </div>
+  </div>
+
   <div id="app">
     <!-- Sidebar Navigation -->
     <nav id="sidebar">
@@ -646,6 +665,23 @@
   <script src="js/config.js"></script>
   <script src="js/app.js"></script>
   <script src="js/state.js"></script>
+  <script>
+    // Titlebar window controls
+    document.getElementById('btn-win-minimize').addEventListener('click', () => window.api.windowMinimize());
+    document.getElementById('btn-win-close').addEventListener('click', () => window.api.windowClose());
+    const btnMax = document.getElementById('btn-win-maximize');
+    function updateMaxIcon(isMax) {
+      btnMax.innerHTML = isMax
+        ? '<svg width="10" height="10" viewBox="0 0 10 10"><rect x="2.5" y="0.5" width="7" height="7" fill="none" stroke="currentColor"/><polyline points="0.5,2.5 0.5,9.5 7.5,9.5" fill="none" stroke="currentColor"/></svg>'
+        : '<svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor"/></svg>';
+      btnMax.title = isMax ? 'Restore' : 'Maximize';
+    }
+    btnMax.addEventListener('click', async () => {
+      window.api.windowMaximize();
+      setTimeout(async () => updateMaxIcon(await window.api.windowIsMaximized()), 50);
+    });
+    window.api.windowIsMaximized().then(updateMaxIcon);
+  </script>
 </body>
 
 </html>

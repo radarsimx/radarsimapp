@@ -34,6 +34,7 @@
 }
 
 html,
+html,
 body {
   height: 100%;
   font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -42,11 +43,77 @@ body {
   color: var(--text-primary);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== Custom Titlebar ===== */
+#titlebar {
+  height: 32px;
+  min-height: 32px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+#titlebar-drag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  flex: 1;
+  -webkit-app-region: drag;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+#titlebar-drag span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#window-controls {
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+#window-controls button {
+  width: 46px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), color var(--transition);
+  outline: none;
+  flex-shrink: 0;
+}
+
+#window-controls button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+#btn-win-close:hover {
+  background: #e81123 !important;
+  color: #fff !important;
 }
 
 #app {
   display: flex;
-  height: 100vh;
+  flex: 1;
+  overflow: hidden;
 }
 
 /* ===== Scrollbar ===== */
