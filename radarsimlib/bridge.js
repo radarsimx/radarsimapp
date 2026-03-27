@@ -15,7 +15,6 @@ const lib = koffi.load(dllPath);
 // ── Function bindings ─────────────────────────────────────────────────────────
 const Get_Version = lib.func("void Get_Version(int *version)");
 const Is_Licensed = lib.func("int Is_Licensed()");
-const Set_License = lib.func("int Set_License(const char *license_file_path, const char *product)");
 const Set_License_Files = lib.func("int Set_License_Files(const char **license_file_paths, int num_files, const char *product)");
 
 // ── License activation ─────────────────────────────────────────────────────────
