@@ -8,9 +8,12 @@ const fs = require("fs");
 // ── Resolve real filesystem path (asar-unpacked in packaged builds) ──────────
 const baseDir = __dirname.replace("app.asar", "app.asar.unpacked");
 
-// ── DLL ──────────────────────────────────────────────────────────────────────
-const dllPath = path.join(baseDir, "radarsimc.dll");
-const lib = koffi.load(dllPath);
+// ── Native library ───────────────────────────────────────────────────────────
+const libName = process.platform === "win32" ? "radarsimc.dll"
+  : process.platform === "darwin" ? "libradarsimc.dylib"
+  : "libradarsimc.so";
+const libPath = path.join(baseDir, libName);
+const lib = koffi.load(libPath);
 
 // ── Function bindings ─────────────────────────────────────────────────────────
 const Get_Version = lib.func("void Get_Version(int *version)");

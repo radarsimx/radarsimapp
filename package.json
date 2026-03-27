@@ -6,7 +6,9 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "dist": "electron-builder --win",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux",
     "generate-gif": "node scripts/generate-install-gif.js"
   },
   "author": "RadarSimX",
@@ -31,6 +33,14 @@
       "target": "squirrel",
       "icon": "renderer/assets/logo.ico",
       "legalTrademarks": "RadarSimX, LLC"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "renderer/assets/logo.png"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "renderer/assets/logo.png"
     },
     "squirrelWindows": {
       "loadingGif": "renderer/assets/install.gif"

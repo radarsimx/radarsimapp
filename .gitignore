@@ -3,8 +3,4 @@ dist/
 out/
 .env
 *.log
-/python/radarsimpy
-radarsimlib/radarsim.h
-radarsimlib/radarsimc.dll
-radarsimlib/radarsimc.lib
 *.lic
