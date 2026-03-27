@@ -19,24 +19,31 @@ const Set_License = lib.func("int Set_License(const char *license_file_path, con
 const Set_License_Files = lib.func("int Set_License_Files(const char **license_file_paths, int num_files, const char *product)");
 
 // ── License activation ─────────────────────────────────────────────────────────
+const LICENSE_PRODUCTS = [
+  { pattern: /^license_RadarSimApp_.*\.lic$/, product: "RadarSimApp" },
+  { pattern: /^license_RadarSimPy_.*\.lic$/,  product: "RadarSimPy"  },
+];
+
 {
-  const licPattern = /^license_RadarSimApp_.*\.lic$/;
-  const licFiles = fs.readdirSync(baseDir).filter((f) => licPattern.test(f));
-  if (licFiles.length > 0) {
+  const allFiles = fs.readdirSync(baseDir);
+  let anyFound = false;
+  for (const { pattern, product } of LICENSE_PRODUCTS) {
+    const licFiles = allFiles.filter((f) => pattern.test(f));
+    if (licFiles.length === 0) continue;
+    anyFound = true;
     const licPaths = licFiles.map((f) => path.join(baseDir, f));
-    const licensed = Set_License_Files(licPaths, licPaths.length, "RadarSimApp") === 1;
-    console.log("[bridge] License activation:", licensed ? "success" : "failed");
+    const licensed = Set_License_Files(licPaths, licPaths.length, product) === 1;
+    console.log(`[bridge] License activation (${product}):`, licensed ? "success" : "failed");
     if (!licensed) {
       const expiredDir = path.join(baseDir, "expired");
       fs.mkdirSync(expiredDir, { recursive: true });
       for (const p of licPaths) {
         fs.renameSync(p, path.join(expiredDir, path.basename(p)));
       }
-      console.warn("[bridge] Moved expired license files to:", expiredDir);
+      console.warn(`[bridge] Moved expired ${product} license files to:`, expiredDir);
     }
-  } else {
-    console.warn("[bridge] No license files found in", baseDir);
   }
+  if (!anyFound) console.warn("[bridge] No license files found in", baseDir);
 }
 
 const Create_Transmitter = lib.func(
@@ -884,14 +891,20 @@ class RadarSimBridge {
     const fileName = path.basename(licFilePath);
     const dest = path.join(baseDir, fileName);
     fs.copyFileSync(licFilePath, dest);
-    const licensed = Set_License_Files([dest], 1, "RadarSimApp") === 1;
-    if (!licensed) {
-      const expiredDir = path.join(baseDir, "expired");
-      fs.mkdirSync(expiredDir, { recursive: true });
-      fs.renameSync(dest, path.join(expiredDir, path.basename(dest)));
-      throw new Error("License activation failed — please check that the license file is valid");
+
+    // Detect product from filename; fall back to trying both.
+    const match = LICENSE_PRODUCTS.find(({ pattern }) => pattern.test(fileName));
+    const candidates = match ? [match.product] : LICENSE_PRODUCTS.map((e) => e.product);
+
+    for (const product of candidates) {
+      const licensed = Set_License_Files([dest], 1, product) === 1;
+      if (licensed) return { licensed, product };
     }
-    return { licensed };
+
+    const expiredDir = path.join(baseDir, "expired");
+    fs.mkdirSync(expiredDir, { recursive: true });
+    fs.renameSync(dest, path.join(expiredDir, path.basename(dest)));
+    throw new Error("License activation failed — please check that the license file is valid");
   }
 
   kill() {
