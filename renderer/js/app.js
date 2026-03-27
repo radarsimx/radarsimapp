@@ -376,7 +376,13 @@ document.getElementById("btn-run-sim").addEventListener("click", async () => {
   const overlay = document.getElementById("sim-overlay");
   const overlaySub = document.getElementById("sim-overlay-sub");
   overlaySub.textContent = "";
+
+  // Remove .hidden immediately so the overlay blocks pointer events,
+  // but keep it visually transparent until the threshold fires.
+  // Fast simulations finish before the timer and produce no visual flash.
   overlay.classList.remove("hidden");
+  overlay.classList.remove("sim-visible");
+  const _overlayRevealTimer = setTimeout(() => overlay.classList.add("sim-visible"), 400);
 
   try {
     const config = collectConfig();
@@ -406,7 +412,16 @@ document.getElementById("btn-run-sim").addEventListener("click", async () => {
     status.textContent = "Error: " + err.message;
   } finally {
     btn.disabled = false;
-    document.getElementById("sim-overlay").classList.add("hidden");
+    clearTimeout(_overlayRevealTimer);
+    const wasVisible = overlay.classList.contains("sim-visible");
+    overlay.classList.remove("sim-visible");
+    if (wasVisible) {
+      // Let the fade-out transition complete before hiding completely.
+      setTimeout(() => overlay.classList.add("hidden"), 270);
+    } else {
+      // Sim finished before the visual appeared — hide silently.
+      overlay.classList.add("hidden");
+    }
   }
 });
 

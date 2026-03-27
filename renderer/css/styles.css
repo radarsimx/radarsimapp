@@ -732,9 +732,20 @@ button.nav-item {
   justify-content: center;
   z-index: 2000;
   backdrop-filter: blur(4px);
+  /* Invisible but blocks pointer events while a sim is running.
+     The .sim-visible class fades in the backdrop after a delay so
+     fast simulations produce no visible flash. */
+  opacity: 0;
+  pointer-events: all;
   transition: opacity 0.25s ease;
 }
 
+/* Only fully shown after the delayed-reveal timer fires. */
+.sim-overlay.sim-visible {
+  opacity: 1;
+}
+
+/* Completely removed from the layout when no sim is running. */
 .sim-overlay.hidden {
   display: none;
 }
