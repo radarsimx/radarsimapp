@@ -170,9 +170,8 @@ ipcMain.handle("select-file", async (_event, options) => {
 /**
  * Opens a native save dialog and writes the simulation result data to disk.
  *
- * Supports JSON and CSV formats (the renderer determines which format to use
- * via the chosen file extension). The data is serialised to JSON regardless
- * of the chosen extension — post-processing for CSV is handled externally.
+ * Supports JSON and HDF5 formats. JSON serialises the full result object.
+ * HDF5 writes each data field as a separate dataset using h5wasm.
  *
  * @param {Object} data - Simulation result object to serialise and save.
  * @returns {string|null} The path the file was saved to, or null if cancelled.
@@ -180,15 +179,132 @@ ipcMain.handle("select-file", async (_event, options) => {
 ipcMain.handle("export-results", async (_event, data) => {
   const result = await dialog.showSaveDialog(mainWindow, {
     filters: [
+      { name: "HDF5", extensions: ["h5"] },
       { name: "JSON", extensions: ["json"] },
-      { name: "CSV", extensions: ["csv"] },
     ],
   });
   if (result.canceled) return null;
   const fs = require("fs");
-  fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2));
-  return result.filePath;
+  const filePath = result.filePath;
+
+  if (filePath.endsWith(".h5")) {
+    const h5wasm = await import("h5wasm");
+    await h5wasm.ready;
+    const h5FileName = require("path").basename(filePath);
+    const f = new h5wasm.File(h5FileName, "w");
+    writeHdf5(f, data);
+    f.flush();
+    f.close();
+    const bytes = h5wasm.FS.readFile(h5FileName);
+    fs.writeFileSync(filePath, bytes);
+    h5wasm.FS.unlink(h5FileName);
+  } else {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  }
+  return filePath;
 });
+
+/**
+ * Recursively writes a JavaScript object to an HDF5 file/group.
+ * Arrays of numbers become datasets; nested objects become groups.
+ * Complex arrays ({re, im} leaves) are written as compound datasets.
+ */
+function writeHdf5(group, obj) {
+  for (const [key, value] of Object.entries(obj)) {
+    if (value == null) continue;
+    if (Array.isArray(value)) {
+      const cplx = flattenComplexArray(value);
+      if (cplx) {
+        const data = new Map([["r", cplx.re], ["i", cplx.im]]);
+        group.create_dataset({
+          name: key,
+          data,
+          shape: cplx.shape,
+          dtype: [["r", "<d"], ["i", "<d"]],
+        });
+        continue;
+      }
+      const flat = flattenNumericArray(value);
+      if (flat) {
+        group.create_dataset({ name: key, data: flat.data, shape: flat.shape });
+      }
+    } else if (typeof value === "object") {
+      const sub = group.create_group(key);
+      writeHdf5(sub, value);
+    } else if (typeof value === "number") {
+      group.create_dataset({ name: key, data: new Float64Array([value]) });
+    } else if (typeof value === "string") {
+      group.create_dataset({ name: key, data: [value] });
+    }
+  }
+}
+
+/**
+ * Flattens a nested array whose leaves are {re, im} objects into two
+ * parallel Float64Arrays plus a shape array.
+ * Returns { re: Float64Array, im: Float64Array, shape: number[] } or null.
+ */
+function flattenComplexArray(arr) {
+  const shape = [];
+  let cursor = arr;
+  while (Array.isArray(cursor)) {
+    shape.push(cursor.length);
+    cursor = cursor[0];
+  }
+  if (
+    typeof cursor !== "object" ||
+    cursor === null ||
+    !("re" in cursor) ||
+    !("im" in cursor)
+  )
+    return null;
+
+  // Each leaf {re, im} contains arrays of samples
+  const sampleLen = cursor.re.length;
+  shape.push(sampleLen);
+  const total = shape.reduce((a, b) => a * b, 1);
+  const re = new Float64Array(total);
+  const im = new Float64Array(total);
+  let idx = 0;
+  function fill(a) {
+    if (Array.isArray(a)) {
+      for (const el of a) fill(el);
+    } else {
+      for (let s = 0; s < a.re.length; s++) {
+        re[idx] = a.re[s];
+        im[idx] = a.im[s];
+        idx++;
+      }
+    }
+  }
+  fill(arr);
+  return { re, im, shape };
+}
+
+/**
+ * Flattens a (possibly nested) numeric array into a typed array with shape.
+ * Returns { data: Float64Array, shape: number[] } or null if not numeric.
+ */
+function flattenNumericArray(arr) {
+  const shape = [];
+  let cursor = arr;
+  while (Array.isArray(cursor)) {
+    shape.push(cursor.length);
+    cursor = cursor[0];
+  }
+  if (typeof cursor !== "number") return null;
+  const flat = new Float64Array(shape.reduce((a, b) => a * b, 1));
+  let idx = 0;
+  function fill(a) {
+    if (Array.isArray(a)) {
+      for (const el of a) fill(el);
+    } else {
+      flat[idx++] = a;
+    }
+  }
+  fill(arr);
+  return { data: flat, shape };
+}
 
 /**
  * Saves the current UI configuration to a user-chosen JSON file.
