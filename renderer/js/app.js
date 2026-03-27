@@ -112,6 +112,7 @@ window.addEventListener("resize", debounce(() => {
 document.getElementById("btn-sidebar-toggle").addEventListener("click", () => {
   const app = document.getElementById("app");
   app.classList.toggle("sidebar-collapsed");
+  debouncedAutoSave();
   // Resize visible plots after transition completes
   setTimeout(() => {
     document.querySelectorAll(".panel.active .js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot));

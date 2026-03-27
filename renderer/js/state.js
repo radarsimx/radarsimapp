@@ -97,6 +97,7 @@ function captureState() {
 
   return {
     fields,
+    sidebarCollapsed: document.getElementById("app").classList.contains("sidebar-collapsed"),
     txChannels: JSON.parse(JSON.stringify(txChannels)),
     rxChannels: JSON.parse(JSON.stringify(rxChannels)),
     pointTargets: JSON.parse(JSON.stringify(pointTargets)),
@@ -128,6 +129,8 @@ function applyState(state) {
       }
     });
   }
+
+  document.getElementById("app").classList.toggle("sidebar-collapsed", !!state.sidebarCollapsed);
 
   if (Array.isArray(state.txChannels)) txChannels.splice(0, txChannels.length, ...state.txChannels);
   if (Array.isArray(state.rxChannels)) rxChannels.splice(0, rxChannels.length, ...state.rxChannels);
