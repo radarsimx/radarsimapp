@@ -459,7 +459,7 @@ button.nav-item {
   border-radius: 10px;
   width: 340px;
   max-width: 90vw;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
 
@@ -609,7 +609,9 @@ button.nav-item {
 }
 
 @keyframes sim-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .sim-overlay-text {
@@ -776,7 +778,7 @@ button.nav-item {
   opacity: 0;
   transition: opacity 0.15s;
   z-index: 100;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .info-icon:hover::after {
@@ -792,7 +794,7 @@ button.nav-item {
   top: -1px;
 }
 
-.form-group > label {
+.form-group>label {
   display: flex;
   align-items: center;
 }
@@ -861,22 +863,22 @@ button.nav-item {
   flex-shrink: 0;
 }
 
-.toggle-switch input:checked ~ .toggle-track {
+.toggle-switch input:checked~.toggle-track {
   background: var(--accent);
   border-color: var(--accent);
 }
 
-.toggle-switch input:checked ~ .toggle-track .toggle-thumb {
+.toggle-switch input:checked~.toggle-track .toggle-thumb {
   transform: translateX(14px);
   background: #fff;
 }
 
-.toggle-switch input:disabled ~ .toggle-track {
+.toggle-switch input:disabled~.toggle-track {
   opacity: 0.5;
   cursor: default;
 }
 
-.toggle-switch input:disabled:checked ~ .toggle-track {
+.toggle-switch input:disabled:checked~.toggle-track {
   opacity: 1;
   background: var(--accent);
   border-color: var(--accent);
@@ -894,7 +896,7 @@ button.nav-item {
   height: 9px;
 }
 
-.toggle-switch--sm input:checked ~ .toggle-track .toggle-thumb {
+.toggle-switch--sm input:checked~.toggle-track .toggle-thumb {
   transform: translateX(10px);
 }
 
@@ -1052,12 +1054,12 @@ input:disabled {
 }
 
 .number-input-wrapper:hover .number-input-spinner,
-.number-input-wrapper input:focus ~ .number-input-spinner {
+.number-input-wrapper input:focus~.number-input-spinner {
   opacity: 1;
 }
 
 /* Hide spinners when the input is disabled */
-.number-input-wrapper input:disabled ~ .number-input-spinner {
+.number-input-wrapper input:disabled~.number-input-spinner {
   display: none;
 }
 
@@ -1084,7 +1086,7 @@ input:disabled {
   background: var(--accent-dim);
 }
 
-.spin-btn + .spin-btn {
+.spin-btn+.spin-btn {
   border-top: 1px solid var(--border);
 }
 
@@ -1426,10 +1428,12 @@ select {
     width: 0;
     margin-left: 0;
   }
+
   50% {
     width: 60%;
     margin-left: 20%;
   }
+
   100% {
     width: 0;
     margin-left: 100%;
@@ -1463,6 +1467,7 @@ select {
   .config-grid {
     grid-template-columns: 1fr;
   }
+
   .results-grid {
     grid-template-columns: 1fr;
   }
@@ -1475,11 +1480,11 @@ select {
   align-items: flex-start;
 }
 
-.panel-split + .panel-split {
+.panel-split+.panel-split {
   margin-top: 24px;
 }
 
-.panel-split + .config-grid {
+.panel-split+.config-grid {
   margin-top: 24px;
 }
 
@@ -1594,6 +1599,7 @@ select {
   .panel-split {
     flex-direction: column;
   }
+
   .panel-split-left,
   .panel-split-right {
     flex: 1;
