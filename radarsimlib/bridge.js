@@ -15,8 +15,8 @@ const lib = koffi.load(dllPath);
 // ── Function bindings ─────────────────────────────────────────────────────────
 const Get_Version = lib.func("void Get_Version(int *version)");
 const Is_Licensed = lib.func("int Is_Licensed()");
-const Set_License = lib.func("void Set_License(const char *license_file_path, const char *product)");
-const Set_License_Files = lib.func("void Set_License_Files(const char **license_file_paths, int num_files, const char *product)");
+const Set_License = lib.func("int Set_License(const char *license_file_path, const char *product)");
+const Set_License_Files = lib.func("int Set_License_Files(const char **license_file_paths, int num_files, const char *product)");
 
 // ── License activation ─────────────────────────────────────────────────────────
 {
@@ -24,8 +24,16 @@ const Set_License_Files = lib.func("void Set_License_Files(const char **license_
   const licFiles = fs.readdirSync(baseDir).filter((f) => licPattern.test(f));
   if (licFiles.length > 0) {
     const licPaths = licFiles.map((f) => path.join(baseDir, f));
-    console.log("[bridge] Activating license files:", licPaths);
-    Set_License_Files(licPaths, licPaths.length, "RadarSimApp");
+    const licensed = Set_License_Files(licPaths, licPaths.length, "RadarSimApp") === 1;
+    console.log("[bridge] License activation:", licensed ? "success" : "failed");
+    if (!licensed) {
+      const expiredDir = path.join(baseDir, "expired");
+      fs.mkdirSync(expiredDir, { recursive: true });
+      for (const p of licPaths) {
+        fs.renameSync(p, path.join(expiredDir, path.basename(p)));
+      }
+      console.warn("[bridge] Moved expired license files to:", expiredDir);
+    }
   } else {
     console.warn("[bridge] No license files found in", baseDir);
   }
@@ -876,10 +884,14 @@ class RadarSimBridge {
     const fileName = path.basename(licFilePath);
     const dest = path.join(baseDir, fileName);
     fs.copyFileSync(licFilePath, dest);
-    console.log("[bridge] Copied license file to:", dest);
-    Set_License_Files([dest], 1, "RadarSimApp");
-    const licensed = Is_Licensed();
-    return { licensed: licensed === 1 };
+    const licensed = Set_License_Files([dest], 1, "RadarSimApp") === 1;
+    if (!licensed) {
+      const expiredDir = path.join(baseDir, "expired");
+      fs.mkdirSync(expiredDir, { recursive: true });
+      fs.renameSync(dest, path.join(expiredDir, path.basename(dest)));
+      throw new Error("License activation failed — please check that the license file is valid");
+    }
+    return { licensed };
   }
 
   kill() {
