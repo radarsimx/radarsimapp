@@ -28,6 +28,8 @@ function createWindow() {
     minHeight: 500,
     title: "RadarSimApp",
     frame: isDev,
+    show: false,
+    backgroundColor: "#0f0f14",
     icon: path.join(
       __dirname,
       "renderer",
@@ -46,6 +48,10 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.show();
+  });
 }
 
 const isDev = process.argv.includes("--dev");
