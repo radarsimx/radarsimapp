@@ -177,9 +177,18 @@ const debouncedUpdateRadarPlots = debounce(() => {
 // array, appends a blank entry, then re-renders the list.
 
 document.getElementById("btn-reset-config").addEventListener("click", () => {
-  if (confirm("Reset all configuration to factory defaults?")) {
-    resetToDefault();
-  }
+  document.getElementById("reset-dialog-overlay").classList.remove("hidden");
+});
+
+["btn-reset-cancel", "btn-reset-cancel-x"].forEach((id) => {
+  document.getElementById(id).addEventListener("click", () => {
+    document.getElementById("reset-dialog-overlay").classList.add("hidden");
+  });
+});
+
+document.getElementById("btn-reset-confirm").addEventListener("click", () => {
+  document.getElementById("reset-dialog-overlay").classList.add("hidden");
+  resetToDefault();
 });
 
 // Range Profile ↔ Range-Doppler dependency
@@ -638,6 +647,10 @@ document.getElementById("btn-activate").addEventListener("click", () => {
 
 document.getElementById("btn-about-close").addEventListener("click", () => {
   document.getElementById("about-dialog-overlay").classList.add("hidden");
+});
+
+document.getElementById("reset-dialog-overlay").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.add("hidden");
 });
 
 document.getElementById("about-dialog-overlay").addEventListener("click", (e) => {

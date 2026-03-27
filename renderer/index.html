@@ -154,11 +154,33 @@
         </div>
         <div id="env-status" class="env-status" style="display:none"></div>
         <div class="sidebar-meta">
-          <span id="sidebar-version"></span>
-          <span>&copy; RadarSimX, LLC</span>
+          <span><span id="sidebar-version"></span> &copy; RadarSimX, LLC</span>
         </div>
       </div>
     </nav>
+
+    <!-- Reset Confirmation Dialog -->
+    <div id="reset-dialog-overlay" class="dialog-overlay hidden" role="dialog" aria-modal="true"
+      aria-labelledby="reset-dialog-title">
+      <div class="dialog-box">
+        <div class="dialog-header">
+          <h2 id="reset-dialog-title">Reset Configuration</h2>
+          <button class="btn-icon dialog-close" id="btn-reset-cancel-x" aria-label="Close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div class="dialog-body">
+          <p>Reset all configuration to factory defaults?</p>
+        </div>
+        <div class="dialog-footer">
+          <button id="btn-reset-confirm" class="btn-danger">Reset</button>
+          <button id="btn-reset-cancel" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
 
     <!-- License Activation Dialog -->
     <div id="license-dialog-overlay" class="dialog-overlay hidden" role="dialog" aria-modal="true"

@@ -476,6 +476,21 @@ button.nav-item {
   justify-content: center;
 }
 
+#btn-reset-config {
+  color: #e05555;
+  border-color: color-mix(in srgb, #e05555 30%, transparent);
+}
+
+#btn-reset-config svg {
+  stroke: #e05555;
+}
+
+#btn-reset-config:hover {
+  background: color-mix(in srgb, #e05555 12%, transparent);
+  border-color: #e05555;
+  color: #e05555;
+}
+
 .config-status {
   font-size: 11px;
   color: var(--text-muted);
@@ -511,10 +526,6 @@ button.nav-item {
 
 .sidebar-meta {
   margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
   font-size: 11px;
   color: var(--text-muted);
   opacity: 0.6;
@@ -657,7 +668,8 @@ button.nav-item {
 }
 
 .dialog-footer .btn-primary,
-.dialog-footer .btn-secondary {
+.dialog-footer .btn-secondary,
+.dialog-footer .btn-danger {
   width: 100%;
   justify-content: center;
 }
@@ -1252,6 +1264,31 @@ select {
 .btn-primary.btn-lg {
   padding: 12px 32px;
   font-size: 15px;
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  background: #e05555;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.btn-danger:hover {
+  background: #c93e3e;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(224, 85, 85, 0.35);
+}
+
+.btn-danger:active {
+  transform: translateY(0);
 }
 
 .btn-secondary {
