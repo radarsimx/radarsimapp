@@ -31,6 +31,18 @@
   </div>
 
   <div id="app">
+    <script>
+      // Apply sidebar collapse state before first paint to avoid visual flash.
+      try {
+        const s = JSON.parse(localStorage.getItem('radarsimapp_state') || 'null');
+        if (s && s.sidebarCollapsed) {
+          document.getElementById('app').classList.add('sidebar-collapsed', 'no-sidebar-transition');
+          requestAnimationFrame(() => requestAnimationFrame(() =>
+            document.getElementById('app').classList.remove('no-sidebar-transition')
+          ));
+        }
+      } catch (_) {}
+    </script>
     <!-- Sidebar Navigation -->
     <nav id="sidebar">
       <div class="sidebar-header">

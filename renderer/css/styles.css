@@ -153,6 +153,10 @@ body {
   overflow: hidden;
 }
 
+#app.no-sidebar-transition #sidebar {
+  transition: none;
+}
+
 #app.sidebar-collapsed #sidebar {
   width: 54px;
   overflow: visible;
