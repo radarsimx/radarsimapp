@@ -284,4 +284,11 @@ document.getElementById("btn-load-config").addEventListener("click", async () =>
   }
 
   attachAutoSave();
+
+  // Dismiss the startup overlay now that the app is ready.
+  const startupOverlay = document.getElementById("startup-overlay");
+  if (startupOverlay) {
+    startupOverlay.classList.add("startup-fade-out");
+    startupOverlay.addEventListener("transitionend", () => startupOverlay.remove(), { once: true });
+  }
 })();
