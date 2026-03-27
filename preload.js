@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld("api", {
   runSimulation: (config) => ipcRenderer.invoke("run-simulation", config),
   runRcsSimulation: (config) =>
     ipcRenderer.invoke("run-rcs-simulation", config),
+  getAppVersion: () => ipcRenderer.invoke("get-app-version"),
   checkLibrary: () => ipcRenderer.invoke("check-library"),
   activateLicense: () => ipcRenderer.invoke("activate-license"),
   selectFile: (options) => ipcRenderer.invoke("select-file", options),

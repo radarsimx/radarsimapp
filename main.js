@@ -27,7 +27,7 @@ function createWindow() {
     minWidth: 800,
     minHeight: 500,
     title: "RadarSimApp",
-    frame: false,
+    frame: isDev,
     icon: path.join(
       __dirname,
       "renderer",
@@ -46,15 +46,12 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
-
-  // Open DevTools automatically when launched with the --dev flag.
-  if (process.argv.includes("--dev")) {
-    mainWindow.webContents.openDevTools();
-  }
 }
 
+const isDev = process.argv.includes("--dev");
+
 app.whenReady().then(() => {
-  Menu.setApplicationMenu(null);
+  if (!isDev) Menu.setApplicationMenu(null);
   bridge = new RadarSimBridge();
 
   createWindow();
@@ -112,6 +109,8 @@ ipcMain.handle("run-rcs-simulation", async (_event, config) => {
  *
  * @returns {{ success: boolean, data?: Object, error?: string }}
  */
+ipcMain.handle("get-app-version", () => app.getVersion());
+
 ipcMain.handle("check-library", async () => {
   try {
     const result = await bridge.checkLibrary();

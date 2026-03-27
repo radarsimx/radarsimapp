@@ -50,6 +50,12 @@ document.querySelectorAll("#sidebar [data-tooltip]")
     el.addEventListener("click", _hideTooltip);
   });
 
+// --- Sidebar version ---
+window.api.getAppVersion().then((v) => {
+  const el = document.getElementById("sidebar-version");
+  if (el) el.textContent = `v${v}`;
+});
+
 // --- State ---
 /** @type {Object[]} Transmitter channel configurations collected from the UI. */
 let txChannels = [];
@@ -600,21 +606,24 @@ document.getElementById("btn-check-env").addEventListener("click", async () => {
   overlay.classList.remove("hidden");
 
   try {
-    const result = await window.api.checkLibrary();
+    const [appVersion, result] = await Promise.all([
+      window.api.getAppVersion(),
+      window.api.checkLibrary(),
+    ]);
     if (result.success && result.data) {
       const d = result.data;
       if (d.radarsimlib_available) {
-        versionEl.textContent = `RadarSimLib v${d.radarsimlib_version}`;
+        versionEl.textContent = `RadarSimApp v${appVersion} — RadarSimLib v${d.radarsimlib_version}`;
         licenseEl.textContent = d.licensed ? "License: Active" : "License: Unlicensed";
         licenseEl.style.color = d.licensed ? "var(--success)" : "var(--error)";
         // Show/hide the activate button based on license status
         document.getElementById("btn-activate").classList.toggle("hidden", d.licensed);
       } else {
-        versionEl.textContent = "RadarSimLib not found";
+        versionEl.textContent = `RadarSimApp v${appVersion} — RadarSimLib not found`;
         licenseEl.textContent = "";
       }
     } else {
-      versionEl.textContent = result.error || "Failed to check";
+      versionEl.textContent = `RadarSimApp v${appVersion} — ${result.error || "Failed to check"}`;
     }
   } catch (err) {
     versionEl.textContent = err.message;

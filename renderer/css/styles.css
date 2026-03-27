@@ -162,6 +162,7 @@ body {
 #app.sidebar-collapsed .sidebar-footer .config-controls,
 #app.sidebar-collapsed .sidebar-footer .config-status,
 #app.sidebar-collapsed .sidebar-footer #env-status,
+#app.sidebar-collapsed .sidebar-footer .sidebar-meta,
 #app.sidebar-collapsed .footer-action-btn span,
 #app.sidebar-collapsed .nav-item span,
 #app.sidebar-collapsed .nav-item-label span {
@@ -506,6 +507,19 @@ button.nav-item {
 
 .env-status.err {
   color: var(--error);
+}
+
+.sidebar-meta {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  text-align: center;
+  line-height: 1.4;
 }
 
 /* ===== About Dialog ===== */
