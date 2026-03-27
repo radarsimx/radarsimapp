@@ -1,0 +1,47 @@
+name: Build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            script: dist:win
+            artifact: dist/*.exe
+          - os: macos-latest
+            script: dist:mac
+            artifact: dist/*.dmg
+          - os: ubuntu-24.04
+            script: dist:linux
+            artifact: dist/*.AppImage
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run ${{ matrix.script }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RadarSimApp-${{ matrix.os }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error
