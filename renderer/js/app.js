@@ -2,6 +2,54 @@
 // Entry point for the renderer process. Manages application state, navigation,
 // event listeners, the RCS analysis modal, and the simulation run flow.
 
+// --- Tooltip ---
+const _appTooltip = document.createElement("div");
+_appTooltip.id = "app-tooltip";
+document.body.appendChild(_appTooltip);
+
+function _showTooltip(el) {
+  const text = el.getAttribute("data-tooltip");
+  if (!text) return;
+  const collapsed = document.getElementById("app").classList.contains("sidebar-collapsed");
+  const isNavItem = el.classList.contains("nav-item") || el.classList.contains("nav-item-label");
+  if (isNavItem && !collapsed) return;
+  _appTooltip.textContent = text;
+  _appTooltip.classList.add("visible");
+  const r = el.getBoundingClientRect();
+  _appTooltip.style.top = "-9999px";
+  _appTooltip.style.left = "-9999px";
+  const inSidebar = el.closest("#sidebar") !== null;
+  requestAnimationFrame(() => {
+    const tw = _appTooltip.offsetWidth;
+    const th = _appTooltip.offsetHeight;
+    let left, top;
+    if (inSidebar && collapsed) {
+      // Show to the right of the element
+      left = r.right + 8;
+      top = r.top + r.height / 2 - th / 2;
+    } else {
+      // Show above, centered
+      left = r.left + r.width / 2 - tw / 2;
+      top = r.top - th - 6;
+    }
+    left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+    top = Math.max(8, Math.min(top, window.innerHeight - th - 8));
+    _appTooltip.style.left = left + "px";
+    _appTooltip.style.top = top + "px";
+  });
+}
+
+function _hideTooltip() {
+  _appTooltip.classList.remove("visible");
+}
+
+document.querySelectorAll("#sidebar [data-tooltip]")
+  .forEach((el) => {
+    el.addEventListener("mouseenter", () => _showTooltip(el));
+    el.addEventListener("mouseleave", _hideTooltip);
+    el.addEventListener("click", _hideTooltip);
+  });
+
 // --- State ---
 /** @type {Object[]} Transmitter channel configurations collected from the UI. */
 let txChannels = [];

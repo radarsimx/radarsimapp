@@ -108,7 +108,7 @@
       </ul>
       <div class="sidebar-footer">
         <div class="config-controls">
-          <button id="btn-save-config" class="btn-secondary btn-sm" title="Save configuration to a JSON file">
+          <button id="btn-save-config" class="btn-secondary btn-sm" data-tooltip="Save configuration">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
               <polyline points="17 21 17 13 7 13 7 21" />
@@ -116,7 +116,7 @@
             </svg>
             Save
           </button>
-          <button id="btn-load-config" class="btn-secondary btn-sm" title="Load configuration from a JSON file">
+          <button id="btn-load-config" class="btn-secondary btn-sm" data-tooltip="Load configuration">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
               <line x1="12" y1="11" x2="12" y2="17" />
@@ -125,7 +125,7 @@
             Load
           </button>
           <button id="btn-reset-config" class="btn-secondary btn-sm btn-icon-only"
-            title="Reset all settings to factory defaults">
+            data-tooltip="Reset to factory defaults">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="1 4 1 10 7 10" />
               <path d="M3.51 15a9 9 0 1 0 .49-4.95" />
@@ -133,23 +133,25 @@
           </button>
         </div>
         <div id="config-status" class="config-status"></div>
-        <button id="btn-activate" class="nav-item nav-item-activate btn-secondary btn-sm hidden" data-tooltip="Activate License">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-          <span>Activate License</span>
-        </button>
-        <button id="btn-check-env" class="nav-item btn-secondary btn-sm" data-tooltip="About">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-          <span>About RadarSimApp</span>
-        </button>
+        <div class="footer-actions">
+          <button id="btn-activate" class="footer-action-btn footer-action-btn--warning hidden" data-tooltip="Activate License">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span>Activate</span>
+          </button>
+          <button id="btn-check-env" class="footer-action-btn" data-tooltip="About">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <span>About</span>
+          </button>
+        </div>
         <div id="env-status" class="env-status" style="display:none"></div>
       </div>
     </nav>

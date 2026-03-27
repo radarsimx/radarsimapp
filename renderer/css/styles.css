@@ -162,6 +162,7 @@ body {
 #app.sidebar-collapsed .sidebar-footer .config-controls,
 #app.sidebar-collapsed .sidebar-footer .config-status,
 #app.sidebar-collapsed .sidebar-footer #env-status,
+#app.sidebar-collapsed .footer-action-btn span,
 #app.sidebar-collapsed .nav-item span,
 #app.sidebar-collapsed .nav-item-label span {
   display: none;
@@ -180,34 +181,6 @@ body {
 #app.sidebar-collapsed .nav-sublist .nav-item {
   padding-left: 0;
   justify-content: center;
-}
-
-/* Tooltips on collapsed nav items */
-#app.sidebar-collapsed [data-tooltip] {
-  position: relative;
-}
-
-#app.sidebar-collapsed [data-tooltip]::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  left: calc(100% + 8px);
-  top: 50%;
-  transform: translateY(-50%);
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 4px 8px;
-  font-size: 12px;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  z-index: 300;
-}
-
-#app.sidebar-collapsed [data-tooltip]:hover::after {
-  opacity: 1;
 }
 
 /* Center icons in collapsed rail */
@@ -333,6 +306,71 @@ button.nav-item {
   color: var(--warning, #f0a030);
 }
 
+.footer-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.footer-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.footer-action-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
+.footer-action-btn svg {
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.footer-action-btn:hover svg {
+  opacity: 1;
+}
+
+.footer-action-btn--warning {
+  color: var(--warning, #f0a030);
+  border-color: color-mix(in srgb, var(--warning, #f0a030) 30%, transparent);
+}
+
+.footer-action-btn--warning svg {
+  opacity: 1;
+  color: var(--warning, #f0a030);
+}
+
+.footer-action-btn--warning:hover {
+  background: color-mix(in srgb, var(--warning, #f0a030) 12%, transparent);
+  border-color: var(--warning, #f0a030);
+  color: var(--warning, #f0a030);
+}
+
+#app.sidebar-collapsed .footer-actions {
+  flex-direction: column;
+}
+
+#app.sidebar-collapsed .footer-action-btn {
+  padding: 7px 0;
+  justify-content: center;
+}
+
 .nav-item--has-sub {
   flex-direction: column;
   align-items: stretch;
@@ -390,6 +428,38 @@ button.nav-item {
   display: flex;
   gap: 6px;
   margin-bottom: 6px;
+}
+
+.config-controls [data-tooltip] {
+  position: relative;
+}
+
+.config-controls [data-tooltip]::after {
+  content: none;
+}
+
+#app-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+#app-tooltip.visible {
+  opacity: 1;
+}
+
+.config-controls [data-tooltip]:hover::after {
+  opacity: 1;
 }
 
 .config-controls .btn-secondary.btn-sm {
