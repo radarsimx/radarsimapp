@@ -3,20 +3,9 @@
 // window, managing the bridge lifecycle, and handling all IPC calls
 // from the renderer process.
 
-// Handle Squirrel installer events on Windows. These are fired by the installer
-// when creating/removing shortcuts. The app must quit immediately — no window.
-if (process.platform === "win32") {
-  const squirrelEvent = process.argv[1];
-  if (
-    squirrelEvent === "--squirrel-install" ||
-    squirrelEvent === "--squirrel-updated" ||
-    squirrelEvent === "--squirrel-uninstall" ||
-    squirrelEvent === "--squirrel-obsolete"
-  ) {
-    require("electron").app.quit();
-    // Nothing below this line runs during installer events.
-  }
-}
+// Handle Squirrel installer events on Windows (creates/removes shortcuts).
+// Must run before any other code — quits immediately when an event is handled.
+if (require("electron-squirrel-startup")) require("electron").app.quit();
 
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require("electron");
 const path = require("path");
