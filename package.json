@@ -1,6 +1,6 @@
 {
   "name": "radarsimapp",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Radar simulation desktop app — model waveforms, targets, and antenna arrays with real-time Range-Doppler visualization",
   "main": "main.js",
   "scripts": {
