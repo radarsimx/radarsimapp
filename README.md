@@ -77,33 +77,6 @@ npm run dev
 
 ---
 
-## Architecture
-
-```
-radarsimapp/
-├── main.js              # Electron main process
-├── preload.js           # Context bridge (secure IPC)
-├── radarsimlib/
-│   ├── bridge.js        # Native C bridge (koffi FFI → RadarSimLib)
-│   ├── radarsimc.dll    # RadarSimLib native library (Windows)
-│   └── license_RadarSimM_*.lic
-├── renderer/
-│   ├── index.html       # Main UI
-│   ├── css/
-│   │   └── styles.css   # Dark theme
-│   └── js/
-│       ├── app.js       # Simulation runner & event wiring
-│       ├── channels.js  # TX/RX channel management
-│       ├── config.js    # Config serialization & defaults
-│       ├── plots.js     # Plotly rendering helpers
-│       ├── state.js     # Persistent UI state (localStorage)
-│       ├── targets.js   # Point & mesh target management
-│       └── utils.js     # Shared utilities
-└── package.json
-```
-
----
-
 ## Packaging
 
 Build a platform-specific installer or package:
