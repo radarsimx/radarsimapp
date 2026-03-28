@@ -34,14 +34,6 @@
   letter-spacing: 0.03em;
 }
 
-.startup-spinner svg {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 /* ===== CSS Variables & Theme ===== */
 :root {
   --bg-primary: #0f0f14;
