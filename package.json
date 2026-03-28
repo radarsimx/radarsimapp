@@ -6,9 +6,9 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "dist:win": "electron-builder --win",
-    "dist:mac": "electron-builder --mac",
-    "dist:linux": "electron-builder --linux",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:linux": "electron-builder --linux --publish never",
     "generate-gif": "node scripts/generate-install-gif.js"
   },
   "author": "RadarSimX",
