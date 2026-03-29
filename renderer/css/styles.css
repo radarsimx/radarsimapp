@@ -1574,6 +1574,26 @@ select {
   color: var(--error);
 }
 
+.results-outdated-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 32px;
+  margin: -24px -32px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--warning) 15%, var(--bg-panel, #1a1a2e));
+  border-bottom: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+  color: var(--warning);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.results-outdated-banner.hidden {
+  display: none;
+}
+
 .progress-bar {
   height: 4px;
   background: var(--bg-input);

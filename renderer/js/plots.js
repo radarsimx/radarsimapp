@@ -505,6 +505,7 @@ function updateTargetsPlot() {
 
 // --- Plot Simulation Results ---
 function plotResults(data) {
+  document.getElementById("results-outdated-banner")?.classList.add("hidden");
   if (data.range_doppler) {
     _lastRangeDopplerData = data.range_doppler;
     _lastRdRangeAxis = data.rd_range_axis || null;
@@ -645,6 +646,11 @@ function _plotBaseband() {
   Plotly.newPlot(container, traces, layout, plotlyConfig);
 }
 
+function markResultsOutdated() {
+  if (!_lastBasebandData && !_lastRangeProfileData && !_lastRangeDopplerData) return;
+  document.getElementById("results-outdated-banner")?.classList.remove("hidden");
+}
+
 function clearResultPlots() {
   _lastBasebandData = null;
   _lastRangeProfileData = null;
@@ -652,6 +658,8 @@ function clearResultPlots() {
   _lastRangeDopplerData = null;
   _lastRdRangeAxis = null;
   _lastRdVelocityAxis = null;
+
+  document.getElementById("results-outdated-banner")?.classList.add("hidden");
 
   const statusEl = document.getElementById("sim-status");
   if (statusEl) { statusEl.textContent = ""; statusEl.className = "status-msg"; }
@@ -679,17 +687,17 @@ document.addEventListener("DOMContentLoaded", () => {
     _plotRangeDoppler();
   });
 
-  // Clear result plots on any configuration input change (delegated for dynamic elements)
-  const debouncedClear = debounce(clearResultPlots, 200);
+  // Mark results outdated on any configuration input change (delegated for dynamic elements)
+  const debouncedMarkOutdated = debounce(markResultsOutdated, 200);
   const configPanels = ["panel-transmitter", "panel-receiver", "panel-radar", "panel-targets"];
   configPanels.forEach((panelId) => {
     const panel = document.getElementById(panelId);
     if (!panel) return;
     panel.addEventListener("input", (e) => {
-      if (e.target.matches("input, select")) debouncedClear();
+      if (e.target.matches("input, select")) debouncedMarkOutdated();
     });
     panel.addEventListener("change", (e) => {
-      if (e.target.matches("input, select")) debouncedClear();
+      if (e.target.matches("input, select")) debouncedMarkOutdated();
     });
   });
 });

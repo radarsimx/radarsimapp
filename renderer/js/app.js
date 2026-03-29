@@ -316,6 +316,7 @@ document.getElementById("btn-add-tx-ch").addEventListener("click", () => {
   saveTxChannelStates(); // persist existing card values before re-render
   txChannels.push({});
   renderTxChannels();
+  markResultsOutdated();
   debouncedAutoSave();
 });
 
@@ -323,6 +324,7 @@ document.getElementById("btn-add-rx-ch").addEventListener("click", () => {
   saveRxChannelStates();
   rxChannels.push({});
   renderRxChannels();
+  markResultsOutdated();
   debouncedAutoSave();
 });
 
@@ -332,6 +334,7 @@ document.getElementById("btn-add-point-target").addEventListener("click", () => 
   pointTargets.push({ location: [10, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 });
   renderPointTargets();
   updateTargetsPlot();
+  markResultsOutdated();
   debouncedAutoSave();
 });
 
@@ -340,6 +343,7 @@ document.getElementById("btn-add-mesh-target").addEventListener("click", () => {
   meshTargets.push({});
   renderMeshTargets();
   updateTargetsPlot();
+  markResultsOutdated();
   debouncedAutoSave();
 });
 
