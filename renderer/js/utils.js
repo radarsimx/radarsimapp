@@ -166,6 +166,8 @@ function wrapNumberInput(input) {
     const stop = () => {
       clearTimeout(timeout);
       clearInterval(interval);
+      document.removeEventListener("mouseup", stop);
+      document.removeEventListener("mouseleave", stop);
       input.dispatchEvent(new Event("change", { bubbles: true }));
     };
     document.addEventListener("mouseup", stop, { once: true });

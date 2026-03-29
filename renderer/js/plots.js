@@ -690,14 +690,20 @@ document.addEventListener("DOMContentLoaded", () => {
   // Mark results outdated on any configuration input change (delegated for dynamic elements)
   const debouncedMarkOutdated = debounce(markResultsOutdated, 200);
   const configPanels = ["panel-transmitter", "panel-receiver", "panel-radar", "panel-targets"];
+  const handler = (e) => {
+    if (e.target.matches("input, select")) debouncedMarkOutdated();
+  };
   configPanels.forEach((panelId) => {
     const panel = document.getElementById(panelId);
     if (!panel) return;
-    panel.addEventListener("input", (e) => {
-      if (e.target.matches("input, select")) debouncedMarkOutdated();
-    });
-    panel.addEventListener("change", (e) => {
-      if (e.target.matches("input, select")) debouncedMarkOutdated();
-    });
+    panel.addEventListener("input", handler);
+    panel.addEventListener("change", handler);
   });
+  // For panel-simulation, only listen on the config section (panel-split-left)
+  // to avoid false triggers from Plotly plots in the results area during resize.
+  const simConfigArea = document.querySelector("#panel-simulation .panel-split-left");
+  if (simConfigArea) {
+    simConfigArea.addEventListener("input", handler);
+    simConfigArea.addEventListener("change", handler);
+  }
 });
