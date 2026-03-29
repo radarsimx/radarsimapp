@@ -13,7 +13,7 @@ jobs:
         include:
           - os: windows-latest
             script: dist:win
-            artifact: dist/**/*.exe
+            artifact: dist/squirrel-windows/*.exe
           - os: macos-latest
             script: dist:mac
             artifact: dist/*.dmg

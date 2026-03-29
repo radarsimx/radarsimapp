@@ -1,12 +1,12 @@
 {
   "name": "radarsimapp",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Radar simulation desktop app — model waveforms, targets, and antenna arrays with real-time Range-Doppler visualization",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "dist:win": "electron-builder --win --publish never",
+    "dist:win": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --publish never",
     "dist:mac": "electron-builder --mac --publish never",
     "dist:linux": "electron-builder --linux --publish never",
     "generate-gif": "node scripts/generate-install-gif.js"
@@ -15,6 +15,7 @@
   "license": "SEE LICENSE IN LICENSE.txt",
   "devDependencies": {
     "@napi-rs/canvas": "^0.1.97",
+    "cross-env": "^10.1.0",
     "electron": "^41.0.3",
     "electron-builder": "^26.8.1",
     "gif-encoder-2": "^1.0.5"
@@ -32,7 +33,8 @@
     "win": {
       "target": "squirrel",
       "icon": "renderer/assets/logo.ico",
-      "legalTrademarks": "RadarSimX, LLC"
+      "legalTrademarks": "RadarSimX, LLC",
+      "signAndEditExecutable": false
     },
     "mac": {
       "target": "dmg",
