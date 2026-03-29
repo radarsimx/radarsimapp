@@ -41,8 +41,8 @@ function createWindow() {
       process.platform === "win32"
         ? "logo.ico"
         : process.platform === "darwin"
-        ? "logo.png"
-        : "logo.png"
+          ? "logo.png"
+          : "logo.png"
     ),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
