@@ -1,10 +1,10 @@
 ﻿/**
- * Generates renderer/assets/install.gif â€” the Squirrel installer loading animation.
+ * Generates renderer/assets/install.gif — the Squirrel installer loading animation.
  * Run with: node scripts/generate-install-gif.js
  * Requires:  npm install --save-dev @napi-rs/canvas gif-encoder-2
  *
- * Renders at 2Ã— then downsamples to output size for crisp edges.
- * Output: 628 Ã— 368 px GIF, dark-theme radar HUD, 60 frames @ 40 ms/frame.
+ * Renders at 2× then downsamples to output size for crisp edges.
+ * Output: 628 × 368 px GIF, dark-theme radar HUD, 60 frames @ 40 ms/frame.
  */
 
 "use strict";
@@ -14,7 +14,7 @@ const GIFEncoder = require("gif-encoder-2");
 const fs = require("fs");
 const path = require("path");
 
-// â”€â”€ Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Config ─────────────────────────────────────────────────────────────────────────────────────────────
 const W = 628, H = 368;
 const SCALE = 2;
 const RW = W * SCALE, RH = H * SCALE;
@@ -50,7 +50,7 @@ const BLIPS = [
   { a: 5.50, r: 0.50, s: 5 },
 ];
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────
 function trailAlpha(sweepAngle, blipAngle) {
   const TRAIL = Math.PI * 0.9;
   const diff = ((sweepAngle - blipAngle) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
@@ -112,7 +112,7 @@ function makeRightRows(f) {
   ];
 }
 
-// â”€â”€ Encoder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Encoder ─────────────────────────────────────────────────────────────────────────────────────────────
 const encoder = new GIFEncoder(W, H, "neuquant", true, FRAMES);
 encoder.setDelay(DELAY);
 encoder.setRepeat(0);
@@ -124,12 +124,12 @@ const hiCtx     = hiCanvas.getContext("2d");
 const outCanvas = createCanvas(W, H);
 const outCtx    = outCanvas.getContext("2d");
 
-// â”€â”€ Main loop â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Main loop ─────────────────────────────────────────────────────────────────────────────────────────────
 for (let f = 0; f < FRAMES; f++) {
   const sweepAngle = (f / FRAMES) * Math.PI * 2 - Math.PI / 2;
   const t = f / FRAMES;
 
-  // â”€â”€ Background â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Background ─────────────────────────────────────────────────────────────────────────────────────────────
   hiCtx.fillStyle = C_BG;
   hiCtx.fillRect(0, 0, RW, RH);
 
@@ -137,7 +137,7 @@ for (let f = 0; f < FRAMES; f++) {
   hiCtx.fillStyle = "rgba(0,0,0,0.10)";
   for (let y = 0; y < RH; y += 4 * SCALE) hiCtx.fillRect(0, y, RW, SCALE);
 
-  // â”€â”€ Header bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Header bar ─────────────────────────────────────────────────────────────────────────────────────────────
   const HDR_Y = 16 * SCALE;
   hiCtx.font = `${9 * SCALE}px 'Courier New', monospace`;
   hiCtx.fillStyle = `rgba(${SR},${SG},${SB},0.6)`;
@@ -153,7 +153,7 @@ for (let f = 0; f < FRAMES; f++) {
   hiCtx.lineTo(RW - 14 * SCALE, 22 * SCALE);
   hiCtx.stroke();
 
-  // â”€â”€ Corner HUD brackets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Corner HUD brackets ───────────────────────────────────────────────────────────────────────────────
   const BRKT = 18 * SCALE, BM = 10 * SCALE;
   hiCtx.strokeStyle = `rgba(${SR},${SG},${SB},0.55)`;
   hiCtx.lineWidth = 1.5 * SCALE;
@@ -168,7 +168,7 @@ for (let f = 0; f < FRAMES; f++) {
     hiCtx.stroke();
   }
 
-  // â”€â”€ Left data panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Left data panel ─────────────────────────────────────────────────────────────────────────────────────────────
   const leftRows  = makeLeftRows(f);
   const rightRows = makeRightRows(f);
   const LP_X   = 14 * SCALE;
@@ -199,7 +199,7 @@ for (let f = 0; f < FRAMES; f++) {
     hiCtx.fillText(leftRows[i][1], LP_X + LP_W, ry);
   }
 
-  // Right data panel
+  // ── Right data panel
   for (let i = 0; i < rightRows.length; i++) {
     const ry = ROWS_Y + i * ROW_H;
     if (i > 0) {
@@ -222,7 +222,7 @@ for (let f = 0; f < FRAMES; f++) {
     hiCtx.fillText(rightRows[i][1], RP_X2, ry);
   }
 
-  // â”€â”€ Vertical panel dividers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Vertical panel dividers ─────────────────────────────────────────────────────────────────────────────────────
   const DIVX_L = LP_X + LP_W + 10 * SCALE;
   const DIVX_R = RP_X1 - 10 * SCALE;
   const DIV_Y1 = 28 * SCALE, DIV_Y2 = RH - 30 * SCALE;
@@ -237,7 +237,7 @@ for (let f = 0; f < FRAMES; f++) {
     hiCtx.setLineDash([]);
   }
 
-  // â”€â”€ Concentric range rings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Concentric range rings ─────────────────────────────────────────────────────────────────────────────────────
   hiCtx.strokeStyle = C_RINGS;
   hiCtx.lineWidth = SCALE;
   for (let i = 1; i <= 4; i++) {
@@ -256,7 +256,7 @@ for (let f = 0; f < FRAMES; f++) {
     hiCtx.fillText(`${i * 50}m`, lx, ly);
   }
 
-  // â”€â”€ Cross-hair lines â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Cross-hair lines ─────────────────────────────────────────────────────────────────────────────────────────────
   hiCtx.strokeStyle = C_RINGS;
   hiCtx.lineWidth = SCALE * 0.8;
   hiCtx.setLineDash([8, 12]);
@@ -264,7 +264,7 @@ for (let f = 0; f < FRAMES; f++) {
   hiCtx.beginPath(); hiCtx.moveTo(CX - R, CY); hiCtx.lineTo(CX + R, CY); hiCtx.stroke();
   hiCtx.setLineDash([]);
 
-  // â”€â”€ Sweep arc (trailing fade) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Sweep arc (trailing fade) ─────────────────────────────────────────────────────────────────────────
   const TRAIL_ARC = Math.PI * 0.9;
   const SLICES = 60;
   for (let s = 0; s < SLICES; s++) {
@@ -279,7 +279,7 @@ for (let f = 0; f < FRAMES; f++) {
     hiCtx.fill();
   }
 
-  // â”€â”€ Sweep leading line â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Sweep leading line ────────────────────────────────────────────────────────────────────────────────
   const lx = CX + Math.cos(sweepAngle) * R;
   const ly = CY + Math.sin(sweepAngle) * R;
   const sweepGrad = hiCtx.createLinearGradient(CX, CY, lx, ly);
@@ -293,7 +293,7 @@ for (let f = 0; f < FRAMES; f++) {
   hiCtx.lineTo(lx, ly);
   hiCtx.stroke();
 
-  // â”€â”€ Blips â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Blips ────────────────────────────────────────────────────────────────────────────────────────────
   for (const blip of BLIPS) {
     const alpha = trailAlpha(sweepAngle + Math.PI / 2, blip.a);
     if (alpha <= 0) continue;
@@ -312,20 +312,20 @@ for (let f = 0; f < FRAMES; f++) {
     hiCtx.fill();
   }
 
-  // â”€â”€ Centre dot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Centre dot ───────────────────────────────────────────────────────────────────────────────────────
   hiCtx.beginPath();
   hiCtx.arc(CX, CY, 5 * SCALE, 0, Math.PI * 2);
   hiCtx.fillStyle = C_SWEEP;
   hiCtx.fill();
 
-  // â”€â”€ Title â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Title ─────────────────────────────────────────────────────────────────────────────────────────────
   const titleY = RH - 54 * SCALE;
   hiCtx.textAlign = "center";
   hiCtx.font = `bold ${17 * SCALE}px 'Segoe UI', Arial, sans-serif`;
   hiCtx.fillStyle = C_TEXT_PRI;
   hiCtx.fillText("RadarSimApp", CX, titleY);
 
-  // â”€â”€ Progress bar with shimmer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Progress bar with shimmer ─────────────────────────────────────────────────────────────────────────
   const BAR_W = R * 1.6;
   const BAR_H = 5 * SCALE;
   const BAR_R = BAR_H / 2;
@@ -349,7 +349,7 @@ for (let f = 0; f < FRAMES; f++) {
   hiCtx.fillRect(shimmerCX, BAR_Y, shimmerW, BAR_H);
   hiCtx.restore();
 
-  // â”€â”€ Downsample â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Downsample ─────────────────────────────────────────────────────────────────────────────────────────────
   outCtx.clearRect(0, 0, W, H);
   outCtx.drawImage(hiCanvas, 0, 0, W, H);
   encoder.addFrame(outCtx);
