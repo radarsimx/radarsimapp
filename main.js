@@ -60,6 +60,12 @@ function createWindow() {
 
 const isDev = process.argv.includes("--dev");
 
+// Pin the App User Model ID so Windows uses the embedded icon instead of
+// falling back to Electron's default icon in the taskbar and Explorer.
+if (process.platform === "win32") {
+  app.setAppUserModelId("com.radarsimx.radarsimapp");
+}
+
 app.whenReady().then(() => {
   if (!isDev) Menu.setApplicationMenu(null);
   bridge = new RadarSimBridge();
