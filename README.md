@@ -92,7 +92,7 @@ npm run dist:mac
 npm run dist:linux
 ```
 
-The output is placed in `dist/`. The native library and license file are automatically unpacked from the `.asar` archive at runtime via `asarUnpack`.
+The output is placed in `dist/`. The native library is automatically unpacked from the `.asar` archive at runtime via `asarUnpack`.
 
 ---
 
