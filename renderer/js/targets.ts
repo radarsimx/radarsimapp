@@ -1,9 +1,9 @@
 // ===== RadarSimApp - Target Functions =====
 
 // --- Point Targets ---
-function savePointTargetStates() {
+function savePointTargetStates(): void {
   pointTargets.forEach((t, i) => {
-    const g = (id) => document.getElementById(id)?.value;
+    const g = (id: string): string | undefined => (document.getElementById(id) as HTMLInputElement | null)?.value;
     t.location = [
       parseNumber(g(`pt-${i}-loc-x`), 10),
       parseNumber(g(`pt-${i}-loc-y`)),
@@ -19,8 +19,8 @@ function savePointTargetStates() {
   });
 }
 
-function renderPointTargets() {
-  const container = document.getElementById("point-targets-list");
+function renderPointTargets(): void {
+  const container = document.getElementById("point-targets-list")!;
   container.innerHTML = "";
   pointTargets.forEach((t, i) => {
     const card = el("div", { className: "channel-card collapsed" }, [
@@ -28,7 +28,7 @@ function renderPointTargets() {
         className: "channel-card-header", onClick: () => {
           const isCollapsed = card.classList.contains("collapsed");
           if (isCollapsed) {
-            card.parentElement?.querySelectorAll(".channel-card").forEach(c => c.classList.add("collapsed"));
+            card.parentElement?.querySelectorAll(".channel-card").forEach((c) => c.classList.add("collapsed"));
           }
           card.classList.toggle("collapsed");
         }
@@ -115,9 +115,9 @@ function renderPointTargets() {
 }
 
 // --- Mesh Targets ---
-function saveMeshTargetStates() {
+function saveMeshTargetStates(): void {
   meshTargets.forEach((t, i) => {
-    const g = (id) => document.getElementById(id)?.value;
+    const g = (id: string): string | undefined => (document.getElementById(id) as HTMLInputElement | null)?.value;
     t.model = g(`mesh-${i}-model`) ?? t.model ?? "";
     t.location = [
       parseNumber(g(`mesh-${i}-loc-x`)),
@@ -140,12 +140,13 @@ function saveMeshTargetStates() {
       parseNumber(g(`mesh-${i}-rr-roll`)),
     ];
     t.unit = g(`mesh-${i}-unit`) ?? t.unit ?? "m";
-    t.permittivity = parseNumber(g(`mesh-${i}-perm`), t.permittivity ?? "");
+    const permVal = g(`mesh-${i}-perm`);
+    t.permittivity = permVal !== undefined && permVal !== "" ? parseNumber(permVal) : (t.permittivity ?? "");
   });
 }
 
-function renderMeshTargets() {
-  const container = document.getElementById("mesh-targets-list");
+function renderMeshTargets(): void {
+  const container = document.getElementById("mesh-targets-list")!;
   container.innerHTML = "";
   meshTargets.forEach((t, i) => {
     const card = el("div", { className: "channel-card collapsed" }, [
@@ -153,7 +154,7 @@ function renderMeshTargets() {
         className: "channel-card-header", onClick: () => {
           const isCollapsed = card.classList.contains("collapsed");
           if (isCollapsed) {
-            card.parentElement?.querySelectorAll(".channel-card").forEach(c => c.classList.add("collapsed"));
+            card.parentElement?.querySelectorAll(".channel-card").forEach((c) => c.classList.add("collapsed"));
           }
           card.classList.toggle("collapsed");
         }
@@ -186,7 +187,7 @@ function renderMeshTargets() {
                   filters: [{ name: "3D Models", extensions: ["stl", "obj", "ply"] }],
                 });
                 if (f) {
-                  document.getElementById(`mesh-${i}-model`).value = f;
+                  (document.getElementById(`mesh-${i}-model`) as HTMLInputElement).value = f;
                   meshTargets[i].model = f;
                 }
               },
@@ -278,7 +279,7 @@ function renderMeshTargets() {
               const sel = el("select", { id: `mesh-${i}-unit` });
               ["m", "cm", "mm"].forEach((u) => {
                 const opt = el("option", { value: u, textContent: u });
-                if (u === (t.unit ?? "m")) opt.selected = true;
+                if (u === (t.unit ?? "m")) (opt as HTMLOptionElement).selected = true;
                 sel.appendChild(opt);
               });
               return sel;

@@ -1,16 +1,16 @@
-const { contextBridge, ipcRenderer } = require("electron");
+import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("api", {
-  runSimulation: (config) => ipcRenderer.invoke("run-simulation", config),
-  runRcsSimulation: (config) =>
+  runSimulation: (config: unknown) => ipcRenderer.invoke("run-simulation", config),
+  runRcsSimulation: (config: unknown) =>
     ipcRenderer.invoke("run-rcs-simulation", config),
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),
   checkLibrary: () => ipcRenderer.invoke("check-library"),
   activateLicense: () => ipcRenderer.invoke("activate-license"),
-  selectFile: (options) => ipcRenderer.invoke("select-file", options),
-  exportResults: (data) => ipcRenderer.invoke("export-results", data),
-  openExternal: (url) => ipcRenderer.invoke("open-external", url),
-  saveConfig: (jsonData) => ipcRenderer.invoke("save-config", jsonData),
+  selectFile: (options?: unknown) => ipcRenderer.invoke("select-file", options),
+  exportResults: (data: unknown) => ipcRenderer.invoke("export-results", data),
+  openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
+  saveConfig: (jsonData: string) => ipcRenderer.invoke("save-config", jsonData),
   loadConfig: () => ipcRenderer.invoke("load-config"),
   windowMinimize: () => ipcRenderer.send("window-minimize"),
   windowMaximize: () => ipcRenderer.send("window-maximize"),

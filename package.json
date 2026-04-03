@@ -4,20 +4,23 @@
   "description": "Radar simulation desktop app — model waveforms, targets, and antenna arrays with real-time Range-Doppler visualization",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --dev",
-    "dist:win": "electron-builder --win --publish never",
-    "dist:mac": "electron-builder --mac --publish never",
-    "dist:linux": "electron-builder --linux --publish never",
+    "build": "tsc && tsc -p tsconfig.renderer.json",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron . --dev",
+    "dist:win": "npm run build && electron-builder --win --publish never",
+    "dist:mac": "npm run build && electron-builder --mac --publish never",
+    "dist:linux": "npm run build && electron-builder --linux --publish never",
     "generate-gif": "node scripts/generate-install-gif.js"
   },
   "author": "RadarSimX",
   "license": "SEE LICENSE IN LICENSE.txt",
   "devDependencies": {
     "@napi-rs/canvas": "^0.1.97",
+    "@types/node": "^22.0.0",
     "electron": "^41.0.3",
     "electron-builder": "^26.8.1",
-    "gif-encoder-2": "^1.0.5"
+    "gif-encoder-2": "^1.0.5",
+    "typescript": "^5.8.0"
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",
@@ -50,7 +53,10 @@
       "preload.js",
       "renderer/**",
       "radarsimlib/**",
-      "node_modules/**"
+      "node_modules/**",
+      "!**/*.ts",
+      "!**/*.d.ts",
+      "!tsconfig*.json"
     ],
     "asarUnpack": [
       "radarsimlib/**",

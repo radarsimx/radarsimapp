@@ -1,7 +1,7 @@
 // ===== RadarSimApp - Plot Functions =====
 
 // --- Plotly Theme ---
-const plotlyLayout = {
+const plotlyLayout: any = {
   paper_bgcolor: "#12121a",
   plot_bgcolor: "#12121a",
   font: { color: "#e8e8f0", size: 12 },
@@ -19,13 +19,13 @@ const plotlyLayout = {
   },
 };
 
-const plotlyConfig = {
+const plotlyConfig: any = {
   responsive: true,
   displayModeBar: "hover",
   displaylogo: false,
 };
 
-const smallPlotLayout = {
+const smallPlotLayout: any = {
   paper_bgcolor: "#12121a",
   plot_bgcolor: "#12121a",
   font: { color: "#e8e8f0", size: 10 },
@@ -40,10 +40,10 @@ const smallPlotLayout = {
   showlegend: false,
 };
 
-const smallPlotConfig = { responsive: true, displayModeBar: "hover", displaylogo: false };
+const smallPlotConfig: any = { responsive: true, displayModeBar: "hover", displaylogo: false };
 
 // --- Antenna Pattern Plots ---
-const patternPlotLayout = {
+const patternPlotLayout: any = {
   paper_bgcolor: "#12121a",
   plot_bgcolor: "#12121a",
   font: { color: "#e8e8f0", size: 10 },
@@ -53,24 +53,24 @@ const patternPlotLayout = {
   showlegend: false,
 };
 
-const patternPlotConfig = { responsive: true, displayModeBar: false };
+const patternPlotConfig: any = { responsive: true, displayModeBar: false };
 
-function updateChannelPatternPlot(pfx, index) {
-  const azAnglesEl = document.getElementById(`${pfx}-ch-${index}-az-angles`);
-  const azPatternEl = document.getElementById(`${pfx}-ch-${index}-az-pattern`);
-  const elAnglesEl = document.getElementById(`${pfx}-ch-${index}-el-angles`);
-  const elPatternEl = document.getElementById(`${pfx}-ch-${index}-el-pattern`);
+function updateChannelPatternPlot(pfx: string, index: number): void {
+  const azAnglesEl = document.getElementById(`${pfx}-ch-${index}-az-angles`) as HTMLTextAreaElement | null;
+  const azPatternEl = document.getElementById(`${pfx}-ch-${index}-az-pattern`) as HTMLTextAreaElement | null;
+  const elAnglesEl = document.getElementById(`${pfx}-ch-${index}-el-angles`) as HTMLTextAreaElement | null;
+  const elPatternEl = document.getElementById(`${pfx}-ch-${index}-el-pattern`) as HTMLTextAreaElement | null;
   if (!azAnglesEl) return;
 
   const azAngles = parseCSV(azAnglesEl.value);
-  const azPattern = parseCSV(azPatternEl.value);
-  const elAngles = parseCSV(elAnglesEl.value);
-  const elPattern = parseCSV(elPatternEl.value);
+  const azPattern = parseCSV(azPatternEl!.value);
+  const elAngles = parseCSV(elAnglesEl!.value);
+  const elPattern = parseCSV(elPatternEl!.value);
 
   const plotDiv = document.getElementById(`${pfx}-ch-${index}-pattern-plot`);
   if (!plotDiv) return;
 
-  const traces = [];
+  const traces: any[] = [];
   if (azAngles.length > 0 && azPattern.length > 0) {
     traces.push({
       x: azAngles, y: azPattern,
@@ -99,7 +99,7 @@ function updateChannelPatternPlot(pfx, index) {
   Plotly.react(plotDiv, traces, layout, patternPlotConfig);
 }
 
-function attachPatternListeners(pfx, index) {
+function attachPatternListeners(pfx: string, index: number): void {
   const debouncedUpdate = debounce(() => updateChannelPatternPlot(pfx, index));
   ["az-angles", "az-pattern", "el-angles", "el-pattern"].forEach((field) => {
     const elem = document.getElementById(`${pfx}-ch-${index}-${field}`);
@@ -110,30 +110,29 @@ function attachPatternListeners(pfx, index) {
 }
 
 // --- Boresight Arrow Helper ---
-function rotatePoint(x, y, z, yawDeg, pitchDeg, rollDeg) {
+function rotatePoint(x: number, y: number, z: number, yawDeg: number, pitchDeg: number, rollDeg: number): [number, number, number] {
   const toRad = Math.PI / 180;
   const yaw = yawDeg * toRad, pitch = pitchDeg * toRad, roll = rollDeg * toRad;
   const cy = Math.cos(yaw), sy = Math.sin(yaw);
   const cp = Math.cos(pitch), sp = Math.sin(pitch);
   const cr = Math.cos(roll), sr = Math.sin(roll);
-  // Rz(yaw) * Ry(pitch) * Rx(roll)
   const rx = cy * cp * x + (cy * sp * sr - sy * cr) * y + (cy * sp * cr + sy * sr) * z;
   const ry = sy * cp * x + (sy * sp * sr + cy * cr) * y + (sy * sp * cr - cy * sr) * z;
   const rz = -sp * x + cp * sr * y + cp * cr * z;
   return [rx, ry, rz];
 }
 
-function preserveCamera(container) {
+function preserveCamera(container: any): any {
   return container._fullLayout?.scene?.camera ?? {};
 }
 
-const _sceneCounts = new WeakMap();
-function scenePlot(container, traces, layout, config) {
+const _sceneCounts = new WeakMap<HTMLElement, number>();
+function scenePlot(container: HTMLElement, traces: any[], layout: any, config: any): void {
   const cam = preserveCamera(container);
   if (layout.scene) layout.scene.camera = cam;
-  const count = traces.reduce((n, t) => n + (t.x ? t.x.length : 0), 0);
+  const count = traces.reduce((n: number, t: any) => n + (t.x ? t.x.length : 0), 0);
   const prev = _sceneCounts.get(container);
-  if (prev === count && container.data) {
+  if (prev === count && (container as any).data) {
     Plotly.react(container, traces, layout, config);
   } else {
     _sceneCounts.set(container, count);
@@ -141,7 +140,7 @@ function scenePlot(container, traces, layout, config) {
   }
 }
 
-function sceneArrowLen(xs, ys, zs, minLen = 0.1) {
+function sceneArrowLen(xs: number[], ys: number[], zs: number[], minLen: number = 0.1): number {
   if (xs.length === 0) return minLen;
   const spanX = Math.max(...xs) - Math.min(...xs);
   const spanY = Math.max(...ys) - Math.min(...ys);
@@ -149,26 +148,21 @@ function sceneArrowLen(xs, ys, zs, minLen = 0.1) {
   return Math.max(Math.max(spanX, spanY, spanZ) * 0.2, minLen);
 }
 
-function boresightTraces(arrowLen, color, origin = [0, 0, 0], dir = [1, 0, 0]) {
+function boresightTraces(arrowLen: number, color: string, origin: number[] = [0, 0, 0], dir: number[] = [1, 0, 0]): any[] {
   const [ox, oy, oz] = origin;
   const [dx, dy, dz] = dir;
 
-  // Tip of the arrow
   const tipX = ox + dx * arrowLen;
   const tipY = oy + dy * arrowLen;
   const tipZ = oz + dz * arrowLen;
 
-  // Build two perpendicular vectors to create arrowhead barbs
-  // Choose a reference that isn't parallel to dir
   let refX = 0, refY = 1, refZ = 0;
   if (Math.abs(dy) > 0.9) { refX = 0; refY = 0; refZ = 1; }
-  // Cross product: perp1 = dir × ref
   const p1x = dy * refZ - dz * refY;
   const p1y = dz * refX - dx * refZ;
   const p1z = dx * refY - dy * refX;
   const p1len = Math.sqrt(p1x * p1x + p1y * p1y + p1z * p1z) || 1;
   const n1x = p1x / p1len, n1y = p1y / p1len, n1z = p1z / p1len;
-  // Cross product: perp2 = dir × perp1
   const n2x = dy * n1z - dz * n1y;
   const n2y = dz * n1x - dx * n1z;
   const n2z = dx * n1y - dy * n1x;
@@ -176,22 +170,20 @@ function boresightTraces(arrowLen, color, origin = [0, 0, 0], dir = [1, 0, 0]) {
   const headLen = arrowLen * 0.12;
   const headW = arrowLen * 0.04;
 
-  // 4 barb endpoints forming a cross pattern
-  const barbs = [
+  const barbs: number[][] = [
     [n1x, n1y, n1z],
     [-n1x, -n1y, -n1z],
     [n2x, n2y, n2z],
     [-n2x, -n2y, -n2z],
   ];
 
-  const headXs = [], headYs = [], headZs = [];
+  const headXs: (number | null)[] = [], headYs: (number | null)[] = [], headZs: (number | null)[] = [];
   for (const [bx, by, bz] of barbs) {
     headXs.push(tipX, tipX - dx * headLen + bx * headW, null);
     headYs.push(tipY, tipY - dy * headLen + by * headW, null);
     headZs.push(tipZ, tipZ - dz * headLen + bz * headW, null);
   }
 
-  // Label position past the tip
   const labelX = ox + dx * arrowLen * 1.15;
   const labelY = oy + dy * arrowLen * 1.15;
   const labelZ = oz + dz * arrowLen * 1.15;
@@ -220,17 +212,17 @@ function boresightTraces(arrowLen, color, origin = [0, 0, 0], dir = [1, 0, 0]) {
 }
 
 // --- TX Waveform Preview Plot ---
-function updateTxWaveformPlot() {
+function updateTxWaveformPlot(): void {
   const container = document.getElementById("tx-waveform-plot");
   if (!container) return;
 
-  const fStart = parseNumber(document.getElementById("tx-f-start").value);
-  const fEnd = parseNumber(document.getElementById("tx-f-end").value);
-  const tStart = parseNumber(document.getElementById("tx-t-start").value);
-  const tEnd = parseNumber(document.getElementById("tx-t-end").value);
-  const prp = parseNumber(document.getElementById("tx-prp").value, 100);
+  const fStart = parseNumber((document.getElementById("tx-f-start") as HTMLInputElement).value);
+  const fEnd = parseNumber((document.getElementById("tx-f-end") as HTMLInputElement).value);
+  const tStart = parseNumber((document.getElementById("tx-t-start") as HTMLInputElement).value);
+  const tEnd = parseNumber((document.getElementById("tx-t-end") as HTMLInputElement).value);
+  const prp = parseNumber((document.getElementById("tx-prp") as HTMLInputElement).value, 100);
 
-  const traces = [];
+  const traces: any[] = [];
   const numCycles = 2;
 
   for (let i = 0; i < numCycles; i++) {
@@ -286,15 +278,15 @@ function updateTxWaveformPlot() {
 }
 
 // --- TX Channel Locations Plot ---
-function updateTxLocationsPlot() {
+function updateTxLocationsPlot(): void {
   const container = document.getElementById("tx-locations-plot");
   if (!container) return;
 
-  const xs = [], ys = [], zs = [], labels = [];
-  txChannels.forEach((_, i) => {
-    const x = parseNumber(document.getElementById(`tx-ch-${i}-loc-x`)?.value);
-    const y = parseNumber(document.getElementById(`tx-ch-${i}-loc-y`)?.value);
-    const z = parseNumber(document.getElementById(`tx-ch-${i}-loc-z`)?.value);
+  const xs: number[] = [], ys: number[] = [], zs: number[] = [], labels: string[] = [];
+  txChannels.forEach((_: ChannelData, i: number) => {
+    const x = parseNumber((document.getElementById(`tx-ch-${i}-loc-x`) as HTMLInputElement | null)?.value);
+    const y = parseNumber((document.getElementById(`tx-ch-${i}-loc-y`) as HTMLInputElement | null)?.value);
+    const z = parseNumber((document.getElementById(`tx-ch-${i}-loc-z`) as HTMLInputElement | null)?.value);
     xs.push(x); ys.push(y); zs.push(z);
     labels.push(`TX ${i + 1}`);
   });
@@ -315,15 +307,15 @@ function updateTxLocationsPlot() {
 }
 
 // --- RX Channel Locations Plot ---
-function updateRxLocationsPlot() {
+function updateRxLocationsPlot(): void {
   const container = document.getElementById("rx-locations-plot");
   if (!container) return;
 
-  const xs = [], ys = [], zs = [], labels = [];
-  rxChannels.forEach((_, i) => {
-    const x = parseNumber(document.getElementById(`rx-ch-${i}-loc-x`)?.value);
-    const y = parseNumber(document.getElementById(`rx-ch-${i}-loc-y`)?.value);
-    const z = parseNumber(document.getElementById(`rx-ch-${i}-loc-z`)?.value);
+  const xs: number[] = [], ys: number[] = [], zs: number[] = [], labels: string[] = [];
+  rxChannels.forEach((_: ChannelData, i: number) => {
+    const x = parseNumber((document.getElementById(`rx-ch-${i}-loc-x`) as HTMLInputElement | null)?.value);
+    const y = parseNumber((document.getElementById(`rx-ch-${i}-loc-y`) as HTMLInputElement | null)?.value);
+    const z = parseNumber((document.getElementById(`rx-ch-${i}-loc-z`) as HTMLInputElement | null)?.value);
     xs.push(x); ys.push(y); zs.push(z);
     labels.push(`RX ${i + 1}`);
   });
@@ -344,18 +336,18 @@ function updateRxLocationsPlot() {
 }
 
 // --- Radar Array Overview Plot ---
-function updateRadarOverviewPlot() {
+function updateRadarOverviewPlot(): void {
   const container = document.getElementById("radar-overview-plot");
   if (!container) return;
 
-  const radarX = parseNumber(document.getElementById("radar-loc-x")?.value);
-  const radarY = parseNumber(document.getElementById("radar-loc-y")?.value);
-  const radarZ = parseNumber(document.getElementById("radar-loc-z")?.value);
-  const yaw = parseNumber(document.getElementById("radar-rot-yaw")?.value);
-  const pitch = parseNumber(document.getElementById("radar-rot-pitch")?.value);
-  const roll = parseNumber(document.getElementById("radar-rot-roll")?.value);
+  const radarX = parseNumber((document.getElementById("radar-loc-x") as HTMLInputElement | null)?.value);
+  const radarY = parseNumber((document.getElementById("radar-loc-y") as HTMLInputElement | null)?.value);
+  const radarZ = parseNumber((document.getElementById("radar-loc-z") as HTMLInputElement | null)?.value);
+  const yaw = parseNumber((document.getElementById("radar-rot-yaw") as HTMLInputElement | null)?.value);
+  const pitch = parseNumber((document.getElementById("radar-rot-pitch") as HTMLInputElement | null)?.value);
+  const roll = parseNumber((document.getElementById("radar-rot-roll") as HTMLInputElement | null)?.value);
 
-  const traces = [];
+  const traces: any[] = [];
 
   traces.push({
     x: [radarX], y: [radarY], z: [radarZ],
@@ -367,11 +359,11 @@ function updateRadarOverviewPlot() {
     name: "Radar Origin", showlegend: true,
   });
 
-  const txXs = [], txYs = [], txZs = [], txLabels = [];
-  txChannels.forEach((_, i) => {
-    const lx = parseNumber(document.getElementById(`tx-ch-${i}-loc-x`)?.value) * 1e-3;
-    const ly = parseNumber(document.getElementById(`tx-ch-${i}-loc-y`)?.value) * 1e-3;
-    const lz = parseNumber(document.getElementById(`tx-ch-${i}-loc-z`)?.value) * 1e-3;
+  const txXs: number[] = [], txYs: number[] = [], txZs: number[] = [], txLabels: string[] = [];
+  txChannels.forEach((_: ChannelData, i: number) => {
+    const lx = parseNumber((document.getElementById(`tx-ch-${i}-loc-x`) as HTMLInputElement | null)?.value) * 1e-3;
+    const ly = parseNumber((document.getElementById(`tx-ch-${i}-loc-y`) as HTMLInputElement | null)?.value) * 1e-3;
+    const lz = parseNumber((document.getElementById(`tx-ch-${i}-loc-z`) as HTMLInputElement | null)?.value) * 1e-3;
     const [rx, ry, rz] = rotatePoint(lx, ly, lz, yaw, pitch, roll);
     txXs.push(radarX + rx); txYs.push(radarY + ry); txZs.push(radarZ + rz);
     txLabels.push(`TX${i + 1}`);
@@ -388,11 +380,11 @@ function updateRadarOverviewPlot() {
     });
   }
 
-  const rxXs = [], rxYs = [], rxZs = [], rxLabels = [];
-  rxChannels.forEach((_, i) => {
-    const lx = parseNumber(document.getElementById(`rx-ch-${i}-loc-x`)?.value) * 1e-3;
-    const ly = parseNumber(document.getElementById(`rx-ch-${i}-loc-y`)?.value) * 1e-3;
-    const lz = parseNumber(document.getElementById(`rx-ch-${i}-loc-z`)?.value) * 1e-3;
+  const rxXs: number[] = [], rxYs: number[] = [], rxZs: number[] = [], rxLabels: string[] = [];
+  rxChannels.forEach((_: ChannelData, i: number) => {
+    const lx = parseNumber((document.getElementById(`rx-ch-${i}-loc-x`) as HTMLInputElement | null)?.value) * 1e-3;
+    const ly = parseNumber((document.getElementById(`rx-ch-${i}-loc-y`) as HTMLInputElement | null)?.value) * 1e-3;
+    const lz = parseNumber((document.getElementById(`rx-ch-${i}-loc-z`) as HTMLInputElement | null)?.value) * 1e-3;
     const [rx, ry, rz] = rotatePoint(lx, ly, lz, yaw, pitch, roll);
     rxXs.push(radarX + rx); rxYs.push(radarY + ry); rxZs.push(radarZ + rz);
     rxLabels.push(`RX${i + 1}`);
@@ -426,18 +418,18 @@ function updateRadarOverviewPlot() {
 }
 
 // --- Targets Scene Plot ---
-function updateTargetsPlot() {
+function updateTargetsPlot(): void {
   const container = document.getElementById("targets-scene-plot");
   if (!container) return;
 
-  const radarX = parseNumber(document.getElementById("radar-loc-x")?.value);
-  const radarY = parseNumber(document.getElementById("radar-loc-y")?.value);
-  const radarZ = parseNumber(document.getElementById("radar-loc-z")?.value);
-  const yaw = parseNumber(document.getElementById("radar-rot-yaw")?.value);
-  const pitch = parseNumber(document.getElementById("radar-rot-pitch")?.value);
-  const roll = parseNumber(document.getElementById("radar-rot-roll")?.value);
+  const radarX = parseNumber((document.getElementById("radar-loc-x") as HTMLInputElement | null)?.value);
+  const radarY = parseNumber((document.getElementById("radar-loc-y") as HTMLInputElement | null)?.value);
+  const radarZ = parseNumber((document.getElementById("radar-loc-z") as HTMLInputElement | null)?.value);
+  const yaw = parseNumber((document.getElementById("radar-rot-yaw") as HTMLInputElement | null)?.value);
+  const pitch = parseNumber((document.getElementById("radar-rot-pitch") as HTMLInputElement | null)?.value);
+  const roll = parseNumber((document.getElementById("radar-rot-roll") as HTMLInputElement | null)?.value);
 
-  const traces = [];
+  const traces: any[] = [];
 
   traces.push({
     x: [radarX], y: [radarY], z: [radarZ],
@@ -449,11 +441,11 @@ function updateTargetsPlot() {
     name: "Radar Origin", showlegend: true,
   });
 
-  const ptXs = [], ptYs = [], ptZs = [], ptLabels = [];
-  pointTargets.forEach((_, i) => {
-    ptXs.push(parseNumber(document.getElementById(`pt-${i}-loc-x`)?.value ?? 50));
-    ptYs.push(parseNumber(document.getElementById(`pt-${i}-loc-y`)?.value));
-    ptZs.push(parseNumber(document.getElementById(`pt-${i}-loc-z`)?.value));
+  const ptXs: number[] = [], ptYs: number[] = [], ptZs: number[] = [], ptLabels: string[] = [];
+  pointTargets.forEach((_: PointTargetData, i: number) => {
+    ptXs.push(parseNumber((document.getElementById(`pt-${i}-loc-x`) as HTMLInputElement | null)?.value ?? 50));
+    ptYs.push(parseNumber((document.getElementById(`pt-${i}-loc-y`) as HTMLInputElement | null)?.value));
+    ptZs.push(parseNumber((document.getElementById(`pt-${i}-loc-z`) as HTMLInputElement | null)?.value));
     ptLabels.push(`T${i + 1}`);
   });
   if (ptXs.length > 0) {
@@ -468,11 +460,11 @@ function updateTargetsPlot() {
     });
   }
 
-  const mxs = [], mys = [], mzs = [], mLabels = [];
-  meshTargets.forEach((_, i) => {
-    mxs.push(parseNumber(document.getElementById(`mesh-${i}-loc-x`)?.value));
-    mys.push(parseNumber(document.getElementById(`mesh-${i}-loc-y`)?.value));
-    mzs.push(parseNumber(document.getElementById(`mesh-${i}-loc-z`)?.value));
+  const mxs: number[] = [], mys: number[] = [], mzs: number[] = [], mLabels: string[] = [];
+  meshTargets.forEach((_: MeshTargetData, i: number) => {
+    mxs.push(parseNumber((document.getElementById(`mesh-${i}-loc-x`) as HTMLInputElement | null)?.value));
+    mys.push(parseNumber((document.getElementById(`mesh-${i}-loc-y`) as HTMLInputElement | null)?.value));
+    mzs.push(parseNumber((document.getElementById(`mesh-${i}-loc-z`) as HTMLInputElement | null)?.value));
     mLabels.push(`M${i + 1}`);
   });
   if (mxs.length > 0) {
@@ -504,7 +496,7 @@ function updateTargetsPlot() {
 }
 
 // --- Plot Simulation Results ---
-function plotResults(data) {
+function plotResults(data: any): void {
   document.getElementById("results-outdated-banner")?.classList.add("hidden");
   if (data.range_doppler) {
     _lastRangeDopplerData = data.range_doppler;
@@ -524,31 +516,30 @@ function plotResults(data) {
     _lastBbType = data.bb_type || "complex";
     const numPulses = data.baseband.length;
     const numCh = Array.isArray(data.baseband[0]) ? data.baseband[0].length : 1;
-    const pulseInput = document.getElementById("bb-pulse-idx");
-    const chInput = document.getElementById("bb-ch-idx");
-    pulseInput.max = numPulses - 1;
-    chInput.max = numCh - 1;
-    pulseInput.value = Math.min(parseInt(pulseInput.value) || 0, numPulses - 1);
-    chInput.value = Math.min(parseInt(chInput.value) || 0, numCh - 1);
+    const pulseInput = document.getElementById("bb-pulse-idx") as HTMLInputElement;
+    const chInput = document.getElementById("bb-ch-idx") as HTMLInputElement;
+    pulseInput.max = String(numPulses - 1);
+    chInput.max = String(numCh - 1);
+    pulseInput.value = String(Math.min(parseInt(pulseInput.value) || 0, numPulses - 1));
+    chInput.value = String(Math.min(parseInt(chInput.value) || 0, numCh - 1));
     _plotBaseband();
   }
 }
 
-let _lastBasebandData = null;
-let _lastBbType = "complex";
-let _lastRangeProfileData = null;
-let _lastRangeAxis = null;
-let _lastRangeDopplerData = null;
-let _lastRdRangeAxis = null;
-let _lastRdVelocityAxis = null;
+let _lastBasebandData: any = null;
+let _lastBbType: string = "complex";
+let _lastRangeProfileData: any = null;
+let _lastRangeAxis: any = null;
+let _lastRangeDopplerData: any = null;
+let _lastRdRangeAxis: any = null;
+let _lastRdVelocityAxis: any = null;
 
-function _plotRangeDoppler() {
+function _plotRangeDoppler(): void {
   const container = document.getElementById("plot-range-doppler");
   if (!_lastRangeDopplerData || !container) return;
-  const chIdx = Math.max(0, parseInt(document.getElementById("bb-ch-idx").value) || 0);
+  const chIdx = Math.max(0, parseInt((document.getElementById("bb-ch-idx") as HTMLInputElement).value) || 0);
 
-  // data is [pulse][channel][sample] — extract the 2D [pulse][sample] slice for selected channel
-  const rd = [];
+  const rd: any[] = [];
   for (let p = 0; p < _lastRangeDopplerData.length; p++) {
     const pulseData = _lastRangeDopplerData[p];
     if (Array.isArray(pulseData?.[0])) {
@@ -559,7 +550,7 @@ function _plotRangeDoppler() {
   }
 
   container.classList.add("has-data");
-  const trace = {
+  const trace: any = {
     z: rd,
     type: "surface",
     colorscale: "Viridis",
@@ -583,20 +574,19 @@ function _plotRangeDoppler() {
   Plotly.newPlot(container, [trace], layout, plotlyConfig);
 }
 
-function _plotRangeProfile() {
+function _plotRangeProfile(): void {
   const container = document.getElementById("plot-range-profile");
   if (!_lastRangeProfileData || !container) return;
-  const pulseIdx = Math.max(0, parseInt(document.getElementById("bb-pulse-idx").value) || 0);
-  const chIdx = Math.max(0, parseInt(document.getElementById("bb-ch-idx").value) || 0);
+  const pulseIdx = Math.max(0, parseInt((document.getElementById("bb-pulse-idx") as HTMLInputElement).value) || 0);
+  const chIdx = Math.max(0, parseInt((document.getElementById("bb-ch-idx") as HTMLInputElement).value) || 0);
 
-  // data is [pulse][channel][sample]
   const pulseData = _lastRangeProfileData[Math.min(pulseIdx, _lastRangeProfileData.length - 1)];
   const rp = Array.isArray(pulseData?.[0])
     ? pulseData[Math.min(chIdx, pulseData.length - 1)]
     : Array.isArray(pulseData) ? pulseData : _lastRangeProfileData;
 
   container.classList.add("has-data");
-  const trace = {
+  const trace: any = {
     y: rp,
     type: "scatter", mode: "lines",
     line: { color: "#689f38", width: 1.5 },
@@ -610,20 +600,19 @@ function _plotRangeProfile() {
   Plotly.newPlot(container, [trace], layout, plotlyConfig);
 }
 
-function _plotBaseband() {
+function _plotBaseband(): void {
   const container = document.getElementById("plot-baseband");
   if (!_lastBasebandData || !container) return;
-  const pulseIdx = Math.max(0, parseInt(document.getElementById("bb-pulse-idx").value) || 0);
-  const chIdx = Math.max(0, parseInt(document.getElementById("bb-ch-idx").value) || 0);
+  const pulseIdx = Math.max(0, parseInt((document.getElementById("bb-pulse-idx") as HTMLInputElement).value) || 0);
+  const chIdx = Math.max(0, parseInt((document.getElementById("bb-ch-idx") as HTMLInputElement).value) || 0);
 
-  // data is [pulse][channel]{re, im}
   const pulseData = _lastBasebandData[Math.min(pulseIdx, _lastBasebandData.length - 1)];
   const chData = Array.isArray(pulseData)
     ? pulseData[Math.min(chIdx, pulseData.length - 1)]
     : pulseData;
 
   container.classList.add("has-data");
-  const traces = [
+  const traces: any[] = [
     {
       y: chData.re,
       type: "scatter", mode: "lines", name: "Real",
@@ -646,12 +635,12 @@ function _plotBaseband() {
   Plotly.newPlot(container, traces, layout, plotlyConfig);
 }
 
-function markResultsOutdated() {
+function markResultsOutdated(): void {
   if (!_lastBasebandData && !_lastRangeProfileData && !_lastRangeDopplerData) return;
   document.getElementById("results-outdated-banner")?.classList.remove("hidden");
 }
 
-function clearResultPlots() {
+function clearResultPlots(): void {
   _lastBasebandData = null;
   _lastRangeProfileData = null;
   _lastRangeAxis = null;
@@ -664,14 +653,14 @@ function clearResultPlots() {
   const statusEl = document.getElementById("sim-status");
   if (statusEl) { statusEl.textContent = ""; statusEl.className = "status-msg"; }
 
-  const exportBtn = document.getElementById("btn-export");
+  const exportBtn = document.getElementById("btn-export") as HTMLButtonElement | null;
   if (exportBtn) exportBtn.disabled = true;
 
   ["plot-baseband", "plot-range-profile", "plot-range-doppler"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.classList.remove("has-data");
-      Plotly.purge(el);
+    const plotEl = document.getElementById(id);
+    if (plotEl) {
+      plotEl.classList.remove("has-data");
+      Plotly.purge(plotEl);
     }
   });
 }
@@ -687,11 +676,10 @@ document.addEventListener("DOMContentLoaded", () => {
     _plotRangeDoppler();
   });
 
-  // Mark results outdated on any configuration input change (delegated for dynamic elements)
   const debouncedMarkOutdated = debounce(markResultsOutdated, 200);
   const configPanels = ["panel-transmitter", "panel-receiver", "panel-radar", "panel-targets"];
-  const handler = (e) => {
-    if (e.target.matches("input, select")) debouncedMarkOutdated();
+  const handler = (e: Event): void => {
+    if ((e.target as HTMLElement).matches("input, select")) debouncedMarkOutdated();
   };
   configPanels.forEach((panelId) => {
     const panel = document.getElementById(panelId);
@@ -699,8 +687,6 @@ document.addEventListener("DOMContentLoaded", () => {
     panel.addEventListener("input", handler);
     panel.addEventListener("change", handler);
   });
-  // For panel-simulation, only listen on the config section (panel-split-left)
-  // to avoid false triggers from Plotly plots in the results area during resize.
   const simConfigArea = document.querySelector("#panel-simulation .panel-split-left");
   if (simConfigArea) {
     simConfigArea.addEventListener("input", handler);

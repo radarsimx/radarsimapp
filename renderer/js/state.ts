@@ -1,11 +1,8 @@
 // ===== RadarSimApp - State Persistence =====
-// Handles auto-save to localStorage on every input change, auto-load on startup,
-// and manual save/load of configurations to/from JSON files.
 
 const STATE_KEY = "radarsimapp_state";
 
-/** Factory that returns a fresh default state snapshot. */
-function defaultState() {
+function defaultState(): AppState {
   return {
     fields: {
       "tx-f-start": "24",
@@ -49,15 +46,13 @@ function defaultState() {
   };
 }
 
-/** Reset all UI inputs and backing arrays to factory defaults. */
-function resetToDefault() {
+function resetToDefault(): void {
   localStorage.removeItem(STATE_KEY);
   applyState(defaultState());
   clearResultPlots();
 }
 
-/** Static input[type=number|text] / select field IDs to persist. */
-const STATIC_FIELDS = [
+const STATIC_FIELDS: string[] = [
   "tx-f-start", "tx-f-end", "tx-t-start", "tx-t-end",
   "tx-pulses", "tx-prp", "tx-power",
   "rx-fs", "rx-bb-type", "rx-nf", "rx-rf-gain", "rx-bb-gain", "rx-load-r",
@@ -69,35 +64,27 @@ const STATIC_FIELDS = [
   "proc-rd-range-fft", "proc-rd-doppler-fft",
 ];
 
-/** Checkbox field IDs to persist. */
-const CHECKBOX_FIELDS = ["proc-noise", "proc-range-doppler", "proc-range-profile", "proc-rd-range-fft-enable", "proc-rd-doppler-fft-enable"];
+const CHECKBOX_FIELDS: string[] = ["proc-noise", "proc-range-doppler", "proc-range-profile", "proc-rd-range-fft-enable", "proc-rd-doppler-fft-enable"];
 
-/**
- * Snapshots the entire UI state into a plain object.
- * First flushes dynamic channel/target card inputs into their backing arrays,
- * then reads all static fields and copies the arrays.
- *
- * @returns {Object} Serialisable state snapshot.
- */
-function captureState() {
+function captureState(): AppState {
   saveTxChannelStates();
   saveRxChannelStates();
   savePointTargetStates();
   saveMeshTargetStates();
 
-  const fields = {};
+  const fields: Record<string, string | boolean> = {};
   STATIC_FIELDS.forEach((id) => {
-    const elem = document.getElementById(id);
+    const elem = document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null;
     if (elem) fields[id] = elem.value;
   });
   CHECKBOX_FIELDS.forEach((id) => {
-    const elem = document.getElementById(id);
+    const elem = document.getElementById(id) as HTMLInputElement | null;
     if (elem) fields[id] = elem.checked;
   });
 
   return {
     fields,
-    sidebarCollapsed: document.getElementById("app").classList.contains("sidebar-collapsed"),
+    sidebarCollapsed: document.getElementById("app")!.classList.contains("sidebar-collapsed"),
     txChannels: JSON.parse(JSON.stringify(txChannels)),
     rxChannels: JSON.parse(JSON.stringify(rxChannels)),
     pointTargets: JSON.parse(JSON.stringify(pointTargets)),
@@ -105,32 +92,25 @@ function captureState() {
   };
 }
 
-/**
- * Applies a previously captured state snapshot to the UI.
- * Sets static field values, replaces the backing arrays, then re-renders
- * all dynamic lists and refreshes derived displays.
- *
- * @param {Object} state - Snapshot produced by captureState().
- */
-function applyState(state) {
+function applyState(state: AppState): void {
   if (!state) return;
 
   if (state.fields) {
     STATIC_FIELDS.forEach((id) => {
       if (id in state.fields) {
-        const elem = document.getElementById(id);
-        if (elem) elem.value = state.fields[id];
+        const elem = document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null;
+        if (elem) elem.value = state.fields[id] as string;
       }
     });
     CHECKBOX_FIELDS.forEach((id) => {
       if (id in state.fields) {
-        const elem = document.getElementById(id);
+        const elem = document.getElementById(id) as HTMLInputElement | null;
         if (elem) elem.checked = !!state.fields[id];
       }
     });
   }
 
-  document.getElementById("app").classList.toggle("sidebar-collapsed", !!state.sidebarCollapsed);
+  document.getElementById("app")!.classList.toggle("sidebar-collapsed", !!state.sidebarCollapsed);
 
   if (Array.isArray(state.txChannels)) txChannels.splice(0, txChannels.length, ...state.txChannels);
   if (Array.isArray(state.rxChannels)) rxChannels.splice(0, rxChannels.length, ...state.rxChannels);
@@ -146,38 +126,23 @@ function applyState(state) {
   updateRadarOverviewPlot();
 }
 
-// Debounced write to localStorage — at most once per 500 ms of idle time.
 const debouncedAutoSave = debounce(() => {
   try {
     localStorage.setItem(STATE_KEY, JSON.stringify(captureState()));
   } catch (_) { }
 }, 500);
 
-/**
- * Attaches document-level input/change listeners that trigger auto-save.
- * A single delegated listener covers all current and future form elements.
- */
-function attachAutoSave() {
+function attachAutoSave(): void {
   document.addEventListener("input", debouncedAutoSave);
   document.addEventListener("change", debouncedAutoSave);
 }
 
-/**
- * Opens a native save dialog and writes the current configuration to a
- * user-chosen JSON file.
- */
-async function saveConfigToFile() {
+async function saveConfigToFile(): Promise<boolean> {
   const state = captureState();
   return window.api.saveConfig(JSON.stringify(state, null, 2));
 }
 
-/**
- * Validates that a parsed state object has the expected top-level structure.
- * Throws a descriptive Error if anything required is missing or mis-typed.
- *
- * @param {*} state - Value to validate.
- */
-function validateState(state) {
+function validateState(state: any): void {
   if (!state || typeof state !== "object" || Array.isArray(state)) {
     throw new Error("File does not contain a valid configuration object.");
   }
@@ -197,22 +162,14 @@ function validateState(state) {
   }
 }
 
-/**
- * Opens a native file-open dialog for a JSON config file, applies the
- * loaded configuration, and persists it to localStorage.
- *
- * Throws a descriptive Error if the file cannot be parsed or fails validation.
- *
- * @returns {boolean} true if a file was selected and applied; false if cancelled.
- */
-async function loadConfigFromFile() {
+async function loadConfigFromFile(): Promise<boolean> {
   const raw = await window.api.loadConfig();
   if (!raw) return false;
-  let state;
+  let state: any;
   try {
     state = JSON.parse(raw);
   } catch (e) {
-    throw new Error("File is not valid JSON: " + e.message);
+    throw new Error("File is not valid JSON: " + (e as Error).message);
   }
   validateState(state);
   applyState(state);
@@ -221,9 +178,9 @@ async function loadConfigFromFile() {
 }
 
 // --- Config button event listeners ---
-document.getElementById("btn-save-config").addEventListener("click", async () => {
-  const btn = document.getElementById("btn-save-config");
-  const status = document.getElementById("config-status");
+document.getElementById("btn-save-config")!.addEventListener("click", async () => {
+  const btn = document.getElementById("btn-save-config") as HTMLButtonElement;
+  const status = document.getElementById("config-status")!;
   btn.disabled = true;
   try {
     const saved = await saveConfigToFile();
@@ -240,9 +197,9 @@ document.getElementById("btn-save-config").addEventListener("click", async () =>
   }
 });
 
-document.getElementById("btn-load-config").addEventListener("click", async () => {
-  const btn = document.getElementById("btn-load-config");
-  const status = document.getElementById("config-status");
+document.getElementById("btn-load-config")!.addEventListener("click", async () => {
+  const btn = document.getElementById("btn-load-config") as HTMLButtonElement;
+  const status = document.getElementById("config-status")!;
   btn.disabled = true;
   try {
     const loaded = await loadConfigFromFile();
@@ -252,16 +209,14 @@ document.getElementById("btn-load-config").addEventListener("click", async () =>
       setTimeout(() => { status.textContent = ""; status.className = "config-status"; }, 3000);
     }
   } catch (err) {
-    status.textContent = err.message;
+    status.textContent = (err as Error).message;
     status.className = "config-status err";
-    // Keep error visible until the user dismisses or takes another action.
   } finally {
     btn.disabled = false;
   }
 });
 
 // --- Application Init ---
-// Try to restore the last session from localStorage; fall back to defaults.
 (function init() {
   let restored = false;
   try {
@@ -285,7 +240,6 @@ document.getElementById("btn-load-config").addEventListener("click", async () =>
 
   attachAutoSave();
 
-  // Dismiss the startup overlay now that the app is ready.
   const startupOverlay = document.getElementById("startup-overlay");
   if (startupOverlay) {
     startupOverlay.classList.add("startup-fade-out");

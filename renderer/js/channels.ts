@@ -1,6 +1,6 @@
 // ===== RadarSimApp - Channel Functions =====
 
-function createChannelCard(prefix, index, data, isTx) {
+function createChannelCard(prefix: string, index: number, data: ChannelData, isTx: boolean): HTMLElement {
   const pfx = prefix.toLowerCase();
 
   // Build the fields column
@@ -33,15 +33,15 @@ function createChannelCard(prefix, index, data, isTx) {
       el("div", { className: "form-row triple" }, [
         el("div", { className: "form-group" }, [
           el("label", { textContent: "x" }),
-          el("input", { type: "text", id: `${pfx}-ch-${index}-pol-x`, value: formatComplex(data.polarization?.[0] ?? 0), onInput: (e) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
+          el("input", { type: "text", id: `${pfx}-ch-${index}-pol-x`, value: formatComplex(data.polarization?.[0] ?? 0), onInput: (e: any) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
         ]),
         el("div", { className: "form-group" }, [
           el("label", { textContent: "y" }),
-          el("input", { type: "text", id: `${pfx}-ch-${index}-pol-y`, value: formatComplex(data.polarization?.[1] ?? 0), onInput: (e) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
+          el("input", { type: "text", id: `${pfx}-ch-${index}-pol-y`, value: formatComplex(data.polarization?.[1] ?? 0), onInput: (e: any) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
         ]),
         el("div", { className: "form-group" }, [
           el("label", { textContent: "z" }),
-          el("input", { type: "text", id: `${pfx}-ch-${index}-pol-z`, value: formatComplex(data.polarization?.[2] ?? 1), onInput: (e) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
+          el("input", { type: "text", id: `${pfx}-ch-${index}-pol-z`, value: formatComplex(data.polarization?.[2] ?? 1), onInput: (e: any) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
         ]),
       ]),
     ]),
@@ -103,11 +103,11 @@ function createChannelCard(prefix, index, data, isTx) {
       className: "channel-card-header", onClick: () => {
         const isCollapsed = card.classList.contains("collapsed");
         if (isCollapsed) {
-          card.parentElement?.querySelectorAll(".channel-card").forEach(c => c.classList.add("collapsed"));
+          card.parentElement?.querySelectorAll(".channel-card").forEach((c) => c.classList.add("collapsed"));
         }
         card.classList.toggle("collapsed");
         if (isCollapsed) {
-          card.querySelectorAll(".js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot));
+          card.querySelectorAll(".js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot as HTMLElement));
         }
       }
     }, [
@@ -131,8 +131,8 @@ function createChannelCard(prefix, index, data, isTx) {
   return card;
 }
 
-function renderTxChannels() {
-  const container = document.getElementById("tx-channels-list");
+function renderTxChannels(): void {
+  const container = document.getElementById("tx-channels-list")!;
   container.innerHTML = "";
   txChannels.forEach((ch, i) => {
     container.appendChild(createChannelCard("TX", i, ch, true));
@@ -151,8 +151,8 @@ function renderTxChannels() {
   });
 }
 
-function renderRxChannels() {
-  const container = document.getElementById("rx-channels-list");
+function renderRxChannels(): void {
+  const container = document.getElementById("rx-channels-list")!;
   container.innerHTML = "";
   rxChannels.forEach((ch, i) => {
     container.appendChild(createChannelCard("RX", i, ch, false));
@@ -171,9 +171,9 @@ function renderRxChannels() {
   });
 }
 
-function saveTxChannelStates() {
+function saveTxChannelStates(): void {
   txChannels.forEach((ch, i) => {
-    const g = (id) => document.getElementById(id)?.value;
+    const g = (id: string): string | undefined => (document.getElementById(id) as HTMLInputElement | null)?.value;
     ch.location = [
       parseNumber(g(`tx-ch-${i}-loc-x`)) * 1e-3,
       parseNumber(g(`tx-ch-${i}-loc-y`)) * 1e-3,
@@ -192,9 +192,9 @@ function saveTxChannelStates() {
   });
 }
 
-function saveRxChannelStates() {
+function saveRxChannelStates(): void {
   rxChannels.forEach((ch, i) => {
-    const g = (id) => document.getElementById(id)?.value;
+    const g = (id: string): string | undefined => (document.getElementById(id) as HTMLInputElement | null)?.value;
     ch.location = [
       parseNumber(g(`rx-ch-${i}-loc-x`)) * 1e-3,
       parseNumber(g(`rx-ch-${i}-loc-y`)) * 1e-3,
@@ -212,7 +212,7 @@ function saveRxChannelStates() {
   });
 }
 
-async function removeChannel(prefix, index) {
+async function removeChannel(prefix: string, index: number): Promise<void> {
   if (!(await confirmAsync(`Remove ${prefix} Channel ${index + 1}?`))) return;
   if (prefix === "TX") {
     saveTxChannelStates();
@@ -227,7 +227,7 @@ async function removeChannel(prefix, index) {
   debouncedAutoSave();
 }
 
-function attachLocationListeners() {
+function attachLocationListeners(): void {
   txChannels.forEach((_, i) => {
     const debouncedUpdate = debounce(() => { updateTxLocationsPlot(); updateRadarOverviewPlot(); });
     ["loc-x", "loc-y", "loc-z"].forEach((field) => {
@@ -239,7 +239,7 @@ function attachLocationListeners() {
   });
 }
 
-function attachRxLocationListeners() {
+function attachRxLocationListeners(): void {
   rxChannels.forEach((_, i) => {
     const debouncedUpdate = debounce(() => { updateRxLocationsPlot(); updateRadarOverviewPlot(); });
     ["loc-x", "loc-y", "loc-z"].forEach((field) => {

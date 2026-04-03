@@ -1,18 +1,18 @@
 "use strict";
 // ===== RadarSimApp - Native C Bridge =====
 
-const koffi = require("koffi");
-const path = require("path");
-const fs = require("fs");
+import koffi from "koffi";
+import * as path from "path";
+import * as fs from "fs";
 
 // ── Resolve real filesystem path (asar-unpacked in packaged builds) ──────────
-const baseDir = __dirname.replace("app.asar", "app.asar.unpacked");
+const baseDir: string = __dirname.replace("app.asar", "app.asar.unpacked");
 
 // ── Native library ───────────────────────────────────────────────────────────
-const libName = process.platform === "win32" ? "radarsimc.dll"
+const libName: string = process.platform === "win32" ? "radarsimc.dll"
   : process.platform === "darwin" ? "libradarsimc.dylib"
   : "libradarsimc.so";
-const libPath = path.join(baseDir, libName);
+const libPath: string = path.join(baseDir, libName);
 const lib = koffi.load(libPath);
 
 // ── Function bindings ─────────────────────────────────────────────────────────
@@ -21,7 +21,12 @@ const Is_Licensed = lib.func("int Is_Licensed()");
 const Set_License_Files = lib.func("int Set_License_Files(const char **license_file_paths, int num_files, const char *product)");
 
 // ── License activation ─────────────────────────────────────────────────────────
-const LICENSE_PRODUCTS = [
+interface LicenseProduct {
+  pattern: RegExp;
+  product: string;
+}
+
+const LICENSE_PRODUCTS: LicenseProduct[] = [
   { pattern: /^license_RadarSimApp_.*\.lic$/, product: "RadarSimApp" },
   { pattern: /^license_RadarSimPy_.*\.lic$/,  product: "RadarSimPy"  },
 ];
@@ -118,7 +123,7 @@ const Run_RcsSimulator = lib.func(
 );
 
 // ── Error codes (radarsim.h) ───────────────────────────────────────────────────
-const ERROR_MESSAGES = {
+const ERROR_MESSAGES: Record<number, string> = {
   0: "Success",
   1: "Null pointer encountered",
   2: "Invalid parameter provided",
@@ -128,27 +133,32 @@ const ERROR_MESSAGES = {
   6: "Ray count exceeds grid capacity",
 };
 
-function _errorMsg(code, context) {
+function _errorMsg(code: number, context: string): string {
   const desc = ERROR_MESSAGES[code] || `Unknown error`;
   return `${context}: ${desc} (code ${code})`;
 }
 
 // ── Type helpers ──────────────────────────────────────────────────────────────
-function toF32(arr) {
+function toF32(arr: number[] | Float32Array): Float32Array {
   return arr instanceof Float32Array ? arr : new Float32Array(arr);
 }
-function toF64(arr) {
+function toF64(arr: number[] | Float64Array): Float64Array {
   return arr instanceof Float64Array ? arr : new Float64Array(arr);
 }
-function toI32(arr) {
+function toI32(arr: number[] | Int32Array): Int32Array {
   return arr instanceof Int32Array ? arr : new Int32Array(arr);
 }
-function deg2rad(arr) {
+function deg2rad(arr: number[]): Float32Array {
   return new Float32Array(arr.map((v) => (v * Math.PI) / 180));
 }
 
+interface ComplexParsed {
+  re: number;
+  im: number;
+}
+
 /** Parse a complex number from string "1+2j", array [re, im], or plain number. */
-function parseComplex(v) {
+function parseComplex(v: string | number | number[]): ComplexParsed {
   if (typeof v === "number") return { re: v, im: 0 };
   if (Array.isArray(v)) return { re: v[0] || 0, im: v[1] || 0 };
   if (typeof v === "string") {
@@ -160,22 +170,27 @@ function parseComplex(v) {
 }
 
 /** Spherical angles (degrees) → Cartesian unit direction vector. */
-function sphericalToXyz(phiDeg, thetaDeg) {
+function sphericalToXyz(phiDeg: number, thetaDeg: number): [number, number, number] {
   const phi = (phiDeg * Math.PI) / 180;
   const theta = (thetaDeg * Math.PI) / 180;
   return [Math.sin(theta) * Math.cos(phi), Math.sin(theta) * Math.sin(phi), Math.cos(theta)];
 }
 
-/**
- * Build normalized antenna pattern arrays.
- *   phi     = azimuth_angle / 180 * pi
- *   phi_ptn = azimuth_pattern - max(azimuth_pattern)
- *   theta   = flip(90 - elevation_angle) / 180 * pi
- *   theta_ptn = flip(elevation_pattern) - max(elevation_pattern)
- *   antenna_gain = max(azimuth_pattern)
- */
-function _buildAntennaPattern(azAngle, azPattern, elAngle, elPattern) {
-  let phi, phiPtn, antennaGain;
+interface AntennaPattern {
+  phi: Float32Array;
+  phiPtn: Float32Array;
+  theta: Float32Array;
+  thetaPtn: Float32Array;
+  antennaGain: number;
+}
+
+function _buildAntennaPattern(
+  azAngle: number[] | undefined,
+  azPattern: number[] | undefined,
+  elAngle: number[] | undefined,
+  elPattern: number[] | undefined
+): AntennaPattern {
+  let phi: Float32Array, phiPtn: Float32Array, antennaGain: number;
   if (azAngle && azPattern && azAngle.length > 0) {
     if (azAngle.length !== azPattern.length) {
       throw new Error("The length of azimuth_angle and azimuth_pattern must be the same.");
@@ -184,25 +199,22 @@ function _buildAntennaPattern(azAngle, azPattern, elAngle, elPattern) {
     phi = new Float32Array(azAngle.map((v) => (v * Math.PI) / 180));
     phiPtn = new Float32Array(azPattern.map((v) => v - antennaGain));
   } else {
-    // Default omnidirectional: [-90, 90] deg → [-pi/2, pi/2]
     phi = new Float32Array([-Math.PI / 2, Math.PI / 2]);
     phiPtn = new Float32Array([0, 0]);
     antennaGain = 0;
   }
 
-  let theta, thetaPtn;
+  let theta: Float32Array, thetaPtn: Float32Array;
   if (elAngle && elPattern && elAngle.length > 0) {
     if (elAngle.length !== elPattern.length) {
       throw new Error("The length of elevation_angle and elevation_pattern must be the same.");
     }
     const elMax = Math.max(...elPattern);
-    // flip(90 - elevation_angle) / 180 * pi
     const transformed = elAngle.map((v) => (90 - v) * Math.PI / 180).reverse();
     const ptnFlipped = [...elPattern].reverse().map((v) => v - elMax);
     theta = new Float32Array(transformed);
     thetaPtn = new Float32Array(ptnFlipped);
   } else {
-    // Default: elevation [-90, 90] → theta flip([180, 0])*pi/180 = [0, pi]
     theta = new Float32Array([0, Math.PI]);
     thetaPtn = new Float32Array([0, 0]);
   }
@@ -212,26 +224,29 @@ function _buildAntennaPattern(azAngle, azPattern, elAngle, elPattern) {
 
 
 // ── Mesh (STL) loader ─────────────────────────────────────────────────────────
-const UNIT_SCALE = { mm: 1e-3, cm: 1e-2, m: 1.0, in: 0.0254 };
+const UNIT_SCALE: Record<string, number> = { mm: 1e-3, cm: 1e-2, m: 1.0, in: 0.0254 };
 
-function loadStl(filePath, unit = "m") {
+interface StlMesh {
+  points: Float32Array;
+  cells: Int32Array;
+  cellSize: number;
+}
+
+function loadStl(filePath: string, unit: string = "m"): StlMesh {
   const scale = UNIT_SCALE[unit] ?? 1.0;
   const buf = fs.readFileSync(filePath);
 
-  // Detect ASCII STL (binary STL that begins with "solid" is rare but possible;
-  // check for the "facet normal" keyword to be sure).
   const preview = buf.toString("ascii", 0, Math.min(buf.length, 256));
   if (preview.trimStart().startsWith("solid") && buf.toString("ascii").includes("facet normal")) {
     return _loadAsciiStl(buf.toString("ascii"), scale);
   }
 
-  // Binary STL: 80-byte header, uint32 triangle count, then 50 bytes per face.
   const numTri = buf.readUInt32LE(80);
   const points = new Float32Array(numTri * 9);
   const cells = new Int32Array(numTri * 3);
   let offset = 84;
   for (let i = 0; i < numTri; i++) {
-    offset += 12; // skip face normal
+    offset += 12;
     for (let v = 0; v < 3; v++) {
       const b = i * 9 + v * 3;
       points[b] = buf.readFloatLE(offset) * scale;
@@ -240,15 +255,16 @@ function loadStl(filePath, unit = "m") {
       offset += 12;
     }
     cells[i * 3] = i * 3; cells[i * 3 + 1] = i * 3 + 1; cells[i * 3 + 2] = i * 3 + 2;
-    offset += 2; // skip attribute byte count
+    offset += 2;
   }
   return { points, cells, cellSize: numTri };
 }
 
-function _loadAsciiStl(text, scale) {
-  const pts = [];
+function _loadAsciiStl(text: string, scale: number): StlMesh {
+  const pts: number[] = [];
   const re = /vertex\s+([\d.e+\-]+)\s+([\d.e+\-]+)\s+([\d.e+\-]+)/gi;
-  let m, idx = 0;
+  let m: RegExpExecArray | null;
+  let idx = 0;
   while ((m = re.exec(text)) !== null) {
     pts.push(parseFloat(m[1]) * scale, parseFloat(m[2]) * scale, parseFloat(m[3]) * scale);
     idx++;
@@ -259,11 +275,10 @@ function _loadAsciiStl(text, scale) {
 }
 
 // ── Noise Utilities ──────────────────────────────────────────────────────────
-/** Box-Muller transform: returns a standard-normal random variate. */
-let _randnSpare = null;
-function _randn() {
+let _randnSpare: number | null = null;
+function _randn(): number {
   if (_randnSpare !== null) { const v = _randnSpare; _randnSpare = null; return v; }
-  let u, v, s;
+  let u: number, v: number, s: number;
   do { u = Math.random() * 2 - 1; v = Math.random() * 2 - 1; s = u * u + v * v; } while (s >= 1 || s === 0);
   const mul = Math.sqrt(-2 * Math.log(s) / s);
   _randnSpare = v * mul;
@@ -271,10 +286,9 @@ function _randn() {
 }
 
 // ── FFT ───────────────────────────────────────────────────────────────────────
-function _nextPow2(n) { let p = 1; while (p < n) p <<= 1; return p; }
+function _nextPow2(n: number): number { let p = 1; while (p < n) p <<= 1; return p; }
 
-/** In-place Cooley-Tukey radix-2 DIT FFT. Arrays must be power-of-2 length. */
-function _fft(re, im) {
+function _fft(re: Float64Array, im: Float64Array): void {
   const n = re.length;
   let j = 0;
   for (let i = 1; i < n; i++) {
@@ -306,8 +320,12 @@ function _fft(re, im) {
   }
 }
 
-/** Apply FFT along the "samples" axis. Returns new buffers of size n * nPulse * nRx. */
-function _applyRangeFFT(re, im, nPulse, nRx, spp, n) {
+interface ComplexBuffers {
+  re: Float64Array;
+  im: Float64Array;
+}
+
+function _applyRangeFFT(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, spp: number, n?: number): ComplexBuffers {
   if (!n) n = _nextPow2(spp);
   const outRe = new Float64Array(n * nPulse * nRx);
   const outIm = new Float64Array(n * nPulse * nRx);
@@ -325,10 +343,7 @@ function _applyRangeFFT(re, im, nPulse, nRx, spp, n) {
   return { re: outRe, im: outIm };
 }
 
-/** Apply FFT along the "pulses" axis. Returns new buffers of size rangeDim * n * nRx.
- *  Includes fftshift so zero-Doppler is centered.
- *  @param rangeDim - number of range bins per pulse (may differ from original spp after range FFT) */
-function _applyDopplerFFT(re, im, nPulse, nRx, rangeDim, n) {
+function _applyDopplerFFT(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, rangeDim: number, n?: number): ComplexBuffers {
   if (!n) n = _nextPow2(nPulse);
   const outRe = new Float64Array(rangeDim * n * nRx);
   const outIm = new Float64Array(rangeDim * n * nRx);
@@ -342,7 +357,6 @@ function _applyDopplerFFT(re, im, nPulse, nRx, rangeDim, n) {
         I[p] = im[(c * nPulse + p) * rangeDim + s];
       }
       _fft(R, I);
-      // fftshift: swap first half and second half
       for (let p = 0; p < n; p++) {
         const shifted = (p + half) % n;
         outRe[(c * n + p) * rangeDim + s] = R[shifted];
@@ -353,16 +367,13 @@ function _applyDopplerFFT(re, im, nPulse, nRx, rangeDim, n) {
   return { re: outRe, im: outIm };
 }
 
-/** Convert flat re/im arrays → nested [pulse][channel][sample] dB-magnitude array.
- * DLL flat layout (column-major): flat[s + spp*p + spp*nPulse*c]
- */
-function _toDbMag3D(re, im, nPulse, nRx, spp) {
-  const out = [];
+function _toDbMag3D(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, spp: number): number[][][] {
+  const out: number[][][] = [];
   for (let p = 0; p < nPulse; p++) {
-    const rxArr = [];
+    const rxArr: number[][] = [];
     for (let r = 0; r < nRx; r++) {
-      const row = new Array(spp);
-      const base = (r * nPulse + p) * spp;  // channel varies slowest
+      const row = new Array<number>(spp);
+      const base = (r * nPulse + p) * spp;
       for (let s = 0; s < spp; s++) {
         const mag = Math.sqrt(re[base + s] ** 2 + im[base + s] ** 2);
         row[s] = 20 * Math.log10(mag + 1e-12);
@@ -374,13 +385,15 @@ function _toDbMag3D(re, im, nPulse, nRx, spp) {
   return out;
 }
 
-/** Convert flat re/im arrays → nested [pulse][channel]{re, im} complex array.
- * DLL flat layout (column-major): flat[s + spp*p + spp*nPulse*c]
- */
-function _toComplex3D(re, im, nPulse, nRx, spp) {
-  const out = [];
+interface ComplexData {
+  re: number[];
+  im: number[];
+}
+
+function _toComplex3D(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, spp: number): ComplexData[][] {
+  const out: ComplexData[][] = [];
   for (let p = 0; p < nPulse; p++) {
-    const rxArr = [];
+    const rxArr: ComplexData[] = [];
     for (let r = 0; r < nRx; r++) {
       const base = (r * nPulse + p) * spp;
       rxArr.push({
@@ -394,10 +407,18 @@ function _toComplex3D(re, im, nPulse, nRx, spp) {
 }
 
 // ── Builders ──────────────────────────────────────────────────────────────────
-function _buildTransmitter(txCfg) {
-  // ── Normalize f and t ────────────────────────────────────────────────────
-  let f = txCfg.f || [24e9, 24.5e9];
-  let t = txCfg.t || [0, 80e-6];
+interface TransmitterResult {
+  ptr: any;
+  pulses: number;
+  pulseDuration: number;
+  prp: Float64Array;
+  pulseStartTime: Float64Array;
+  delays: number[];
+}
+
+function _buildTransmitter(txCfg: any): TransmitterResult {
+  let f: number[] = txCfg.f || [24e9, 24.5e9];
+  let t: number[] = txCfg.t || [0, 80e-6];
   if (!Array.isArray(f)) f = [f];
   if (!Array.isArray(t)) t = [t];
   if (f.length === 1) f = [f[0], f[0]];
@@ -406,16 +427,15 @@ function _buildTransmitter(txCfg) {
     throw new Error("f and t must have the same length.");
   }
 
-  const numPulses = txCfg.pulses || 1;
-  const txPower = txCfg.tx_power || 0;
+  const numPulses: number = txCfg.pulses || 1;
+  const txPower: number = txCfg.tx_power || 0;
 
   const freq = toF64(f);
   const freqTime = toF64(t);
 
   const pulseDuration = t[t.length - 1] - t[0];
 
-  // ── PRP → pulse_start_time ───────────────────────────────────────────────
-  let prpArr;
+  let prpArr: Float64Array;
   if (txCfg.prp == null) {
     prpArr = new Float64Array(numPulses).fill(pulseDuration);
   } else if (typeof txCfg.prp === "number") {
@@ -431,13 +451,11 @@ function _buildTransmitter(txCfg) {
       throw new Error("prp can't be smaller than the pulse length.");
     }
   }
-  // pulse_start_time = cumsum(prp) - prp[0]
   const pst = new Float64Array(numPulses);
   pst[0] = 0;
   for (let i = 1; i < numPulses; i++) pst[i] = pst[i - 1] + prpArr[i - 1];
 
-  // ── f_offset ──────────────────────────────────────────────────────────────
-  let fOffset;
+  let fOffset: Float64Array;
   if (txCfg.f_offset == null) {
     fOffset = new Float64Array(numPulses);
   } else {
@@ -447,7 +465,7 @@ function _buildTransmitter(txCfg) {
     }
   }
 
-  let ptrTx;
+  let ptrTx: any;
   if (txCfg.pn_f && txCfg.pn_power) {
     const pnF = toF64(txCfg.pn_f);
     const pnPw = toF64(txCfg.pn_power);
@@ -472,55 +490,50 @@ function _buildTransmitter(txCfg) {
   }
   if (!ptrTx) throw new Error("Create_Transmitter returned null");
 
-  // ── Track delays for timestamp computation ──────────────────────────
-  const txDelays = [];
+  const txDelays: number[] = [];
 
   for (const ch of txCfg.channels || [{}]) {
     const loc = toF32(ch.location || [0, 0, 0]);
 
-    let polarRe, polarIm;
+    let polarRe: Float32Array, polarIm: Float32Array;
     if (ch.polarization) {
       const c = ch.polarization.map(parseComplex);
-      polarRe = new Float32Array(c.map((v) => v.re));
-      polarIm = new Float32Array(c.map((v) => v.im));
+      polarRe = new Float32Array(c.map((v: ComplexParsed) => v.re));
+      polarIm = new Float32Array(c.map((v: ComplexParsed) => v.im));
     } else {
       polarRe = new Float32Array([0, 0, 1]);
       polarIm = new Float32Array(3);
     }
 
-    // ── Antenna pattern ───────────────────────────────────────────────────
     const { phi, phiPtn, theta, thetaPtn, antennaGain } =
       _buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
         ch.elevation_angle, ch.elevation_pattern);
 
-    // ── Pulse modulation ────────────────────────────────────────────────
-    let pModRe, pModIm;
+    let pModRe: Float32Array, pModIm: Float32Array;
     if (ch.pulse_amp && ch.pulse_phs) {
-      const phsRad = ch.pulse_phs.map((v) => (v * Math.PI) / 180);
-      pModRe = new Float32Array(ch.pulse_amp.map((a, i) => a * Math.cos(phsRad[i])));
-      pModIm = new Float32Array(ch.pulse_amp.map((a, i) => a * Math.sin(phsRad[i])));
+      const phsRad = ch.pulse_phs.map((v: number) => (v * Math.PI) / 180);
+      pModRe = new Float32Array(ch.pulse_amp.map((a: number, i: number) => a * Math.cos(phsRad[i])));
+      pModIm = new Float32Array(ch.pulse_amp.map((a: number, i: number) => a * Math.sin(phsRad[i])));
     } else if (ch.pulse_phs && !ch.pulse_amp) {
-      const phsRad = ch.pulse_phs.map((v) => (v * Math.PI) / 180);
-      pModRe = new Float32Array(phsRad.map((p) => Math.cos(p)));
-      pModIm = new Float32Array(phsRad.map((p) => Math.sin(p)));
+      const phsRad = ch.pulse_phs.map((v: number) => (v * Math.PI) / 180);
+      pModRe = new Float32Array(phsRad.map((p: number) => Math.cos(p)));
+      pModIm = new Float32Array(phsRad.map((p: number) => Math.sin(p)));
     } else if (ch.pulse_amp && !ch.pulse_phs) {
       pModRe = toF32(ch.pulse_amp);
       pModIm = new Float32Array(ch.pulse_amp.length);
     } else {
-      // Default: ones
       pModRe = new Float32Array(numPulses).fill(1);
       pModIm = new Float32Array(numPulses);
     }
 
-    // ── Waveform modulation ───────────────────────────────────────────────
-    let modT, modVarRe, modVarIm, modLen = 0;
+    let modT: Float32Array, modVarRe: Float32Array, modVarIm: Float32Array, modLen = 0;
     if (ch.mod_t && (ch.phs != null || ch.amp != null)) {
       modT = toF32(ch.mod_t);
       const amp = ch.amp || new Array(modT.length).fill(1);
-      const phs = ch.phs ? ch.phs.map((v) => (v * Math.PI) / 180)
+      const phs = ch.phs ? ch.phs.map((v: number) => (v * Math.PI) / 180)
         : new Array(modT.length).fill(0);
-      modVarRe = new Float32Array(amp.map((a, i) => a * Math.cos(phs[i])));
-      modVarIm = new Float32Array(amp.map((a, i) => a * Math.sin(phs[i])));
+      modVarRe = new Float32Array(amp.map((a: number, i: number) => a * Math.cos(phs[i])));
+      modVarIm = new Float32Array(amp.map((a: number, i: number) => a * Math.sin(phs[i])));
       modLen = modT.length;
     } else {
       modT = new Float32Array(0);
@@ -528,10 +541,9 @@ function _buildTransmitter(txCfg) {
       modVarIm = new Float32Array(0);
     }
 
-    const chDelay = ch.delay || 0;
+    const chDelay: number = ch.delay || 0;
     txDelays.push(chDelay);
 
-    // grid = 1/180*pi ≈ 0.01745 rad
     const ret = Add_Txchannel(
       loc, polarRe, polarIm,
       phi, phiPtn, phi.length,
@@ -554,33 +566,43 @@ function _buildTransmitter(txCfg) {
   };
 }
 
-function _buildReceiver(rxCfg) {
-  const fs = rxCfg.fs || 2e6;
-  const rfGain = rxCfg.rf_gain || 0;
-  const res = rxCfg.load_resistor || 500;
-  const bbGain = rxCfg.baseband_gain || 0;
-  const bbType = rxCfg.bb_type || "complex";
+interface ReceiverResult {
+  ptr: any;
+  fs: number;
+  rfGain: number;
+  noiseFigure: number;
+  basebandGain: number;
+  loadResistor: number;
+  noiseBw: number;
+  bbType: string;
+  numChannels: number;
+}
 
-  // Noise bandwidth depends on bb_type
-  const noiseBw = bbType === "real" ? fs / 2 : fs;
+function _buildReceiver(rxCfg: any): ReceiverResult {
+  const rxFs: number = rxCfg.fs || 2e6;
+  const rfGain: number = rxCfg.rf_gain || 0;
+  const res: number = rxCfg.load_resistor || 500;
+  const bbGain: number = rxCfg.baseband_gain || 0;
+  const bbType: string = rxCfg.bb_type || "complex";
 
-  const ptrRx = Create_Receiver(fs, rfGain, res, bbGain, noiseBw);
+  const noiseBw = bbType === "real" ? rxFs / 2 : rxFs;
+
+  const ptrRx = Create_Receiver(rxFs, rfGain, res, bbGain, noiseBw);
   if (!ptrRx) throw new Error("Create_Receiver returned null");
 
   for (const ch of rxCfg.channels || [{}]) {
     const loc = toF32(ch.location || [0, 0, 0]);
 
-    let polarRe, polarIm;
+    let polarRe: Float32Array, polarIm: Float32Array;
     if (ch.polarization) {
       const c = ch.polarization.map(parseComplex);
-      polarRe = new Float32Array(c.map((v) => v.re));
-      polarIm = new Float32Array(c.map((v) => v.im));
+      polarRe = new Float32Array(c.map((v: ComplexParsed) => v.re));
+      polarIm = new Float32Array(c.map((v: ComplexParsed) => v.im));
     } else {
       polarRe = new Float32Array([0, 0, 1]);
       polarIm = new Float32Array(3);
     }
 
-    // ── Antenna pattern ───────────────────────────────────────────────────
     const { phi, phiPtn, theta, thetaPtn, antennaGain } =
       _buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
         ch.elevation_angle, ch.elevation_pattern);
@@ -596,18 +618,18 @@ function _buildReceiver(rxCfg) {
 
   return {
     ptr: ptrRx,
-    fs,
+    fs: rxFs,
     rfGain,
     noiseFigure: rxCfg.noise_figure || 0,
     basebandGain: bbGain,
     loadResistor: res,
-    noiseBw: noiseBw,
+    noiseBw,
     bbType,
     numChannels: (rxCfg.channels || [{}]).length,
   };
 }
 
-function _buildTargets(targetsCfg, density = 1) {
+function _buildTargets(targetsCfg: any[], density: number = 1): any {
   const ptrTargets = Init_Targets();
   if (!ptrTargets) throw new Error("Init_Targets returned null");
 
@@ -619,12 +641,10 @@ function _buildTargets(targetsCfg, density = 1) {
       const mesh = loadStl(t.model, t.unit || "m");
       const origin = toF32(t.origin || [0, 0, 0]);
 
-      // Convert rotation/rotation_rate degrees → radians
-      const rot = toF32((t.rotation || [0, 0, 0]).map((v) => (v * Math.PI) / 180));
-      const rotRate = toF32((t.rotation_rate || [0, 0, 0]).map((v) => (v * Math.PI) / 180));
+      const rot = toF32((t.rotation || [0, 0, 0]).map((v: number) => (v * Math.PI) / 180));
+      const rotRate = toF32((t.rotation_rate || [0, 0, 0]).map((v: number) => (v * Math.PI) / 180));
 
-      // Permittivity: 'PEC' → {-1, 0}
-      let epReal, epImag;
+      let epReal: number, epImag: number;
       if (!t.permittivity || t.permittivity === "PEC") {
         epReal = -1;
         epImag = 0;
@@ -645,7 +665,6 @@ function _buildTargets(targetsCfg, density = 1) {
       );
       if (ret !== 0) throw new Error(_errorMsg(ret, "Add_Mesh_Target"));
     } else {
-      // Phase: degrees → radians
       const phaseRad = t.phase != null ? (t.phase * Math.PI) / 180 : 0;
       const ret = Add_Point_Target(
         loc, speed,
@@ -660,10 +679,10 @@ function _buildTargets(targetsCfg, density = 1) {
 }
 
 // ── RadarSimBridge ───────────────────────────────────────────────────────────
-class RadarSimBridge {
+export class RadarSimBridge {
   constructor() { }
 
-  async runSimulation(config) {
+  async runSimulation(config: any): Promise<any> {
     const txCfg = config.transmitter || {};
     const rxCfg = config.receiver || {};
     const radarCfg = config.radar || {};
@@ -699,8 +718,7 @@ class RadarSimBridge {
     if (!ptrRadar) throw new Error("Create_Radar returned null");
 
     const density = Number(simCfg.density) || 1;
-    // Map level strings to ints
-    const levelMap = { frame: 0, pulse: 1, sample: 2 };
+    const levelMap: Record<string, number> = { frame: 0, pulse: 1, sample: 2 };
     const level = levelMap[simCfg.level] ?? 0;
 
     console.log("[bridge] Building targets...");
@@ -708,16 +726,15 @@ class RadarSimBridge {
     console.log("[bridge] Targets pointer:", ptrTargets);
 
     console.log("[bridge] Getting BB size...");
-    const bbSize = Get_BB_Size(ptrRadar);
+    const bbSize: number = Get_BB_Size(ptrRadar);
     console.log("[bridge] BB size:", bbSize);
     if (bbSize <= 0) throw new Error(`Get_BB_Size returned ${bbSize} — check radar configuration`);
     const bbRe = new Float64Array(bbSize);
     const bbIm = new Float64Array(bbSize);
-    // ray_filter default [0, 10]
     const rayFilter = new Int32Array(simCfg.ray_filter || [0, 10]);
 
     console.log("[bridge] Running RadarSimulator (level=%d, density=%f)...", level, density);
-    const status = Run_RadarSimulator(ptrRadar, ptrTargets, level, density, rayFilter, bbRe, bbIm);
+    const status: number = Run_RadarSimulator(ptrRadar, ptrTargets, level, density, rayFilter, bbRe, bbIm);
     console.log("[bridge] Run_RadarSimulator status:", status);
 
     Free_Targets(ptrTargets);
@@ -727,53 +744,46 @@ class RadarSimBridge {
 
     if (status !== 0) throw new Error(_errorMsg(status, "Run_RadarSimulator"));
 
-    // Discard imaginary part for real baseband
     const bbType = rxCfg.bb_type || "complex";
     if (bbType === "real") bbIm.fill(0);
 
-    const numPulses = txCfg.pulses || 1;
-    // Total channels = num_tx * num_rx
+    const numPulses: number = txCfg.pulses || 1;
     const numTxCh = (txCfg.channels || [{}]).length;
     const numRxCh = (rxCfg.channels || [{}]).length;
     const numChannels = numTxCh * numRxCh;
     const spp = Math.round(bbSize / (numPulses * numChannels));
 
-    const output = { baseband_shape: [spp, numPulses, numChannels] };
+    const output: any = { baseband_shape: [spp, numPulses, numChannels] };
 
     // --- Add receiver noise ---
     if (procCfg.noise !== false) {
       const boltzmannConst = 1.38064852e-23;
       const Ts = 290;
-      const inputNoiseDbm = 10 * Math.log10(boltzmannConst * Ts * 1000); // dBm/Hz
-      const noiseFigure = rxCfg.noise_figure || 0;
-      const rfGain = rxCfg.rf_gain || 0;
-      const bbGain = rxCfg.baseband_gain || 0;
-      const fs = rxCfg.fs || 2e6;
-      const loadR = rxCfg.load_resistor || 500;
-      const bbType = rxCfg.bb_type || "complex";
+      const inputNoiseDbm = 10 * Math.log10(boltzmannConst * Ts * 1000);
+      const noiseFigure: number = rxCfg.noise_figure || 0;
+      const rfGain: number = rxCfg.rf_gain || 0;
+      const bbGain: number = rxCfg.baseband_gain || 0;
+      const rxFs: number = rxCfg.fs || 2e6;
+      const loadR: number = rxCfg.load_resistor || 500;
+      const rxBbType: string = rxCfg.bb_type || "complex";
 
-      // noise_bandwidth = fs
-      const noiseBandwidth = fs;
+      const noiseBandwidth = rxFs;
       const receiverNoiseDbm = inputNoiseDbm + rfGain + noiseFigure + 10 * Math.log10(noiseBandwidth) + bbGain;
       const receiverNoiseWatts = 1e-3 * Math.pow(10, receiverNoiseDbm / 10);
       const noiseAmplitude = Math.sqrt(receiverNoiseWatts * loadR);
 
-      // Generate noise per RX channel, then map to each virtual channel
-      // DLL flat layout: flat[s + spp*p + spp*nPulse*c]
-      const scale = bbType === "real" ? noiseAmplitude : noiseAmplitude / Math.SQRT2;
-      // Pre-generate noise for each physical RX channel (all samples contiguous)
+      const scale = rxBbType === "real" ? noiseAmplitude : noiseAmplitude / Math.SQRT2;
       const totalSamplesPerRx = numPulses * spp;
-      const noisePerRx = new Array(numRxCh);
+      const noisePerRx: { re: Float64Array; im: Float64Array }[] = new Array(numRxCh);
       for (let r = 0; r < numRxCh; r++) {
         const reNoise = new Float64Array(totalSamplesPerRx);
         const imNoise = new Float64Array(totalSamplesPerRx);
         for (let i = 0; i < totalSamplesPerRx; i++) {
           reNoise[i] = _randn() * scale;
-          if (bbType !== "real") imNoise[i] = _randn() * scale;
+          if (rxBbType !== "real") imNoise[i] = _randn() * scale;
         }
         noisePerRx[r] = { re: reNoise, im: imNoise };
       }
-      // Add noise to baseband: virtual channel c → physical RX = c % numRxCh
       for (let c = 0; c < numChannels; c++) {
         const rxIdx = c % numRxCh;
         const nRe = noisePerRx[rxIdx].re;
@@ -787,14 +797,12 @@ class RadarSimBridge {
           }
         }
       }
-      console.log("[bridge] Noise added (amplitude=%.3e, type=%s)", noiseAmplitude, bbType);
+      console.log("[bridge] Noise added (amplitude=%.3e, type=%s)", noiseAmplitude, rxBbType);
     }
 
-    // Raw baseband as complex {re, im} per [pulse][channel]
     output.baseband = _toComplex3D(bbRe, bbIm, numPulses, numChannels, spp);
     output.bb_type = rxCfg.bb_type || "complex";
 
-    // Range-Doppler (default on when there are multiple pulses)
     if (procCfg.range_doppler !== false && numPulses > 1) {
       const rdRangeN = procCfg.rd_range_fft || _nextPow2(spp);
       const rdDopplerN = procCfg.rd_doppler_fft || _nextPow2(numPulses);
@@ -808,7 +816,6 @@ class RadarSimBridge {
       output.rd_doppler_axis = Array.from({ length: rdDopplerN }, (_, i) => i - rdHalf);
     }
 
-    // Range profile (on request)
     if (procCfg.range_profile) {
       const rpRangeN = procCfg.rp_range_fft || _nextPow2(spp);
       const rpOut = _applyRangeFFT(bbRe, bbIm, numPulses, numChannels, spp, rpRangeN);
@@ -817,7 +824,6 @@ class RadarSimBridge {
       output.rp_range_axis = Array.from({ length: rpRangeN }, (_, i) => i);
     }
 
-    // Baseband axis
     output.range_axis = Array.from({ length: spp }, (_, i) => i);
 
     if (numPulses > 1) {
@@ -830,16 +836,16 @@ class RadarSimBridge {
     return output;
   }
 
-  async runRcsSimulation(config) {
+  async runRcsSimulation(config: any): Promise<any> {
     const rcsCfg = config.rcs || {};
-    const density = rcsCfg.density || 1;
+    const density: number = rcsCfg.density || 1;
 
     const ptrTargets = _buildTargets(config.targets || [], density);
 
-    const incPhi = (rcsCfg.inc_phi || [0]).map(Number);
-    const incTheta = (rcsCfg.inc_theta || [90]).map(Number);
-    const obsPhi = rcsCfg.obs_phi ? rcsCfg.obs_phi.map(Number) : incPhi;
-    const obsTheta = rcsCfg.obs_theta ? rcsCfg.obs_theta.map(Number) : incTheta;
+    const incPhi: number[] = (rcsCfg.inc_phi || [0]).map(Number);
+    const incTheta: number[] = (rcsCfg.inc_theta || [90]).map(Number);
+    const obsPhi: number[] = rcsCfg.obs_phi ? rcsCfg.obs_phi.map(Number) : incPhi;
+    const obsTheta: number[] = rcsCfg.obs_theta ? rcsCfg.obs_theta.map(Number) : incTheta;
     const numDirs = incPhi.length;
 
     const incDirs = new Float64Array(numDirs * 3);
@@ -860,10 +866,10 @@ class RadarSimBridge {
       obsPolRe[i] = op.re; obsPolIm[i] = op.im;
     }
 
-    const frequency = rcsCfg.frequency || 24e9;
+    const frequency: number = rcsCfg.frequency || 24e9;
     const rcsResult = new Float64Array(numDirs);
 
-    const status = Run_RcsSimulator(
+    const status: number = Run_RcsSimulator(
       ptrTargets, incDirs, obsDirs, numDirs,
       incPolRe, incPolIm, obsPolRe, obsPolIm,
       frequency, density, rcsResult
@@ -878,10 +884,10 @@ class RadarSimBridge {
     return { rcs_linear: rcsLinear, rcs_dbsm: rcsDbsm, inc_phi: incPhi, inc_theta: incTheta };
   }
 
-  async checkLibrary() {
+  async checkLibrary(): Promise<{ radarsimlib_version: string; radarsimlib_available: boolean; licensed: boolean }> {
     const version = new Int32Array(3);
     Get_Version(version);
-    const licensed = Is_Licensed();
+    const licensed: number = Is_Licensed();
     return {
       radarsimlib_version: `${version[0]}.${version[1]}.${version[2]}`,
       radarsimlib_available: true,
@@ -889,12 +895,11 @@ class RadarSimBridge {
     };
   }
 
-  async activateLicense(licFilePath) {
+  async activateLicense(licFilePath: string): Promise<{ licensed: boolean; product?: string }> {
     const fileName = path.basename(licFilePath);
     const dest = path.join(baseDir, fileName);
     fs.copyFileSync(licFilePath, dest);
 
-    // Detect product from filename; fall back to trying both.
     const match = LICENSE_PRODUCTS.find(({ pattern }) => pattern.test(fileName));
     const candidates = match ? [match.product] : LICENSE_PRODUCTS.map((e) => e.product);
 
@@ -909,9 +914,7 @@ class RadarSimBridge {
     throw new Error("License activation failed — please check that the license file is valid");
   }
 
-  kill() {
+  kill(): void {
     // No persistent process — DLL cleanup is automatic on process exit.
   }
 }
-
-module.exports = { RadarSimBridge };
