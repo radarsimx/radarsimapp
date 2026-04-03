@@ -6,7 +6,9 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "declaration": false,
-    "sourceMap": false
+    "sourceMap": false,
+    "outDir": "./dist/renderer/js",
+    "rootDir": "./renderer/ts"
   },
-  "include": ["renderer/js/**/*.ts"]
+  "include": ["renderer/ts/**/*.ts"]
 }

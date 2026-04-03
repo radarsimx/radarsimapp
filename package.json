@@ -2,7 +2,7 @@
   "name": "radarsimapp",
   "version": "0.0.5",
   "description": "Radar simulation desktop app — model waveforms, targets, and antenna arrays with real-time Range-Doppler visualization",
-  "main": "main.js",
+  "main": "dist/main.js",
   "scripts": {
     "build": "tsc && tsc -p tsconfig.renderer.json",
     "start": "npm run build && electron .",
@@ -49,8 +49,7 @@
       "loadingGif": "renderer/assets/install.gif"
     },
     "files": [
-      "main.js",
-      "preload.js",
+      "dist/**",
       "renderer/**",
       "radarsimlib/**",
       "node_modules/**",

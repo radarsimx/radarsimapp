@@ -9,8 +9,9 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "declaration": false,
-    "sourceMap": false
+    "sourceMap": false,
+    "outDir": "./dist"
   },
-  "include": ["types.d.ts", "main.ts", "preload.ts", "radarsimlib/**/*.ts"],
+  "include": ["types.d.ts", "main.ts", "preload.ts", "bridge.ts"],
   "exclude": ["node_modules", "renderer"]
 }

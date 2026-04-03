@@ -6,7 +6,11 @@ import * as path from "path";
 import * as fs from "fs";
 
 // ── Resolve real filesystem path (asar-unpacked in packaged builds) ──────────
-const baseDir: string = __dirname.replace("app.asar", "app.asar.unpacked");
+// __dirname is dist/ at runtime; the native library lives in radarsimlib/
+// at the project root (one level up from dist/).
+const baseDir: string = path
+  .join(__dirname, "..", "radarsimlib")
+  .replace("app.asar", "app.asar.unpacked");
 
 // ── Native library ───────────────────────────────────────────────────────────
 const libName: string = process.platform === "win32" ? "radarsimc.dll"

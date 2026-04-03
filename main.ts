@@ -13,7 +13,7 @@ if (squirrelStartup) {
 import { app, BrowserWindow, ipcMain, dialog, shell, Menu } from "electron";
 import * as path from "path";
 import * as fs from "fs";
-import { RadarSimBridge } from "./radarsimlib/bridge";
+import { RadarSimBridge } from "./bridge";
 
 let mainWindow: BrowserWindow | undefined;
 let bridge: RadarSimBridge | undefined;
@@ -35,6 +35,7 @@ function createWindow(): void {
     backgroundColor: "#0f0f14",
     icon: path.join(
       __dirname,
+      "..",
       "renderer",
       "assets",
       process.platform === "win32" ? "logo.ico" : "logo.png"
@@ -46,7 +47,7 @@ function createWindow(): void {
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+  mainWindow.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
 
   mainWindow.once("ready-to-show", () => {
     mainWindow!.show();
