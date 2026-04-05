@@ -1,6 +1,9 @@
 // ===== RadarSimApp - Configuration Collection =====
 
-function collectConfig(): any {
+import { parseNumber, parseCSV } from './utils.js';
+import { txChannels, rxChannels, pointTargets, meshTargets } from './shared.js';
+
+export function collectConfig(): any {
   // TX
   const fStart = parseNumber((document.getElementById("tx-f-start") as HTMLInputElement).value) * 1e9;
   const fEnd = parseNumber((document.getElementById("tx-f-end") as HTMLInputElement).value) * 1e9;

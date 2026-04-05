@@ -1,7 +1,21 @@
 // ===== RadarSimApp - Plot Functions =====
 
+import { debounce, parseNumber, parseCSV } from './utils.js';
+import { txChannels, rxChannels, pointTargets, meshTargets } from './shared.js';
+
+// --- TX Bandwidth / Sweep Info ---
+export function updateTxInfo(): void {
+  const fStart = parseFloat((document.getElementById("tx-f-start") as HTMLInputElement).value) || 0;
+  const fEnd = parseFloat((document.getElementById("tx-f-end") as HTMLInputElement).value) || 0;
+  const tStart = parseFloat((document.getElementById("tx-t-start") as HTMLInputElement).value) || 0;
+  const tEnd = parseFloat((document.getElementById("tx-t-end") as HTMLInputElement).value) || 0;
+  (document.getElementById("tx-bandwidth") as HTMLInputElement).value = ((fEnd - fStart) * 1000).toFixed(1);
+  (document.getElementById("tx-pulse-length") as HTMLInputElement).value = (tEnd - tStart).toFixed(1);
+  updateTxWaveformPlot();
+}
+
 // --- Plotly Theme ---
-const plotlyLayout: any = {
+export const plotlyLayout: any = {
   paper_bgcolor: "#12121a",
   plot_bgcolor: "#12121a",
   font: { color: "#e8e8f0", size: 12 },
@@ -19,7 +33,7 @@ const plotlyLayout: any = {
   },
 };
 
-const plotlyConfig: any = {
+export const plotlyConfig: any = {
   responsive: true,
   displayModeBar: "hover",
   displaylogo: false,
@@ -55,7 +69,7 @@ const patternPlotLayout: any = {
 
 const patternPlotConfig: any = { responsive: true, displayModeBar: false };
 
-function updateChannelPatternPlot(pfx: string, index: number): void {
+export function updateChannelPatternPlot(pfx: string, index: number): void {
   const azAnglesEl = document.getElementById(`${pfx}-ch-${index}-az-angles`) as HTMLTextAreaElement | null;
   const azPatternEl = document.getElementById(`${pfx}-ch-${index}-az-pattern`) as HTMLTextAreaElement | null;
   const elAnglesEl = document.getElementById(`${pfx}-ch-${index}-el-angles`) as HTMLTextAreaElement | null;
@@ -99,7 +113,7 @@ function updateChannelPatternPlot(pfx: string, index: number): void {
   Plotly.react(plotDiv, traces, layout, patternPlotConfig);
 }
 
-function attachPatternListeners(pfx: string, index: number): void {
+export function attachPatternListeners(pfx: string, index: number): void {
   const debouncedUpdate = debounce(() => updateChannelPatternPlot(pfx, index));
   ["az-angles", "az-pattern", "el-angles", "el-pattern"].forEach((field) => {
     const elem = document.getElementById(`${pfx}-ch-${index}-${field}`);
@@ -212,7 +226,7 @@ function boresightTraces(arrowLen: number, color: string, origin: number[] = [0,
 }
 
 // --- TX Waveform Preview Plot ---
-function updateTxWaveformPlot(): void {
+export function updateTxWaveformPlot(): void {
   const container = document.getElementById("tx-waveform-plot");
   if (!container) return;
 
@@ -278,7 +292,7 @@ function updateTxWaveformPlot(): void {
 }
 
 // --- TX Channel Locations Plot ---
-function updateTxLocationsPlot(): void {
+export function updateTxLocationsPlot(): void {
   const container = document.getElementById("tx-locations-plot");
   if (!container) return;
 
@@ -307,7 +321,7 @@ function updateTxLocationsPlot(): void {
 }
 
 // --- RX Channel Locations Plot ---
-function updateRxLocationsPlot(): void {
+export function updateRxLocationsPlot(): void {
   const container = document.getElementById("rx-locations-plot");
   if (!container) return;
 
@@ -336,7 +350,7 @@ function updateRxLocationsPlot(): void {
 }
 
 // --- Radar Array Overview Plot ---
-function updateRadarOverviewPlot(): void {
+export function updateRadarOverviewPlot(): void {
   const container = document.getElementById("radar-overview-plot");
   if (!container) return;
 
@@ -418,7 +432,7 @@ function updateRadarOverviewPlot(): void {
 }
 
 // --- Targets Scene Plot ---
-function updateTargetsPlot(): void {
+export function updateTargetsPlot(): void {
   const container = document.getElementById("targets-scene-plot");
   if (!container) return;
 
@@ -496,7 +510,7 @@ function updateTargetsPlot(): void {
 }
 
 // --- Plot Simulation Results ---
-function plotResults(data: any): void {
+export function plotResults(data: any): void {
   document.getElementById("results-outdated-banner")?.classList.add("hidden");
   if (data.range_doppler) {
     _lastRangeDopplerData = data.range_doppler;
@@ -635,12 +649,12 @@ function _plotBaseband(): void {
   Plotly.newPlot(container, traces, layout, plotlyConfig);
 }
 
-function markResultsOutdated(): void {
+export function markResultsOutdated(): void {
   if (!_lastBasebandData && !_lastRangeProfileData && !_lastRangeDopplerData) return;
   document.getElementById("results-outdated-banner")?.classList.remove("hidden");
 }
 
-function clearResultPlots(): void {
+export function clearResultPlots(): void {
   _lastBasebandData = null;
   _lastRangeProfileData = null;
   _lastRangeAxis = null;

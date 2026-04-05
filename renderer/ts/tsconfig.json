@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.renderer.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "../../dist/renderer/js"
+  },
+  "include": ["./**/*.ts"]
+}

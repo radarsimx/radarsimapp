@@ -1,5 +1,10 @@
 // ===== RadarSimApp - Channel Functions =====
 
+import { el, createInput, createTextInput, createSVG, debounce, formatComplex, isValidComplex, parseNumber, parseCSV, confirmAsync } from './utils.js';
+import { updateChannelPatternPlot, attachPatternListeners, updateTxLocationsPlot, updateRxLocationsPlot, updateRadarOverviewPlot, markResultsOutdated } from './plots.js';
+import { txChannels, rxChannels } from './shared.js';
+import { debouncedAutoSave } from './state.js';
+
 function createChannelCard(prefix: string, index: number, data: ChannelData, isTx: boolean): HTMLElement {
   const pfx = prefix.toLowerCase();
 
@@ -131,7 +136,7 @@ function createChannelCard(prefix: string, index: number, data: ChannelData, isT
   return card;
 }
 
-function renderTxChannels(): void {
+export function renderTxChannels(): void {
   const container = document.getElementById("tx-channels-list")!;
   container.innerHTML = "";
   txChannels.forEach((ch, i) => {
@@ -151,7 +156,7 @@ function renderTxChannels(): void {
   });
 }
 
-function renderRxChannels(): void {
+export function renderRxChannels(): void {
   const container = document.getElementById("rx-channels-list")!;
   container.innerHTML = "";
   rxChannels.forEach((ch, i) => {
@@ -171,7 +176,7 @@ function renderRxChannels(): void {
   });
 }
 
-function saveTxChannelStates(): void {
+export function saveTxChannelStates(): void {
   txChannels.forEach((ch, i) => {
     const g = (id: string): string | undefined => (document.getElementById(id) as HTMLInputElement | null)?.value;
     ch.location = [
@@ -192,7 +197,7 @@ function saveTxChannelStates(): void {
   });
 }
 
-function saveRxChannelStates(): void {
+export function saveRxChannelStates(): void {
   rxChannels.forEach((ch, i) => {
     const g = (id: string): string | undefined => (document.getElementById(id) as HTMLInputElement | null)?.value;
     ch.location = [

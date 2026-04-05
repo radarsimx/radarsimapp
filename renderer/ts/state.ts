@@ -1,5 +1,11 @@
 // ===== RadarSimApp - State Persistence =====
 
+import { debounce } from './utils.js';
+import { txChannels, rxChannels, pointTargets, meshTargets } from './shared.js';
+import { saveTxChannelStates, saveRxChannelStates, renderTxChannels, renderRxChannels } from './channels.js';
+import { savePointTargetStates, saveMeshTargetStates, renderPointTargets, renderMeshTargets } from './targets.js';
+import { clearResultPlots, updateRadarOverviewPlot, updateTxInfo } from './plots.js';
+
 const STATE_KEY = "radarsimapp_state";
 
 function defaultState(): AppState {
@@ -46,7 +52,7 @@ function defaultState(): AppState {
   };
 }
 
-function resetToDefault(): void {
+export function resetToDefault(): void {
   localStorage.removeItem(STATE_KEY);
   applyState(defaultState());
   clearResultPlots();
@@ -126,7 +132,7 @@ function applyState(state: AppState): void {
   updateRadarOverviewPlot();
 }
 
-const debouncedAutoSave = debounce(() => {
+export const debouncedAutoSave = debounce(() => {
   try {
     localStorage.setItem(STATE_KEY, JSON.stringify(captureState()));
   } catch (_) { }
@@ -177,47 +183,47 @@ async function loadConfigFromFile(): Promise<boolean> {
   return true;
 }
 
-// --- Config button event listeners ---
-document.getElementById("btn-save-config")!.addEventListener("click", async () => {
-  const btn = document.getElementById("btn-save-config") as HTMLButtonElement;
-  const status = document.getElementById("config-status")!;
-  btn.disabled = true;
-  try {
-    const saved = await saveConfigToFile();
-    if (saved) {
-      status.textContent = "Config saved.";
-      status.className = "config-status ok";
-    }
-  } catch (_) {
-    status.textContent = "Save failed.";
-    status.className = "config-status err";
-  } finally {
-    btn.disabled = false;
-    setTimeout(() => { status.textContent = ""; status.className = "config-status"; }, 3000);
-  }
-});
-
-document.getElementById("btn-load-config")!.addEventListener("click", async () => {
-  const btn = document.getElementById("btn-load-config") as HTMLButtonElement;
-  const status = document.getElementById("config-status")!;
-  btn.disabled = true;
-  try {
-    const loaded = await loadConfigFromFile();
-    if (loaded) {
-      status.textContent = "Config loaded.";
-      status.className = "config-status ok";
+// --- Application Init ---
+export function initApp(): void {
+  // Config button event listeners
+  document.getElementById("btn-save-config")!.addEventListener("click", async () => {
+    const btn = document.getElementById("btn-save-config") as HTMLButtonElement;
+    const status = document.getElementById("config-status")!;
+    btn.disabled = true;
+    try {
+      const saved = await saveConfigToFile();
+      if (saved) {
+        status.textContent = "Config saved.";
+        status.className = "config-status ok";
+      }
+    } catch (_) {
+      status.textContent = "Save failed.";
+      status.className = "config-status err";
+    } finally {
+      btn.disabled = false;
       setTimeout(() => { status.textContent = ""; status.className = "config-status"; }, 3000);
     }
-  } catch (err) {
-    status.textContent = (err as Error).message;
-    status.className = "config-status err";
-  } finally {
-    btn.disabled = false;
-  }
-});
+  });
 
-// --- Application Init ---
-(function init() {
+  document.getElementById("btn-load-config")!.addEventListener("click", async () => {
+    const btn = document.getElementById("btn-load-config") as HTMLButtonElement;
+    const status = document.getElementById("config-status")!;
+    btn.disabled = true;
+    try {
+      const loaded = await loadConfigFromFile();
+      if (loaded) {
+        status.textContent = "Config loaded.";
+        status.className = "config-status ok";
+        setTimeout(() => { status.textContent = ""; status.className = "config-status"; }, 3000);
+      }
+    } catch (err) {
+      status.textContent = (err as Error).message;
+      status.className = "config-status err";
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   let restored = false;
   try {
     const raw = localStorage.getItem(STATE_KEY);
@@ -245,4 +251,4 @@ document.getElementById("btn-load-config")!.addEventListener("click", async () =
     startupOverlay.classList.add("startup-fade-out");
     startupOverlay.addEventListener("transitionend", () => startupOverlay.remove(), { once: true });
   }
-})();
+}

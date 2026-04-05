@@ -1,6 +1,6 @@
 // ===== RadarSimApp - Utility Functions =====
 
-function debounce<T extends (...args: any[]) => any>(fn: T, delay: number = 150): (...args: Parameters<T>) => void {
+export function debounce<T extends (...args: any[]) => any>(fn: T, delay: number = 150): (...args: Parameters<T>) => void {
   let timer: ReturnType<typeof setTimeout>;
   return function (this: any, ...args: Parameters<T>): void {
     clearTimeout(timer);
@@ -8,17 +8,17 @@ function debounce<T extends (...args: any[]) => any>(fn: T, delay: number = 150)
   };
 }
 
-function parseNumber(val: any, fallback: number = 0): number {
+export function parseNumber(val: any, fallback: number = 0): number {
   const n = parseFloat(val);
   return isNaN(n) ? fallback : n;
 }
 
-function formatComplex(val: string | number): string {
+export function formatComplex(val: string | number): string {
   if (typeof val === "string") return val;
   return String(val);
 }
 
-function isValidComplex(str: string): boolean {
+export function isValidComplex(str: string): boolean {
   const s = (str ?? "").trim();
   if (s === "") return false;
   const realPat = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
@@ -28,7 +28,7 @@ function isValidComplex(str: string): boolean {
   return realPat.test(s) || complexPat.test(s) || imagNumPat.test(s) || purePat.test(s);
 }
 
-function parseCSV(str: string): number[] {
+export function parseCSV(str: string): number[] {
   return str
     .split(",")
     .map((s) => s.trim())
@@ -37,7 +37,7 @@ function parseCSV(str: string): number[] {
     .filter((n) => !isNaN(n));
 }
 
-function el(tag: string, attrs: Record<string, any> = {}, children: (HTMLElement | SVGElement | string | null)[] = []): HTMLElement {
+export function el(tag: string, attrs: Record<string, any> = {}, children: (HTMLElement | SVGElement | string | null)[] = []): HTMLElement {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (k === "className") e.className = v;
@@ -53,7 +53,7 @@ function el(tag: string, attrs: Record<string, any> = {}, children: (HTMLElement
   return e;
 }
 
-function wrapNumberInput(input: HTMLInputElement): HTMLDivElement {
+export function wrapNumberInput(input: HTMLInputElement): HTMLDivElement {
   const wrapper = document.createElement("div");
   wrapper.className = "number-input-wrapper";
 
@@ -113,12 +113,12 @@ function wrapNumberInput(input: HTMLInputElement): HTMLDivElement {
   return wrapper;
 }
 
-function createInput(id: string, value: number | string, step: number | string): HTMLDivElement {
+export function createInput(id: string, value: number | string, step: number | string): HTMLDivElement {
   const inp = el("input", { type: "number", id, value: String(value), step: String(step) }) as HTMLInputElement;
   return wrapNumberInput(inp);
 }
 
-function createTextInput(id: string, value: string): HTMLTextAreaElement {
+export function createTextInput(id: string, value: string): HTMLTextAreaElement {
   const ta = el("textarea", { id, rows: "1" }) as HTMLTextAreaElement;
   ta.value = value;
   ta.style.resize = "none";
@@ -138,7 +138,7 @@ function createTextInput(id: string, value: string): HTMLTextAreaElement {
   return ta;
 }
 
-function createSVG(name: string): SVGSVGElement {
+export function createSVG(name: string): SVGSVGElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("width", "14");
   svg.setAttribute("height", "14");
@@ -175,7 +175,7 @@ function createSVG(name: string): SVGSVGElement {
   return svg;
 }
 
-function confirmAsync(message: string): Promise<boolean> {
+export function confirmAsync(message: string): Promise<boolean> {
   return new Promise((resolve) => {
     const overlay = el("div", { className: "confirm-overlay" }, [
       el("div", { className: "confirm-dialog" }, [
