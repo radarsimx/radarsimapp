@@ -16,8 +16,8 @@
   "license": "SEE LICENSE IN LICENSE.txt",
   "devDependencies": {
     "@napi-rs/canvas": "^0.1.97",
-    "@types/node": "^25.5.2",
-    "electron": "^41.0.3",
+    "@types/node": "^25.6.0",
+    "electron": "^41.2.0",
     "electron-builder": "^26.8.1",
     "gif-encoder-2": "^1.0.5",
     "typescript": "^6.0.2"
