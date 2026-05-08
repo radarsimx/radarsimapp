@@ -61,11 +61,11 @@ const Create_Transmitter = lib.func(
   "void *Create_Transmitter(double *freq, double *freq_time, int waveform_size," +
   " double *freq_offset, double *pulse_start_time, int num_pulses, float tx_power)"
 );
-const Create_Transmitter_PhaseNoise = lib.func(
-  "void *Create_Transmitter_PhaseNoise(double *freq, double *freq_time," +
+const Create_Transmitter_SSBPhaseNoise = lib.func(
+  "void *Create_Transmitter_SSBPhaseNoise(double *freq, double *freq_time," +
   " int waveform_size, double *freq_offset, double *pulse_start_time," +
-  " int num_pulses, float tx_power, double *phase_noise_real," +
-  " double *phase_noise_imag, int phase_noise_size)"
+  " int num_pulses, float tx_power, double *pn_freq, double *pn_power," +
+  " int pn_size, double pn_fs, int pn_num_samples, uint64 pn_seed, bool pn_validation)"
 );
 const Add_Txchannel = lib.func(
   "int Add_Txchannel(float *location, float *polar_real, float *polar_imag," +
@@ -76,6 +76,7 @@ const Add_Txchannel = lib.func(
   " float *pulse_mod_real, float *pulse_mod_imag," +
   " float delay, float grid, void *ptr_tx_c)"
 );
+const Get_Num_Txchannel = lib.func("int Get_Num_Txchannel(void *ptr_tx_c)");
 const Free_Transmitter = lib.func("void Free_Transmitter(void *ptr_tx_c)");
 
 const Create_Receiver = lib.func(
@@ -88,12 +89,19 @@ const Add_Rxchannel = lib.func(
   " float *theta, float *theta_ptn, int theta_length," +
   " float antenna_gain, void *ptr_rx_c)"
 );
+const Get_Num_Rxchannel = lib.func("int Get_Num_Rxchannel(void *ptr_rx_c)");
 const Free_Receiver = lib.func("void Free_Receiver(void *ptr_rx_c)");
 
 const Create_Radar = lib.func(
   "void *Create_Radar(void *ptr_tx_c, void *ptr_rx_c," +
   " double *frame_start_time, int num_frames," +
   " float *location, float *speed, float *rotation, float *rotation_rate)"
+);
+const Create_Radar_Array = lib.func(
+  "void *Create_Radar_Array(void *ptr_tx_c, void *ptr_rx_c," +
+  " double *frame_start_time, int num_frames," +
+  " float *location_array, int num_locations, float *speed," +
+  " float *rotation_array, int num_rotations, float *rotation_rate)"
 );
 const Get_BB_Size = lib.func("int Get_BB_Size(void *ptr_radar_c)");
 const Free_Radar = lib.func("void Free_Radar(void *ptr_radar_c)");
@@ -103,6 +111,10 @@ const Add_Point_Target = lib.func(
   "int Add_Point_Target(float *location, float *speed," +
   " float rcs, float phs, void *ptr_targets_c)"
 );
+const Add_Point_Target_Array = lib.func(
+  "int Add_Point_Target_Array(float *location_array, int num_locations, float *speed," +
+  " float *rcs_array, float *phase_array, int num_rcs, void *ptr_targets_c)"
+);
 const Add_Mesh_Target = lib.func(
   "int Add_Mesh_Target(float *points, int *cells, int cell_size," +
   " float *origin, float *location, float *speed," +
@@ -111,12 +123,23 @@ const Add_Mesh_Target = lib.func(
   " bool skip_diffusion, float density, bool environment," +
   " void *ptr_targets_c)"
 );
+const Add_Mesh_Target_Array = lib.func(
+  "int Add_Mesh_Target_Array(float *points, int *cells, int cell_size," +
+  " float *origin, float *location_array, float *speed_array," +
+  " float *rotation_array, float *rotation_rate_array, int num_motions," +
+  " float ep_real, float ep_imag, float mu_real, float mu_imag," +
+  " bool skip_diffusion, float density, bool environment, void *ptr_targets_c)"
+);
 const Free_Targets = lib.func("void Free_Targets(void *ptr_targets_c)");
 
 const Run_RadarSimulator = lib.func(
   "int Run_RadarSimulator(void *ptr_radar_c, void *ptr_targets_c," +
   " int level, float density, int *ray_filter," +
   " double *ptr_bb_real, double *ptr_bb_imag)"
+);
+const Run_InterferenceSimulator = lib.func(
+  "int Run_InterferenceSimulator(void *ptr_radar_c, void *ptr_interf_radar_c," +
+  " double *ptr_interf_real, double *ptr_interf_imag)"
 );
 const Run_RcsSimulator = lib.func(
   "int Run_RcsSimulator(void *ptr_targets_c," +
@@ -125,6 +148,19 @@ const Run_RcsSimulator = lib.func(
   " double *obs_polar_real, double *obs_polar_imag," +
   " double frequency, double density, double *rcs_result)"
 );
+const Run_LidarSimulator = lib.func(
+  "int Run_LidarSimulator(void *ptr_targets_c, double *phi_array, double *theta_array," +
+  " int num_rays, double *sensor_location, double *cloud_points," +
+  " double *cloud_distances, double *cloud_intensities, int max_points, int *actual_points)"
+);
+const Run_NoiseSimulator = lib.func(
+  "int Run_NoiseSimulator(void *ptr_radar_c, double noise_level, bool is_complex," +
+  " double *timestamps, int ts_channel_size, int ts_pulse_size, int ts_sample_size," +
+  " double *noise_real, double *noise_imag, uint64 seed)"
+);
+const Force_Cleanup_All = lib.func("void Force_Cleanup_All()");
+const Is_Cleanup_In_Progress = lib.func("int Is_Cleanup_In_Progress()");
+const Get_License_Info = lib.func("int Get_License_Info(char *buffer, int buffer_size)");
 
 // ── Error codes (radarsim.h) ───────────────────────────────────────────────────
 const ERROR_MESSAGES: Record<number, string> = {
@@ -135,6 +171,24 @@ const ERROR_MESSAGES: Record<number, string> = {
   4: "Free tier limit reached — purchase a license at https://radarsimx.com/ to unlock full capabilities",
   5: "Unhandled exception occurred",
   6: "Ray count exceeds grid capacity",
+  7: "CUDA device query failed",
+  100: "PointSimulator: cudaDeviceSynchronize failed (standard path)",
+  101: "PointSimulator: CUDA kernel launch failed (standard path)",
+  102: "PointSimulator: cudaDeviceSynchronize failed (per-frame phase noise path)",
+  103: "PointSimulator: CUDA kernel launch failed (per-frame phase noise path)",
+  200: "MeshSimulator ProcessBaseband: cudaDeviceSynchronize failed",
+  201: "MeshSimulator ProcessBaseband: CUDA kernel launch failed",
+  202: "MeshSimulator ProcessBackTracingBaseband: cudaDeviceSynchronize failed",
+  203: "MeshSimulator ProcessBackTracingBaseband: CUDA kernel launch failed",
+  300: "InterferenceSimulator: cudaDeviceSynchronize failed",
+  301: "InterferenceSimulator: CUDA kernel launch failed",
+  400: "LidarSimulator: CUDA kernel launch failed",
+  401: "LidarSimulator: cudaDeviceSynchronize failed",
+  500: "NoiseSimulator: CUDA kernel launch failed",
+  501: "NoiseSimulator: cudaDeviceSynchronize failed",
+  600: "RcsSimulator _Kernel_IsVisible: CUDA kernel launch failed",
+  601: "RcsSimulator _Kernel_RcsProcessing: CUDA kernel launch failed",
+  602: "RcsSimulator: cudaDeviceSynchronize failed",
 };
 
 function _errorMsg(code: number, context: string): string {
@@ -473,14 +527,18 @@ function _buildTransmitter(txCfg: any): TransmitterResult {
   if (txCfg.pn_f && txCfg.pn_power) {
     const pnF = toF64(txCfg.pn_f);
     const pnPw = toF64(txCfg.pn_power);
-    console.log("[bridge] Create_Transmitter_PhaseNoise args:",
+    const pnFs: number = txCfg.pn_fs || 0;
+    const pnNumSamples: number = txCfg.pn_num_samples || 0;
+    const pnSeed: bigint = BigInt(txCfg.pn_seed || 0);
+    const pnValidation: boolean = txCfg.pn_validation || false;
+    console.log("[bridge] Create_Transmitter_SSBPhaseNoise args:",
       "freq.len=", freq.length, "freqTime.len=", freqTime.length,
       "waveform_size=", freq.length, "fOffset.len=", fOffset.length,
       "pst.len=", pst.length, "numPulses=", numPulses, "txPower=", txPower,
-      "pnF.len=", pnF.length);
-    ptrTx = Create_Transmitter_PhaseNoise(
+      "pnF.len=", pnF.length, "pnFs=", pnFs, "pnNumSamples=", pnNumSamples);
+    ptrTx = Create_Transmitter_SSBPhaseNoise(
       freq, freqTime, freq.length, fOffset, pst, numPulses, txPower,
-      pnF, pnPw, pnF.length
+      pnF, pnPw, pnF.length, pnFs, pnNumSamples, pnSeed, pnValidation
     );
   } else {
     console.log("[bridge] Create_Transmitter args:",
