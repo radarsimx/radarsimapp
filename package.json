@@ -1,6 +1,6 @@
 {
   "name": "radarsimapp",
-  "version": "0.0.5",
+  "version": "1.0.0",
   "description": "Radar simulation desktop app — model waveforms, targets, and antenna arrays with real-time Range-Doppler visualization",
   "main": "dist/main.js",
   "scripts": {
@@ -55,7 +55,8 @@
       "node_modules/**",
       "!**/*.ts",
       "!**/*.d.ts",
-      "!tsconfig*.json"
+      "!tsconfig*.json",
+      "!radarsimlib/*.lib"
     ],
     "asarUnpack": [
       "radarsimlib/**",
