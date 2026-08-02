@@ -81,15 +81,11 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
-      # Drives the real radarsimc through RadarSimBridge. A probe simulation
-      # runs first in a child process; if the library cannot actually run here
-      # the whole suite skips with the reason instead of failing.
+      # Drives the real radarsimc through RadarSimBridge. Nothing is skipped:
+      # if the library for this platform is missing, stale, or cannot run, the
+      # suite fails. radarsimcpp falls back to CPU at runtime, so a GPU is not
+      # required -- but a build for the runner's platform is.
       #
-      # On GitHub-hosted runners that is always the case: the packaged
-      # radarsimc is a CUDA build and radarsimcpp chooses CPU vs GPU at compile
-      # time, so it has no runtime fallback to CPU on a machine with no GPU.
-      # This step is therefore a no-op guard here. For real coverage, use a
-      # self-hosted runner with a GPU, or ship a CPU build for CI -- the probe
-      # lets a CPU build through automatically.
+      # Linux and macOS will fail here until current .so/.dylib are committed.
       - name: Run integration tests
         run: npm run test:integration

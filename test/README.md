@@ -15,13 +15,13 @@ npm run typecheck:test   # type-check the tests themselves
 
 | Path | Covers |
 |---|---|
-| `unit/convert.test.ts` | typed-array helpers, `deg2rad`, complex parsing, antenna patterns, error codes |
-| `unit/dsp.test.ts` | FFT, range/Doppler transforms, dB magnitude, noise generator |
-| `unit/mesh.test.ts` | STL loading (ASCII + binary), scene mesh packing and striding |
-| `unit/utils.test.ts` | renderer helpers and DOM builders |
-| `unit/config.test.ts` | `collectConfig()` — unit conversions and config shape |
-| `unit/state.test.ts` | `captureState`/`applyState`/`validateState` round-trip |
-| `integration/bridge.test.ts` | `RadarSimBridge` driving real `radarsimc` calls |
+| `unit/convert.test.mts` | typed-array helpers, `deg2rad`, complex parsing, antenna patterns, error codes |
+| `unit/dsp.test.mts` | FFT, range/Doppler transforms, dB magnitude, noise generator |
+| `unit/mesh.test.mts` | STL loading (ASCII + binary), scene mesh packing and striding |
+| `unit/utils.test.mts` | renderer helpers and DOM builders |
+| `unit/config.test.mts` | `collectConfig()` — unit conversions and config shape |
+| `unit/state.test.mts` | `captureState`/`applyState`/`validateState` round-trip |
+| `integration/bridge.test.mts` | `RadarSimBridge` driving real `radarsimc` calls |
 
 ## How the imports work
 
@@ -41,18 +41,18 @@ tests can load on their own.
 
 ## DOM tests
 
-`helpers/dom.ts` installs a jsdom document as the process globals.
+`helpers/dom.mts` installs a jsdom document as the process globals.
 `installAppDom()` loads the real `renderer/index.html` with its `<script>` tags
 stripped, so the config and state tests run against the actual form markup —
 a renamed or deleted field id fails the test rather than silently reading
 `undefined`.
 
 Note that jsdom has no `ResizeObserver` (the helper stubs it) and no Plotly or
-`window.api`; `state.test.ts` stubs those two itself.
+`window.api`; `state.test.mts` stubs those two itself.
 
 ## Native tests
 
-`integration/bridge.test.ts` drives the real `RadarSimBridge`, so it exercises
+`integration/bridge.test.mts` drives the real `RadarSimBridge`, so it exercises
 `bridge.ts`'s own koffi bindings rather than a copy of them. That matters: an
 earlier version of this suite re-declared each signature itself, which only
 proved the *test* agreed with `radarsim.h` — a binding edited in `bridge.ts`
@@ -70,45 +70,29 @@ What this still does not cover: bindings the bridge never calls
 are verified to exist, but a wrong argument list would not be noticed until
 something calls them.
 
-### The packaged library needs a GPU
+### Nothing is skipped
 
-`radarsimlib/radarsimc.dll` is a **CUDA build**, and radarsimcpp has no runtime
-CPU fallback. Its `execution_policy.hpp` says so directly — "fallback is
-determined at compile time" — and `gpu_policy` selects CPU only via `#ifdef
-_CUDA_`, which is *defined* in this build. `radarsim.cpp` then instantiates
-every simulator with the default `gpu_policy` and never queries for a device.
-So a CUDA build attempts CUDA whether or not a GPU exists.
+The integration suite does not skip. If the native library is missing, stale,
+or cannot run, `before()` throws and every test in the file is reported as
+failed with a non-zero exit -- a skipped suite reads too much like a passing
+one. An absent licence is not gated either: the free tier rejects mesh targets,
+so the mesh cases fail on the library's own message while the rest still run.
 
-Rather than sniffing for a driver, `before()` runs one real simulation **in a
-child process**. If it fails, every test skips with the child's error, e.g.:
+This means the machine running these tests must supply a working `radarsimc`
+for its platform, and a `license_RadarSimApp_*.lic` or
+`license_RadarSimPy_*.lic` in `radarsimlib/` for the mesh cases. CI writes the
+licence from a secret; see `.github/workflows/test.yml`.
 
-```
-probe simulation failed: Run_RadarSimulator: PointSimulator: CUDA kernel launch failed (standard path) (code 101)
-```
+### Running without a GPU
 
-Doing it out-of-process means a hard crash in the native library is just a
-non-zero exit rather than something that takes the suite with it. It also makes
-the suite self-configuring: a **CPU build runs anywhere**, and if a future
-build gains a genuine runtime fallback these tests start running with no change
-here.
+`radarsimlib/radarsimc.dll` is a CUDA build, but radarsimcpp now falls back to
+CPU at runtime when no device is present, so these tests run on a GPU-less
+machine. Verified with `CUDA_VISIBLE_DEVICES=-1`, which makes the CUDA runtime
+report zero devices.
 
-This is why the integration step is effectively a no-op on GitHub-hosted
-runners: none of them have a GPU. Real coverage needs a self-hosted runner with
-a GPU, or a CPU build of `radarsimc` shipped for CI.
+Note that the CPU and GPU ray tracers do not agree bit-for-bit on the mesh
+path -- the mesh simulator sizes its ray pool from GPU free memory -- so
+assertions over mesh results should allow for that.
 
-They **skip rather than fail** when:
-
-- the native library is missing, **or is too old to bind against** — the
-  packaged Linux/macOS binaries currently lag the Windows one, so those
-  platforms skip until current `.so`/`.dylib` are added; or
-- no license is active — the free tier rejects mesh targets, so the mesh
-  geometry cases need a `license_*.lic` in `radarsimlib/`.
-
-Because of this, a green integration run on Linux or macOS today means
-"skipped", not "passed". Check the skip count.
-
-Point them at a different build with `RADARSIMAPP_LIB_PATH`:
-
-```bash
-RADARSIMAPP_LIB_PATH=/path/to/libradarsimc.so npm run test:integration
-```
+To test a different `radarsimc` build, put it in `radarsimlib/` — that is the
+only path `bridge.ts` looks at, so there is no override env var.
