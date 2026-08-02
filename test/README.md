@@ -70,6 +70,32 @@ What this still does not cover: bindings the bridge never calls
 are verified to exist, but a wrong argument list would not be noticed until
 something calls them.
 
+### The packaged library needs a GPU
+
+`radarsimlib/radarsimc.dll` is a **CUDA build**, and radarsimcpp has no runtime
+CPU fallback. Its `execution_policy.hpp` says so directly — "fallback is
+determined at compile time" — and `gpu_policy` selects CPU only via `#ifdef
+_CUDA_`, which is *defined* in this build. `radarsim.cpp` then instantiates
+every simulator with the default `gpu_policy` and never queries for a device.
+So a CUDA build attempts CUDA whether or not a GPU exists.
+
+Rather than sniffing for a driver, `before()` runs one real simulation **in a
+child process**. If it fails, every test skips with the child's error, e.g.:
+
+```
+probe simulation failed: Run_RadarSimulator: PointSimulator: CUDA kernel launch failed (standard path) (code 101)
+```
+
+Doing it out-of-process means a hard crash in the native library is just a
+non-zero exit rather than something that takes the suite with it. It also makes
+the suite self-configuring: a **CPU build runs anywhere**, and if a future
+build gains a genuine runtime fallback these tests start running with no change
+here.
+
+This is why the integration step is effectively a no-op on GitHub-hosted
+runners: none of them have a GPU. Real coverage needs a self-hosted runner with
+a GPU, or a CPU build of `radarsimc` shipped for CI.
+
 They **skip rather than fail** when:
 
 - the native library is missing, **or is too old to bind against** — the

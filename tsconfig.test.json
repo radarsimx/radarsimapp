@@ -15,5 +15,5 @@
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["test/**/*.ts"]
+  "include": ["test/**/*.ts", "test/**/*.mts"]
 }
