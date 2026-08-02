@@ -21,7 +21,7 @@ npm run typecheck:test   # type-check the tests themselves
 | `unit/utils.test.ts` | renderer helpers and DOM builders |
 | `unit/config.test.ts` | `collectConfig()` — unit conversions and config shape |
 | `unit/state.test.ts` | `captureState`/`applyState`/`validateState` round-trip |
-| `integration/native.test.ts` | real `radarsimc` calls through koffi |
+| `integration/bridge.test.ts` | `RadarSimBridge` driving real `radarsimc` calls |
 
 ## How the imports work
 
@@ -52,16 +52,34 @@ Note that jsdom has no `ResizeObserver` (the helper stubs it) and no Plotly or
 
 ## Native tests
 
-`integration/native.test.ts` declares each function with the same koffi
-signature `bridge.ts` uses, so a signature that drifts from `radarsim.h` fails
-here — the type checker cannot see that kind of mismatch.
+`integration/bridge.test.ts` drives the real `RadarSimBridge`, so it exercises
+`bridge.ts`'s own koffi bindings rather than a copy of them. That matters: an
+earlier version of this suite re-declared each signature itself, which only
+proved the *test* agreed with `radarsim.h` — a binding edited in `bridge.ts`
+alone would still have passed. Going through the bridge closes that hole, and
+it covers `runSimulation`/`getSceneState` end to end at the same time.
+
+Importing the module is itself a check. koffi resolves every `lib.func()`
+declaration at import time, so a renamed or removed export throws before any
+test body runs.
+
+What this still does not cover: bindings the bridge never calls
+(`Run_LidarSimulator`, `Run_NoiseSimulator`, `Create_Radar_Array`,
+`Add_Point_Target_Array`, `Add_Mesh_Target_Array`,
+`Create_Transmitter_SSBPhaseNoise`, `Run_InterferenceSimulator`). Their symbols
+are verified to exist, but a wrong argument list would not be noticed until
+something calls them.
 
 They **skip rather than fail** when:
 
-- the native library is missing (the packaged Linux/macOS binaries currently
-  lag the Windows one), or
-- no license is active — the free tier rejects mesh targets, so the
-  `Get_Target_Mesh_State` cases need a `license_*.lic` in `radarsimlib/`.
+- the native library is missing, **or is too old to bind against** — the
+  packaged Linux/macOS binaries currently lag the Windows one, so those
+  platforms skip until current `.so`/`.dylib` are added; or
+- no license is active — the free tier rejects mesh targets, so the mesh
+  geometry cases need a `license_*.lic` in `radarsimlib/`.
+
+Because of this, a green integration run on Linux or macOS today means
+"skipped", not "passed". Check the skip count.
 
 Point them at a different build with `RADARSIMAPP_LIB_PATH`:
 

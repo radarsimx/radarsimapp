@@ -12,8 +12,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  unit:
-    name: Unit tests (${{ matrix.os }})
+  test:
+    name: Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -51,3 +51,10 @@ jobs:
       # platform.
       - name: Run unit tests
         run: npm run test:unit
+
+      # Drives the real radarsimc through RadarSimBridge. Skips (does not fail)
+      # wherever the packaged library is missing or predates the bindings, so
+      # this stays green on Linux/macOS until current .so/.dylib are added.
+      # Mesh cases additionally skip without a license_*.lic in radarsimlib/.
+      - name: Run integration tests
+        run: npm run test:integration
