@@ -1,7 +1,7 @@
 # Tests
 
 Node's built-in runner (`node --test`), no test framework dependency. Test
-files are TypeScript and run directly via Node 24's native type stripping.
+files are TypeScript and run directly via Node 26's native type stripping.
 
 ```bash
 npm test                 # build, then run everything

@@ -41,9 +41,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          # 24 is required: the test files are TypeScript and run through
-          # Node's native type stripping, with no transpile step.
-          node-version: 24
+          # The test files are TypeScript and run through Node's native type
+          # stripping, with no transpile step.
+          node-version: 26
           cache: npm
 
       # bridge.ts activates any license_RadarSimApp_*.lic / license_RadarSimPy_*.lic

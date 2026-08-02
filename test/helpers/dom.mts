@@ -41,7 +41,7 @@ export function installDom(html: string = "<!doctype html><html><body></body></h
     };
   }
 
-  // Some of these (navigator) are getter-only on globalThis in Node 24, so
+  // Some of these (navigator) are getter-only on globalThis in modern Node, so
   // install by descriptor rather than assignment and restore the originals.
   const saved = new Map<string, PropertyDescriptor | undefined>();
   for (const key of GLOBAL_KEYS) {

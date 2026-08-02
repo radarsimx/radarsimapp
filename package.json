@@ -17,12 +17,15 @@
     "test:watch": "node --test --watch \"test/**/*.test.mts\"",
     "typecheck:test": "npm run build && tsc -p tsconfig.test.json"
   },
+  "engines": {
+    "node": ">=26"
+  },
   "author": "RadarSimX",
   "license": "SEE LICENSE IN LICENSE.txt",
   "devDependencies": {
     "@napi-rs/canvas": "^1.0.0",
     "@types/jsdom": "^28.0.3",
-    "@types/node": "^25.7.0",
+    "@types/node": "^26.1.2",
     "electron": "^42.0.1",
     "electron-builder": "^26.8.1",
     "gif-encoder-2": "^1.0.5",

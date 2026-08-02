@@ -39,7 +39,7 @@ RadarSimApp is a cross-platform desktop application that brings the full power o
 
 ## Dependencies
 
-- **Node.js** ≥ 18
+- **Node.js** ≥ 26
 - `radarsimc.dll` (Windows) / `libradarsimcpp.so` (Linux) / `libradarsimcpp.dylib` (macOS) placed in `radarsimlib/`
 - A valid `license_RadarSimM_*.lic` file placed in `radarsimlib/`
 
