@@ -1,0 +1,50 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch supersedes an in-flight run.
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Unit tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    env:
+      # The unit tests never launch Electron, so skip the ~100 MB binary that
+      # `npm ci` would otherwise download on every job.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          # 24 is required: the test files are TypeScript and run through
+          # Node's native type stripping, with no transpile step.
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check tests
+        run: npm run typecheck:test
+
+      # Builds first, then runs test/unit/**. These need no native library, so
+      # they are the same on every platform.
+      - name: Run unit tests
+        run: npm run test:unit
