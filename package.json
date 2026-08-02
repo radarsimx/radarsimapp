@@ -15,7 +15,7 @@
     "test:unit": "npm run build && node --test \"test/unit/**/*.test.ts\"",
     "test:integration": "npm run build && node --test \"test/integration/**/*.test.ts\"",
     "test:watch": "node --test --watch \"test/**/*.test.ts\"",
-    "typecheck:test": "tsc -p tsconfig.test.json"
+    "typecheck:test": "npm run build && tsc -p tsconfig.test.json"
   },
   "author": "RadarSimX",
   "license": "SEE LICENSE IN LICENSE.txt",

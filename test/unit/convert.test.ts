@@ -121,7 +121,7 @@ describe("buildAntennaPattern", () => {
   test("elevation is converted to polar theta and reversed", () => {
     // elevation -30..30 -> theta 120..60, which must come out ascending.
     const p = buildAntennaPattern(undefined, undefined, [-30, 0, 30], [-3, 0, -6]);
-    const deg = Array.from(p.theta).map((v: number) => (v * 180) / Math.PI);
+    const deg = (Array.from(p.theta) as number[]).map((v) => (v * 180) / Math.PI);
     assert.ok(Math.abs(deg[0] - 60) < 1e-4);
     assert.ok(Math.abs(deg[1] - 90) < 1e-4);
     assert.ok(Math.abs(deg[2] - 120) < 1e-4);

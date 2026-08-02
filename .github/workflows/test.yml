@@ -41,10 +41,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The tests import the built output in dist/, so both of these scripts
+      # run the build themselves -- do not assume a previous step left one
+      # behind.
       - name: Type-check tests
         run: npm run typecheck:test
 
-      # Builds first, then runs test/unit/**. These need no native library, so
-      # they are the same on every platform.
+      # test/unit/** needs no native library, so it is the same on every
+      # platform.
       - name: Run unit tests
         run: npm run test:unit
