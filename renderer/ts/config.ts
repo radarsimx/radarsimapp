@@ -59,6 +59,7 @@ export function collectConfig(): any {
     baseband_gain: parseNumber((document.getElementById("rx-bb-gain") as HTMLInputElement).value),
     load_resistor: parseNumber((document.getElementById("rx-load-r") as HTMLInputElement).value),
     bb_type: (document.getElementById("rx-bb-type") as HTMLSelectElement).value,
+    gate_delay: parseNumber((document.getElementById("rx-gate-delay") as HTMLInputElement).value) * 1e-9,
   };
 
   rxConfig.channels = rxChannels.map((_: ChannelData, i: number) => {

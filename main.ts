@@ -86,9 +86,9 @@ ipcMain.handle("run-simulation", async (_event, config: Record<string, unknown>)
   }
 });
 
-ipcMain.handle("run-rcs-simulation", async (_event, config: Record<string, unknown>) => {
+ipcMain.handle("get-scene-state", async (_event, config: Record<string, unknown>) => {
   try {
-    const result = await bridge!.runRcsSimulation(config);
+    const result = await bridge!.getSceneState(config);
     return { success: true, data: result };
   } catch (err) {
     return { success: false, error: (err as Error).message || String(err) };

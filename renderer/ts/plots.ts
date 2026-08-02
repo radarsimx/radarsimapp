@@ -2,6 +2,7 @@
 
 import { debounce, parseNumber, parseCSV } from './utils.js';
 import { txChannels, rxChannels, pointTargets, meshTargets } from './shared.js';
+import { collectConfig } from './config.js';
 
 // --- TX Bandwidth / Sweep Info ---
 export function updateTxInfo(): void {
@@ -431,8 +432,106 @@ export function updateRadarOverviewPlot(): void {
   scenePlot(container, [...arrow, ...traces], layout, smallPlotConfig);
 }
 
+// --- Native Scene State ---
+// Radar pose and mesh geometry come from the library (Get_Scene_State /
+// Get_Target_Mesh_State) rather than being re-derived here, so the Scene
+// Overview matches the transforms the simulator actually applies. The call
+// crosses IPC and reloads the STL files, so it is debounced and cached against
+// the inputs that can move something in the scene.
+let _sceneState: SceneState | null = null;
+let _sceneStateKey: string | null = null;
+let _sceneStateInFlight = false;
+
+function _sceneStateKeyOf(cfg: any): string {
+  return JSON.stringify({
+    radar: cfg.radar,
+    tx: (cfg.transmitter?.channels || []).map((c: any) => c.location),
+    rx: (cfg.receiver?.channels || []).map((c: any) => c.location),
+    meshes: (cfg.targets || [])
+      .filter((t: any) => t && t.model)
+      .map((t: any) => [t.model, t.location, t.rotation, t.unit]),
+  });
+}
+
+const _refreshSceneState = debounce(async () => {
+  if (_sceneStateInFlight) {
+    _refreshSceneState(); // re-arm; the config may have changed since this call started
+    return;
+  }
+
+  let cfg: any;
+  try {
+    cfg = collectConfig();
+  } catch (_) {
+    return; // panel not built yet
+  }
+
+  const key = _sceneStateKeyOf(cfg);
+  if (key === _sceneStateKey) return;
+
+  _sceneStateInFlight = true;
+  try {
+    const res = await window.api.getSceneState({ ...cfg, timestamp: 0 });
+    _sceneStateKey = key;
+    if (res.success && res.data) {
+      _sceneState = res.data;
+      if (res.data.warnings.length > 0) {
+        console.warn("[scene] " + res.data.warnings.join("; "));
+      }
+    } else {
+      _sceneState = null;
+      console.warn("[scene] getSceneState failed:", res.error);
+    }
+  } catch (err) {
+    _sceneState = null;
+    console.warn("[scene] getSceneState threw:", err);
+  } finally {
+    _sceneStateInFlight = false;
+  }
+  _renderTargetsPlot();
+}, 400);
+
+const MESH_COLORS = ["#a29bfe", "#00cec9", "#fab1a0", "#74b9ff", "#ffeaa7"];
+
+/** Min/max of one axis across the plotted meshes, for scene auto-scaling. */
+function _meshSpan(axis: 0 | 1 | 2): number[] {
+  const out: number[] = [];
+  for (const m of _sceneState?.meshes ?? []) {
+    if (m.bounds && isFinite(m.bounds[axis])) out.push(m.bounds[axis], m.bounds[axis + 3]);
+  }
+  return out;
+}
+
+function _meshTraces(): any[] {
+  if (!_sceneState || _sceneState.meshes.length === 0) return [];
+  return _sceneState.meshes.map((m: SceneMesh) => {
+    const color = MESH_COLORS[m.index % MESH_COLORS.length];
+    const decimated = m.cells < m.totalCells;
+    return {
+      type: "mesh3d",
+      x: m.x, y: m.y, z: m.z,
+      i: m.i, j: m.j, k: m.k,
+      color,
+      opacity: 0.85,
+      flatshading: true,
+      hoverinfo: "name",
+      lighting: { ambient: 0.55, diffuse: 0.8, specular: 0.15, roughness: 0.6 },
+      lightposition: { x: 1e4, y: 1e4, z: 1e4 },
+      name: decimated
+        ? `M${m.index + 1} (${m.cells} of ${m.totalCells} tri)`
+        : `M${m.index + 1} (${m.totalCells} tri)`,
+      showlegend: true,
+    };
+  });
+}
+
 // --- Targets Scene Plot ---
 export function updateTargetsPlot(): void {
+  _renderTargetsPlot();
+  _refreshSceneState();
+}
+
+function _renderTargetsPlot(): void {
   const container = document.getElementById("targets-scene-plot");
   if (!container) return;
 
@@ -474,8 +573,14 @@ export function updateTargetsPlot(): void {
     });
   }
 
+  // Mesh targets: real geometry from the library when available, otherwise a
+  // marker at the configured origin.
+  const plottedMeshes = new Set<number>((_sceneState?.meshes ?? []).map((m: SceneMesh) => m.index));
+  traces.push(..._meshTraces());
+
   const mxs: number[] = [], mys: number[] = [], mzs: number[] = [], mLabels: string[] = [];
   meshTargets.forEach((_: MeshTargetData, i: number) => {
+    if (plottedMeshes.has(i)) return;
     mxs.push(parseNumber((document.getElementById(`mesh-${i}-loc-x`) as HTMLInputElement | null)?.value));
     mys.push(parseNumber((document.getElementById(`mesh-${i}-loc-y`) as HTMLInputElement | null)?.value));
     mzs.push(parseNumber((document.getElementById(`mesh-${i}-loc-z`) as HTMLInputElement | null)?.value));
@@ -493,9 +598,18 @@ export function updateTargetsPlot(): void {
     });
   }
 
-  const boresightDir = rotatePoint(1, 0, 0, yaw, pitch, roll);
+  // Prefer the library's own boresight over re-deriving it from the Euler angles.
+  const nativeBoresight = _sceneState?.boresight;
+  const boresightDir = nativeBoresight
+    ? [nativeBoresight[0], nativeBoresight[1], nativeBoresight[2]]
+    : rotatePoint(1, 0, 0, yaw, pitch, roll);
   const arrow = boresightTraces(
-    sceneArrowLen([radarX], [radarY], [radarZ], 1),
+    sceneArrowLen(
+      [radarX, ...ptXs, ...mxs, ..._meshSpan(0)],
+      [radarY, ...ptYs, ...mys, ..._meshSpan(1)],
+      [radarZ, ...ptZs, ...mzs, ..._meshSpan(2)],
+      1
+    ),
     "#fd7e14", [radarX, radarY, radarZ], boresightDir
   );
 

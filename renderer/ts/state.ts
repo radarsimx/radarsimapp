@@ -24,6 +24,7 @@ function defaultState(): AppState {
       "rx-rf-gain": "0",
       "rx-bb-gain": "0",
       "rx-load-r": "500",
+      "rx-gate-delay": "0",
       "radar-loc-x": "0",
       "radar-loc-y": "0",
       "radar-loc-z": "0",
@@ -61,7 +62,7 @@ export function resetToDefault(): void {
 const STATIC_FIELDS: string[] = [
   "tx-f-start", "tx-f-end", "tx-t-start", "tx-t-end",
   "tx-pulses", "tx-prp", "tx-power",
-  "rx-fs", "rx-bb-type", "rx-nf", "rx-rf-gain", "rx-bb-gain", "rx-load-r",
+  "rx-fs", "rx-bb-type", "rx-nf", "rx-rf-gain", "rx-bb-gain", "rx-load-r", "rx-gate-delay",
   "radar-loc-x", "radar-loc-y", "radar-loc-z",
   "radar-spd-x", "radar-spd-y", "radar-spd-z",
   "radar-rot-yaw", "radar-rot-pitch", "radar-rot-roll",

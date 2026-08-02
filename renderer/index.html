@@ -400,6 +400,12 @@
                       </select>
                     </div>
                   </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label for="rx-gate-delay" title="Receive window opens this long after the chirp start, and the deramp reference is delayed by the same amount. A target at range c &times; gate delay / 2 lands at DC. 0 = zero-delay deramp.">Range Gate Delay (ns)</label>
+                      <input type="number" id="rx-gate-delay" value="0" step="1" min="0" />
+                    </div>
+                  </div>
                   <h4 class="subsection-label">Noise & Gain</h4>
                   <div class="form-row">
                     <div class="form-group">
@@ -551,7 +557,7 @@
       <div class="panel" id="panel-targets">
         <div class="panel-header">
           <h2>Target Configuration</h2>
-          <p class="panel-desc">Define point and mesh targets; analyze radar cross-section</p>
+          <p class="panel-desc">Define point and mesh targets for the simulation</p>
         </div>
         <div class="panel-body">
           <!-- Targets + Scene Overview -->
@@ -592,6 +598,12 @@
                 <section class="config-section">
                   <h3>Scene Overview</h3>
                   <div id="targets-scene-plot" class="plot-container-sm plot-container-sq has-data"></div>
+                  <p class="plot-note">
+                    Very large models are drawn at reduced detail here: past
+                    150,000 triangles only a sample is shown, and the legend
+                    says how many — <code>M1 (50000 of 900000 tri)</code>.
+                    Simulations always run against the complete mesh.
+                  </p>
                 </section>
               </div>
             </div>

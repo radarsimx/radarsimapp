@@ -81,7 +81,7 @@ const Free_Transmitter = lib.func("void Free_Transmitter(void *ptr_tx_c)");
 
 const Create_Receiver = lib.func(
   "void *Create_Receiver(float fs, float rf_gain, float resistor," +
-  " float baseband_gain, float baseband_bw)"
+  " float baseband_gain, float baseband_bw, double gate_delay)"
 );
 const Add_Rxchannel = lib.func(
   "int Add_Rxchannel(float *location, float *polar_real, float *polar_imag," +
@@ -132,6 +132,18 @@ const Add_Mesh_Target_Array = lib.func(
 );
 const Free_Targets = lib.func("void Free_Targets(void *ptr_targets_c)");
 
+const Get_Scene_State = lib.func(
+  "int Get_Scene_State(void *ptr_radar_c, double *timestamp_array, int num_timestamps," +
+  " float *tx_locations_out, float *rx_locations_out, float *boresight_out)"
+);
+const Get_Num_Targets = lib.func("int Get_Num_Targets(void *ptr_targets_c)");
+const Get_Target_Mesh_Size = lib.func("int Get_Target_Mesh_Size(void *ptr_targets_c, int target_index)");
+const Get_Target_Mesh_State = lib.func(
+  "int Get_Target_Mesh_State(void *ptr_targets_c, int target_index," +
+  " double *timestamp_array, int num_timestamps," +
+  " double *sim_timestamps, int num_sim_timestamps, double *points_out)"
+);
+
 const Run_RadarSimulator = lib.func(
   "int Run_RadarSimulator(void *ptr_radar_c, void *ptr_targets_c," +
   " int level, float density, int *ray_filter," +
@@ -140,13 +152,6 @@ const Run_RadarSimulator = lib.func(
 const Run_InterferenceSimulator = lib.func(
   "int Run_InterferenceSimulator(void *ptr_radar_c, void *ptr_interf_radar_c," +
   " double *ptr_interf_real, double *ptr_interf_imag)"
-);
-const Run_RcsSimulator = lib.func(
-  "int Run_RcsSimulator(void *ptr_targets_c," +
-  " double *inc_dir_array, double *obs_dir_array, int num_directions," +
-  " double *inc_polar_real, double *inc_polar_imag," +
-  " double *obs_polar_real, double *obs_polar_imag," +
-  " double frequency, double density, double *rcs_result)"
 );
 const Run_LidarSimulator = lib.func(
   "int Run_LidarSimulator(void *ptr_targets_c, double *phi_array, double *theta_array," +
@@ -186,9 +191,6 @@ const ERROR_MESSAGES: Record<number, string> = {
   401: "LidarSimulator: cudaDeviceSynchronize failed",
   500: "NoiseSimulator: CUDA kernel launch failed",
   501: "NoiseSimulator: cudaDeviceSynchronize failed",
-  600: "RcsSimulator _Kernel_IsVisible: CUDA kernel launch failed",
-  601: "RcsSimulator _Kernel_RcsProcessing: CUDA kernel launch failed",
-  602: "RcsSimulator: cudaDeviceSynchronize failed",
 };
 
 function _errorMsg(code: number, context: string): string {
@@ -225,13 +227,6 @@ function parseComplex(v: string | number | number[]): ComplexParsed {
     return { re: parseFloat(v) || 0, im: 0 };
   }
   return { re: 0, im: 0 };
-}
-
-/** Spherical angles (degrees) → Cartesian unit direction vector. */
-function sphericalToXyz(phiDeg: number, thetaDeg: number): [number, number, number] {
-  const phi = (phiDeg * Math.PI) / 180;
-  const theta = (thetaDeg * Math.PI) / 180;
-  return [Math.sin(theta) * Math.cos(phi), Math.sin(theta) * Math.sin(phi), Math.cos(theta)];
 }
 
 interface AntennaPattern {
@@ -637,6 +632,7 @@ interface ReceiverResult {
   loadResistor: number;
   noiseBw: number;
   bbType: string;
+  gateDelay: number;
   numChannels: number;
 }
 
@@ -647,9 +643,16 @@ function _buildReceiver(rxCfg: any): ReceiverResult {
   const bbGain: number = rxCfg.baseband_gain || 0;
   const bbType: string = rxCfg.bb_type || "complex";
 
+  // Range-gate / deramp reference delay (s). 0 keeps zero-delay deramp, the
+  // behavior of builds without this parameter.
+  const gateDelay: number = Number(rxCfg.gate_delay) || 0;
+  if (!(gateDelay >= 0)) {
+    throw new Error("gate_delay must be >= 0.");
+  }
+
   const noiseBw = bbType === "real" ? rxFs / 2 : rxFs;
 
-  const ptrRx = Create_Receiver(rxFs, rfGain, res, bbGain, noiseBw);
+  const ptrRx = Create_Receiver(rxFs, rfGain, res, bbGain, noiseBw, gateDelay);
   if (!ptrRx) throw new Error("Create_Receiver returned null");
 
   for (const ch of rxCfg.channels || [{}]) {
@@ -687,8 +690,27 @@ function _buildReceiver(rxCfg: any): ReceiverResult {
     loadResistor: res,
     noiseBw,
     bbType,
+    gateDelay,
     numChannels: (rxCfg.channels || [{}]).length,
   };
+}
+
+/**
+ * Create a single-frame radar platform from the UI radar config.
+ *
+ * Note the unit change: the config carries orientation in degrees (matching the
+ * UI labels), while Create_Radar takes rad and rad/s.
+ */
+function _createRadar(ptrTx: any, ptrRx: any, radarCfg: any): any {
+  const ptrRadar = Create_Radar(
+    ptrTx, ptrRx, new Float64Array([0.0]), 1,
+    toF32(radarCfg.location || [0, 0, 0]),
+    toF32(radarCfg.speed || [0, 0, 0]),
+    deg2rad(radarCfg.rotation || [0, 0, 0]),
+    deg2rad(radarCfg.rotation_rate || [0, 0, 0])
+  );
+  if (!ptrRadar) throw new Error("Create_Radar returned null");
+  return ptrRadar;
 }
 
 function _buildTargets(targetsCfg: any[], density: number = 1): any {
@@ -740,6 +762,93 @@ function _buildTargets(targetsCfg: any[], density: number = 1): any {
   return ptrTargets;
 }
 
+// ── Scene state ───────────────────────────────────────────────────────────────
+/**
+ * Upper bound on triangles sent to the renderer per mesh. Beyond this the mesh
+ * is strided so the scene preview stays interactive; the full mesh is always
+ * what the simulator uses.
+ */
+const SCENE_MAX_CELLS = 150000;
+
+interface SceneMesh {
+  /** Index into the mesh-target list (point targets are not counted). */
+  index: number;
+  /** Triangles in the source mesh. */
+  totalCells: number;
+  /** Triangles actually returned (< totalCells when strided). */
+  cells: number;
+  x: Float32Array;
+  y: Float32Array;
+  z: Float32Array;
+  i: Int32Array;
+  j: Int32Array;
+  k: Int32Array;
+  /** Axis-aligned bounds of the returned vertices: [minX,minY,minZ,maxX,maxY,maxZ]. */
+  bounds: number[];
+}
+
+interface SceneState {
+  timestamp: number;
+  /** Global Tx channel locations, [numTx][3] flattened (m). */
+  txLocations: Float32Array | null;
+  /** Global Rx channel locations, [numRx][3] flattened (m). */
+  rxLocations: Float32Array | null;
+  /** Global radar boresight unit vector. */
+  boresight: Float32Array | null;
+  meshes: SceneMesh[];
+  /** Non-fatal problems — the caller falls back for whatever is missing. */
+  warnings: string[];
+}
+
+/**
+ * Repack Get_Target_Mesh_State output ([cells][3 vertices][3 xyz], doubles)
+ * into Plotly mesh3d vertex/index arrays. Vertices are per-triangle, not
+ * de-duplicated, so the index arrays are simply 0,1,2 / 3,4,5 / ...
+ */
+function _packSceneMesh(index: number, totalCells: number, pts: Float64Array): SceneMesh {
+  const stride = Math.max(1, Math.ceil(totalCells / SCENE_MAX_CELLS));
+  const cells = Math.ceil(totalCells / stride);
+
+  const x = new Float32Array(cells * 3);
+  const y = new Float32Array(cells * 3);
+  const z = new Float32Array(cells * 3);
+  const i = new Int32Array(cells);
+  const j = new Int32Array(cells);
+  const k = new Int32Array(cells);
+
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+  let tri = 0;
+  for (let c = 0; c < totalCells; c += stride) {
+    const src = c * 9;
+    const dst = tri * 3;
+    for (let v = 0; v < 3; v++) {
+      const vx = pts[src + v * 3];
+      const vy = pts[src + v * 3 + 1];
+      const vz = pts[src + v * 3 + 2];
+      x[dst + v] = vx;
+      y[dst + v] = vy;
+      z[dst + v] = vz;
+      if (vx < minX) minX = vx;
+      if (vy < minY) minY = vy;
+      if (vz < minZ) minZ = vz;
+      if (vx > maxX) maxX = vx;
+      if (vy > maxY) maxY = vy;
+      if (vz > maxZ) maxZ = vz;
+    }
+    i[tri] = dst;
+    j[tri] = dst + 1;
+    k[tri] = dst + 2;
+    tri++;
+  }
+
+  return {
+    index, totalCells, cells: tri, x, y, z, i, j, k,
+    bounds: [minX, minY, minZ, maxX, maxY, maxZ],
+  };
+}
+
 // ── RadarSimBridge ───────────────────────────────────────────────────────────
 export class RadarSimBridge {
   constructor() { }
@@ -754,7 +863,7 @@ export class RadarSimBridge {
     console.log("[bridge] runSimulation config:", JSON.stringify({
       tx_f: txCfg.f, tx_t: txCfg.t, tx_pulses: txCfg.pulses, tx_prp: txCfg.prp,
       tx_channels: txCfg.channels?.length,
-      rx_fs: rxCfg.fs, rx_channels: rxCfg.channels?.length,
+      rx_fs: rxCfg.fs, rx_gate_delay: rxCfg.gate_delay, rx_channels: rxCfg.channels?.length,
       num_targets: config.targets?.length,
       density: simCfg.density, level: simCfg.level,
     }));
@@ -768,16 +877,8 @@ export class RadarSimBridge {
     console.log("[bridge] RX pointer:", rx.ptr);
 
     console.log("[bridge] Creating radar...");
-    const frameStart = new Float64Array([0.0]);
-    const ptrRadar = Create_Radar(
-      tx.ptr, rx.ptr, frameStart, 1,
-      toF32(radarCfg.location || [0, 0, 0]),
-      toF32(radarCfg.speed || [0, 0, 0]),
-      toF32(radarCfg.rotation || [0, 0, 0]),
-      toF32(radarCfg.rotation_rate || [0, 0, 0])
-    );
+    const ptrRadar = _createRadar(tx.ptr, rx.ptr, radarCfg);
     console.log("[bridge] Radar pointer:", ptrRadar);
-    if (!ptrRadar) throw new Error("Create_Radar returned null");
 
     const density = Number(simCfg.density) || 1;
     const levelMap: Record<string, number> = { frame: 0, pulse: 1, sample: 2 };
@@ -898,52 +999,104 @@ export class RadarSimBridge {
     return output;
   }
 
-  async runRcsSimulation(config: any): Promise<any> {
-    const rcsCfg = config.rcs || {};
-    const density: number = rcsCfg.density || 1;
+  /**
+   * Query the library for where the radar and its mesh targets actually are at
+   * a given timestamp, for the Scene Overview plot.
+   *
+   * Radar pose comes from Get_Scene_State and mesh geometry from
+   * Get_Target_Mesh_State, so the plot shows the library's own transforms
+   * rather than a JS re-implementation of them. Failures are collected in
+   * `warnings` instead of thrown — a scene preview should degrade, not break,
+   * when e.g. the free-tier channel limit rejects a multi-channel array.
+   */
+  async getSceneState(config: any): Promise<SceneState> {
+    const timestamp = Number(config.timestamp) || 0;
+    const ts = new Float64Array([timestamp]);
+    const out: SceneState = {
+      timestamp,
+      txLocations: null,
+      rxLocations: null,
+      boresight: null,
+      meshes: [],
+      warnings: [],
+    };
 
-    const ptrTargets = _buildTargets(config.targets || [], density);
+    // --- Radar pose ---
+    let tx: TransmitterResult | null = null;
+    let rx: ReceiverResult | null = null;
+    let ptrRadar: any = null;
+    try {
+      tx = _buildTransmitter(config.transmitter || {});
+      rx = _buildReceiver(config.receiver || {});
+      ptrRadar = _createRadar(tx.ptr, rx.ptr, config.radar || {});
 
-    const incPhi: number[] = (rcsCfg.inc_phi || [0]).map(Number);
-    const incTheta: number[] = (rcsCfg.inc_theta || [90]).map(Number);
-    const obsPhi: number[] = rcsCfg.obs_phi ? rcsCfg.obs_phi.map(Number) : incPhi;
-    const obsTheta: number[] = rcsCfg.obs_theta ? rcsCfg.obs_theta.map(Number) : incTheta;
-    const numDirs = incPhi.length;
+      const numTx: number = Get_Num_Txchannel(tx.ptr);
+      const numRx: number = Get_Num_Rxchannel(rx.ptr);
+      if (numTx <= 0 || numRx <= 0) {
+        throw new Error(`radar reports ${numTx} TX / ${numRx} RX channels`);
+      }
+      const txLoc = new Float32Array(numTx * 3);
+      const rxLoc = new Float32Array(numRx * 3);
+      const boresight = new Float32Array(3);
+      const status: number = Get_Scene_State(ptrRadar, ts, 1, txLoc, rxLoc, boresight);
+      if (status !== 0) throw new Error(_errorMsg(status, "Get_Scene_State"));
 
-    const incDirs = new Float64Array(numDirs * 3);
-    const obsDirs = new Float64Array(numDirs * 3);
-    for (let i = 0; i < numDirs; i++) {
-      incDirs.set(sphericalToXyz(incPhi[i], incTheta[i]), i * 3);
-      obsDirs.set(sphericalToXyz(obsPhi[i], obsTheta[i]), i * 3);
+      out.txLocations = txLoc;
+      out.rxLocations = rxLoc;
+      out.boresight = boresight;
+    } catch (err) {
+      out.warnings.push(`Radar pose: ${(err as Error).message || String(err)}`);
+    } finally {
+      if (ptrRadar) Free_Radar(ptrRadar);
+      if (rx) Free_Receiver(rx.ptr);
+      if (tx) Free_Transmitter(tx.ptr);
     }
 
-    const ipCfg = rcsCfg.inc_pol || [0, 0, 1];
-    const opCfg = rcsCfg.obs_pol || ipCfg;
-    const incPolRe = new Float64Array(3), incPolIm = new Float64Array(3);
-    const obsPolRe = new Float64Array(3), obsPolIm = new Float64Array(3);
-    for (let i = 0; i < 3; i++) {
-      const ip = parseComplex(ipCfg[i]);
-      const op = parseComplex(opCfg[i]);
-      incPolRe[i] = ip.re; incPolIm[i] = ip.im;
-      obsPolRe[i] = op.re; obsPolIm[i] = op.im;
+    // --- Mesh geometry ---
+    // Models whose file is not readable are dropped up front rather than
+    // failing the whole batch — the model path is a live text field, so it is
+    // routinely half-typed. uiIndex maps native mesh order back to the
+    // caller's mesh-target numbering across those gaps.
+    const allMeshes = (config.targets || []).filter((t: any) => t && t.model);
+    const meshCfgs: any[] = [];
+    const uiIndex: number[] = [];
+    allMeshes.forEach((t: any, n: number) => {
+      if (!fs.existsSync(t.model)) {
+        out.warnings.push(`Mesh ${n + 1}: model file not found (${t.model})`);
+        return;
+      }
+      meshCfgs.push(t);
+      uiIndex.push(n);
+    });
+
+    if (meshCfgs.length > 0) {
+      let ptrTargets: any = null;
+      try {
+        ptrTargets = _buildTargets(meshCfgs);
+        const numMesh: number = Get_Num_Targets(ptrTargets);
+        for (let m = 0; m < numMesh; m++) {
+          const label = `Mesh ${(uiIndex[m] ?? m) + 1}`;
+          const cells: number = Get_Target_Mesh_Size(ptrTargets, m);
+          if (cells <= 0) {
+            out.warnings.push(`${label}: Get_Target_Mesh_Size returned ${cells}`);
+            continue;
+          }
+          const pts = new Float64Array(cells * 9);
+          const status: number = Get_Target_Mesh_State(ptrTargets, m, ts, 1, null, 0, pts);
+          if (status !== 0) {
+            out.warnings.push(_errorMsg(status, label));
+            continue;
+          }
+          out.meshes.push(_packSceneMesh(uiIndex[m] ?? m, cells, pts));
+        }
+      } catch (err) {
+        out.warnings.push(`Mesh geometry: ${(err as Error).message || String(err)}`);
+      } finally {
+        if (ptrTargets) Free_Targets(ptrTargets);
+      }
     }
 
-    const frequency: number = rcsCfg.frequency || 24e9;
-    const rcsResult = new Float64Array(numDirs);
-
-    const status: number = Run_RcsSimulator(
-      ptrTargets, incDirs, obsDirs, numDirs,
-      incPolRe, incPolIm, obsPolRe, obsPolIm,
-      frequency, density, rcsResult
-    );
-
-    Free_Targets(ptrTargets);
-    if (status !== 0) throw new Error(_errorMsg(status, "Run_RcsSimulator"));
-
-    const rcsLinear = Array.from(rcsResult);
-    const rcsDbsm = rcsLinear.map((v) => 10 * Math.log10(Math.abs(v) + 1e-30));
-
-    return { rcs_linear: rcsLinear, rcs_dbsm: rcsDbsm, inc_phi: incPhi, inc_theta: incTheta };
+    return out;
   }
 
   async checkLibrary(): Promise<{ radarsimlib_version: string; radarsimlib_available: boolean; licensed: boolean }> {

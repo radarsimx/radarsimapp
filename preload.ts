@@ -2,8 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("api", {
   runSimulation: (config: unknown) => ipcRenderer.invoke("run-simulation", config),
-  runRcsSimulation: (config: unknown) =>
-    ipcRenderer.invoke("run-rcs-simulation", config),
+  getSceneState: (config: unknown) => ipcRenderer.invoke("get-scene-state", config),
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),
   checkLibrary: () => ipcRenderer.invoke("check-library"),
   activateLicense: () => ipcRenderer.invoke("activate-license"),
