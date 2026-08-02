@@ -68,6 +68,23 @@ function probeConfig(): any {
   return baseConfig({ transmitter: { pulses: 1 } });
 }
 
+/**
+ * A run heavy enough that a synchronous simulator would visibly block: about
+ * half a second inside radarsimc, plus range-Doppler and range-profile
+ * processing over 256 x 2048 bins. Sized against MAX_STALL below.
+ */
+function heavyConfig(): any {
+  return baseConfig({
+    transmitter: { pulses: 256, prp: 100e-6 },
+    receiver: { fs: 20e6, noise_figure: 12, channels: [{ location: [0, 0, 0] }, { location: [0, 0.006, 0] }] },
+    targets: Array.from({ length: 32 }, (_, i) => ({
+      location: [10 + i, i - 16, 0], rcs: 20, speed: [-5 - i, 0, 0], phase: 0,
+    })),
+    simulation: { level: "sample" },
+    processing: { noise: true, range_doppler: true, range_profile: true },
+  });
+}
+
 /** Range-FFT one pulse of the returned baseband and report the peak bin. */
 function peakRangeBin(baseband: any, pulse = 0, channel = 0): { bin: number; n: number } {
   const { re, im } = baseband[pulse][channel];
@@ -268,6 +285,68 @@ describe("runSimulation", () => {
       () => bridge.runSimulation(baseConfig({ transmitter: { prp: 1e-6 } })),
       /prp can't be smaller/
     );
+  });
+});
+
+// The bridge runs in Electron's main process, which is also the thread that
+// pumps the window's OS event loop: anything that holds it for the length of a
+// simulation leaves the user with a dead, "not responding" window. So the
+// native calls go through koffi's async variants and the DSP loops yield.
+describe("main-thread responsiveness", () => {
+  /**
+   * Longest a single stretch of work may hold the event loop, in ms. Well
+   * above the ~10 ms slices the code yields at, and well below the time the
+   * native call alone takes when made synchronously.
+   */
+  const MAX_STALL = 250;
+
+  test("the event loop keeps running while a simulation is in flight", async () => {
+    let last = Date.now();
+    let worst = 0;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      worst = Math.max(worst, now - last);
+      last = now;
+    }, 10);
+
+    const t0 = Date.now();
+    try {
+      await bridge.runSimulation(heavyConfig());
+    } finally {
+      clearInterval(timer);
+    }
+    const elapsed = Date.now() - t0;
+
+    assert.ok(elapsed > 50, `run finished in ${elapsed} ms — too quick to mean anything`);
+    assert.ok(
+      worst < MAX_STALL,
+      `event loop stalled for ${worst} ms during a ${elapsed} ms run ` +
+      `(a synchronous simulation stalls it for the whole run)`
+    );
+  });
+
+  // Async native calls interleave with the event loop, so the debounced scene
+  // refresh the UI fires while the user types can now land mid-simulation.
+  // The queue in the bridge is what keeps the library single-threaded.
+  test("a scene query raised mid-simulation is serialised behind it", async () => {
+    const order: string[] = [];
+
+    const sim = bridge.runSimulation(baseConfig({ transmitter: { pulses: 64 } }))
+      .then(() => { order.push("sim"); });
+    const scene = bridge.getSceneState(baseConfig({ radar: { location: [1, 2, 0.5] } }))
+      .then((s: any) => { order.push("scene"); return s; });
+
+    const [, s] = await Promise.all([sim, scene]);
+
+    assert.deepEqual(order, ["sim", "scene"], "the scene query overtook the simulation");
+    assert.deepEqual(s.warnings, [], `unexpected warnings: ${s.warnings.join("; ")}`);
+    assert.deepEqual(Array.from(s.txLocations), [1, 2, 0.5]);
+  });
+
+  test("a failed call does not wedge the queue for the next one", async () => {
+    await assert.rejects(() => bridge.runSimulation(baseConfig({ transmitter: { prp: 1e-6 } })));
+    const out = await bridge.runSimulation(baseConfig());
+    assert.equal(out.baseband.length, 4);
   });
 });
 

@@ -9,7 +9,10 @@ import {
   errorMsg, toF32, toF64, deg2rad,
   parseComplex, buildAntennaPattern, ComplexParsed,
 } from "./convert.js";
-import { randn, nextPow2, applyRangeFFT, applyDopplerFFT, toDbMag3D, toComplex3D } from "./dsp.js";
+import {
+  randn, nextPow2, makeYielder,
+  applyRangeFFTAsync, applyDopplerFFTAsync, toDbMag3DAsync, toComplex3DAsync,
+} from "./dsp.js";
 import { loadStl, packSceneMesh, SceneMesh } from "./mesh.js";
 
 // ── Resolve real filesystem path (asar-unpacked in packaged builds) ──────────
@@ -173,6 +176,38 @@ const Run_NoiseSimulator = lib.func(
 const Force_Cleanup_All = lib.func("void Force_Cleanup_All()");
 const Is_Cleanup_In_Progress = lib.func("int Is_Cleanup_In_Progress()");
 const Get_License_Info = lib.func("int Get_License_Info(char *buffer, int buffer_size)");
+
+// ── Off-thread native calls ──────────────────────────────────────────────────
+// The Electron main process is also the thread that pumps the window's OS
+// event loop, so a synchronous call into radarsimc freezes the window for the
+// entire simulation — minutes, for a heavy mesh scene. koffi's async variant
+// runs the call on a libuv worker thread and resolves back here, leaving the
+// event loop free to keep the window alive and repainting.
+//
+// Argument buffers must stay untouched until the callback fires; every caller
+// below keeps them local and only reads them after the await.
+function callAsync<T>(fn: any, ...args: unknown[]): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    fn.async(...args, (err: Error | null, result: T) => {
+      if (err) reject(err);
+      else resolve(result);
+    });
+  });
+}
+
+// Async calls interleave with the rest of the event loop, so two bridge
+// operations could otherwise be inside the library at once — a scene refresh
+// triggered by typing while a simulation is still running, say. Public entry
+// points run through this queue so the library keeps seeing one caller at a
+// time, exactly as it did when every call was synchronous.
+let _nativeQueue: Promise<unknown> = Promise.resolve();
+function serialize<T>(work: () => Promise<T>): Promise<T> {
+  // Run whether the previous entry resolved or rejected — a failed simulation
+  // must not wedge the queue.
+  const run = _nativeQueue.then(work, work);
+  _nativeQueue = run.catch(() => undefined);
+  return run;
+}
 
 // ── Builders ──────────────────────────────────────────────────────────────────
 interface TransmitterResult {
@@ -428,7 +463,7 @@ function _createRadar(ptrTx: any, ptrRx: any, radarCfg: any): any {
   return ptrRadar;
 }
 
-function _buildTargets(targetsCfg: any[], density: number = 1): any {
+async function _buildTargets(targetsCfg: any[], density: number = 1): Promise<any> {
   const ptrTargets = Init_Targets();
   if (!ptrTargets) throw new Error("Init_Targets returned null");
 
@@ -453,7 +488,9 @@ function _buildTargets(targetsCfg: any[], density: number = 1): any {
         epImag = perm.im;
       }
 
-      const ret = Add_Mesh_Target(
+      // Off-thread: a million-triangle mesh takes real time to ingest.
+      const ret = await callAsync<number>(
+        Add_Mesh_Target,
         mesh.points, mesh.cells, mesh.cellSize,
         origin, loc, speed, rot, rotRate,
         epReal, epImag, 1.0, 0.0,
@@ -465,7 +502,8 @@ function _buildTargets(targetsCfg: any[], density: number = 1): any {
       if (ret !== 0) throw new Error(errorMsg(ret, "Add_Mesh_Target"));
     } else {
       const phaseRad = t.phase != null ? (t.phase * Math.PI) / 180 : 0;
-      const ret = Add_Point_Target(
+      const ret = await callAsync<number>(
+        Add_Point_Target,
         loc, speed,
         t.rcs != null ? t.rcs : 0,
         phaseRad,
@@ -496,6 +534,10 @@ export class RadarSimBridge {
   constructor() { }
 
   async runSimulation(config: any): Promise<any> {
+    return serialize(() => this._runSimulation(config));
+  }
+
+  private async _runSimulation(config: any): Promise<any> {
     const txCfg = config.transmitter || {};
     const rxCfg = config.receiver || {};
     const radarCfg = config.radar || {};
@@ -527,7 +569,7 @@ export class RadarSimBridge {
     const level = levelMap[simCfg.level] ?? 0;
 
     console.log("[bridge] Building targets...");
-    const ptrTargets = _buildTargets(config.targets || [], density);
+    const ptrTargets = await _buildTargets(config.targets || [], density);
     console.log("[bridge] Targets pointer:", ptrTargets);
 
     console.log("[bridge] Getting BB size...");
@@ -539,7 +581,10 @@ export class RadarSimBridge {
     const rayFilter = new Int32Array(simCfg.ray_filter || [0, 10]);
 
     console.log("[bridge] Running RadarSimulator (level=%d, density=%f)...", level, density);
-    const status: number = Run_RadarSimulator(ptrRadar, ptrTargets, level, density, rayFilter, bbRe, bbIm);
+    // The long one. Runs on a worker thread so the window stays responsive.
+    const status: number = await callAsync<number>(
+      Run_RadarSimulator, ptrRadar, ptrTargets, level, density, rayFilter, bbRe, bbIm
+    );
     console.log("[bridge] Run_RadarSimulator status:", status);
 
     Free_Targets(ptrTargets);
@@ -579,13 +624,21 @@ export class RadarSimBridge {
 
       const scale = rxBbType === "real" ? noiseAmplitude : noiseAmplitude / Math.SQRT2;
       const totalSamplesPerRx = numPulses * spp;
+      const maybeYield = makeYielder();
       const noisePerRx: { re: Float64Array; im: Float64Array }[] = new Array(numRxCh);
+      // Millions of samples for a large run, so generate them in blocks and
+      // let the event loop back in between.
+      const NOISE_BLOCK = 8192;
       for (let r = 0; r < numRxCh; r++) {
         const reNoise = new Float64Array(totalSamplesPerRx);
         const imNoise = new Float64Array(totalSamplesPerRx);
-        for (let i = 0; i < totalSamplesPerRx; i++) {
-          reNoise[i] = randn() * scale;
-          if (rxBbType !== "real") imNoise[i] = randn() * scale;
+        for (let start = 0; start < totalSamplesPerRx; start += NOISE_BLOCK) {
+          await maybeYield();
+          const end = Math.min(start + NOISE_BLOCK, totalSamplesPerRx);
+          for (let i = start; i < end; i++) {
+            reNoise[i] = randn() * scale;
+            if (rxBbType !== "real") imNoise[i] = randn() * scale;
+          }
         }
         noisePerRx[r] = { re: reNoise, im: imNoise };
       }
@@ -594,6 +647,7 @@ export class RadarSimBridge {
         const nRe = noisePerRx[rxIdx].re;
         const nIm = noisePerRx[rxIdx].im;
         for (let p = 0; p < numPulses; p++) {
+          await maybeYield();
           const base = (c * numPulses + p) * spp;
           const nBase = p * spp;
           for (let s = 0; s < spp; s++) {
@@ -605,15 +659,15 @@ export class RadarSimBridge {
       console.log("[bridge] Noise added (amplitude=%.3e, type=%s)", noiseAmplitude, rxBbType);
     }
 
-    output.baseband = toComplex3D(bbRe, bbIm, numPulses, numChannels, spp);
+    output.baseband = await toComplex3DAsync(bbRe, bbIm, numPulses, numChannels, spp);
     output.bb_type = rxCfg.bb_type || "complex";
 
     if (procCfg.range_doppler !== false && numPulses > 1) {
       const rdRangeN = procCfg.rd_range_fft || nextPow2(spp);
       const rdDopplerN = procCfg.rd_doppler_fft || nextPow2(numPulses);
-      const rangeOut = applyRangeFFT(bbRe, bbIm, numPulses, numChannels, spp, rdRangeN);
-      const rdOut = applyDopplerFFT(rangeOut.re, rangeOut.im, numPulses, numChannels, rdRangeN, rdDopplerN);
-      output.range_doppler = toDbMag3D(rdOut.re, rdOut.im, rdDopplerN, numChannels, rdRangeN);
+      const rangeOut = await applyRangeFFTAsync(bbRe, bbIm, numPulses, numChannels, spp, rdRangeN);
+      const rdOut = await applyDopplerFFTAsync(rangeOut.re, rangeOut.im, numPulses, numChannels, rdRangeN, rdDopplerN);
+      output.range_doppler = await toDbMag3DAsync(rdOut.re, rdOut.im, rdDopplerN, numChannels, rdRangeN);
       output.rd_range_fft_size = rdRangeN;
       output.rd_doppler_fft_size = rdDopplerN;
       output.rd_range_axis = Array.from({ length: rdRangeN }, (_, i) => i);
@@ -623,8 +677,8 @@ export class RadarSimBridge {
 
     if (procCfg.range_profile) {
       const rpRangeN = procCfg.rp_range_fft || nextPow2(spp);
-      const rpOut = applyRangeFFT(bbRe, bbIm, numPulses, numChannels, spp, rpRangeN);
-      output.range_profile = toDbMag3D(rpOut.re, rpOut.im, numPulses, numChannels, rpRangeN);
+      const rpOut = await applyRangeFFTAsync(bbRe, bbIm, numPulses, numChannels, spp, rpRangeN);
+      output.range_profile = await toDbMag3DAsync(rpOut.re, rpOut.im, numPulses, numChannels, rpRangeN);
       output.rp_range_fft_size = rpRangeN;
       output.rp_range_axis = Array.from({ length: rpRangeN }, (_, i) => i);
     }
@@ -652,6 +706,10 @@ export class RadarSimBridge {
    * when e.g. the free-tier channel limit rejects a multi-channel array.
    */
   async getSceneState(config: any): Promise<SceneState> {
+    return serialize(() => this._getSceneState(config));
+  }
+
+  private async _getSceneState(config: any): Promise<SceneState> {
     const timestamp = Number(config.timestamp) || 0;
     const ts = new Float64Array([timestamp]);
     const out: SceneState = {
@@ -714,7 +772,7 @@ export class RadarSimBridge {
     if (meshCfgs.length > 0) {
       let ptrTargets: any = null;
       try {
-        ptrTargets = _buildTargets(meshCfgs);
+        ptrTargets = await _buildTargets(meshCfgs);
         const numMesh: number = Get_Num_Targets(ptrTargets);
         for (let m = 0; m < numMesh; m++) {
           const label = `Mesh ${(uiIndex[m] ?? m) + 1}`;
@@ -724,7 +782,9 @@ export class RadarSimBridge {
             continue;
           }
           const pts = new Float64Array(cells * 9);
-          const status: number = Get_Target_Mesh_State(ptrTargets, m, ts, 1, null, 0, pts);
+          const status: number = await callAsync<number>(
+            Get_Target_Mesh_State, ptrTargets, m, ts, 1, null, 0, pts
+          );
           if (status !== 0) {
             out.warnings.push(errorMsg(status, label));
             continue;

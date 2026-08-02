@@ -15,6 +15,28 @@ export function randn(): number {
   return u * mul;
 }
 
+// ── Cooperative scheduling ───────────────────────────────────────────────────
+// This code runs in the Electron main process, which is also the thread that
+// pumps the window's OS event loop. A loop that runs for seconds without
+// returning to the event loop makes the window stop responding, so the *Async
+// variants below run the same kernels while handing control back whenever a
+// slice has been running for longer than SLICE_MS.
+
+const SLICE_MS = 10;
+
+/**
+ * Returns a function to `await` inside a hot loop. It is a no-op until the
+ * current slice has used up its budget, then yields to the event loop once.
+ */
+export function makeYielder(sliceMs: number = SLICE_MS): () => Promise<void> {
+  let deadline = Date.now() + sliceMs;
+  return async function maybeYield(): Promise<void> {
+    if (Date.now() < deadline) return;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    deadline = Date.now() + sliceMs;
+  };
+}
+
 // ── FFT ───────────────────────────────────────────────────────────────────────
 export function nextPow2(n: number): number { let p = 1; while (p < n) p <<= 1; return p; }
 
@@ -55,60 +77,116 @@ export interface ComplexBuffers {
   im: Float64Array;
 }
 
+/** One pulse of the range FFT, the unit of work both variants schedule. */
+function _rangeFFTPulse(
+  re: Float64Array, im: Float64Array, out: ComplexBuffers,
+  c: number, p: number, nPulse: number, spp: number, n: number
+): void {
+  const inBase = (c * nPulse + p) * spp;
+  const outBase = (c * nPulse + p) * n;
+  const R = new Float64Array(n); R.set(re.subarray(inBase, inBase + Math.min(spp, n)));
+  const I = new Float64Array(n); I.set(im.subarray(inBase, inBase + Math.min(spp, n)));
+  fft(R, I);
+  out.re.set(R, outBase);
+  out.im.set(I, outBase);
+}
+
 export function applyRangeFFT(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, spp: number, n?: number): ComplexBuffers {
   if (!n) n = nextPow2(spp);
-  const outRe = new Float64Array(n * nPulse * nRx);
-  const outIm = new Float64Array(n * nPulse * nRx);
+  const out: ComplexBuffers = { re: new Float64Array(n * nPulse * nRx), im: new Float64Array(n * nPulse * nRx) };
+  for (let c = 0; c < nRx; c++) {
+    for (let p = 0; p < nPulse; p++) _rangeFFTPulse(re, im, out, c, p, nPulse, spp, n);
+  }
+  return out;
+}
+
+/** {@link applyRangeFFT}, yielding to the event loop between pulses. */
+export async function applyRangeFFTAsync(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, spp: number, n?: number): Promise<ComplexBuffers> {
+  if (!n) n = nextPow2(spp);
+  const out: ComplexBuffers = { re: new Float64Array(n * nPulse * nRx), im: new Float64Array(n * nPulse * nRx) };
+  const maybeYield = makeYielder();
   for (let c = 0; c < nRx; c++) {
     for (let p = 0; p < nPulse; p++) {
-      const inBase = (c * nPulse + p) * spp;
-      const outBase = (c * nPulse + p) * n;
-      const R = new Float64Array(n); R.set(re.subarray(inBase, inBase + Math.min(spp, n)));
-      const I = new Float64Array(n); I.set(im.subarray(inBase, inBase + Math.min(spp, n)));
-      fft(R, I);
-      outRe.set(R, outBase);
-      outIm.set(I, outBase);
+      _rangeFFTPulse(re, im, out, c, p, nPulse, spp, n);
+      await maybeYield();
     }
   }
-  return { re: outRe, im: outIm };
+  return out;
+}
+
+/** One range bin of the Doppler FFT, the unit of work both variants schedule. */
+function _dopplerFFTBin(
+  re: Float64Array, im: Float64Array, out: ComplexBuffers,
+  c: number, s: number, nPulse: number, rangeDim: number, n: number
+): void {
+  const half = Math.floor(n / 2);
+  const R = new Float64Array(n);
+  const I = new Float64Array(n);
+  for (let p = 0; p < nPulse; p++) {
+    R[p] = re[(c * nPulse + p) * rangeDim + s];
+    I[p] = im[(c * nPulse + p) * rangeDim + s];
+  }
+  fft(R, I);
+  for (let p = 0; p < n; p++) {
+    const shifted = (p + half) % n;
+    out.re[(c * n + p) * rangeDim + s] = R[shifted];
+    out.im[(c * n + p) * rangeDim + s] = I[shifted];
+  }
 }
 
 export function applyDopplerFFT(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, rangeDim: number, n?: number): ComplexBuffers {
   if (!n) n = nextPow2(nPulse);
-  const outRe = new Float64Array(rangeDim * n * nRx);
-  const outIm = new Float64Array(rangeDim * n * nRx);
-  const half = Math.floor(n / 2);
+  const out: ComplexBuffers = { re: new Float64Array(rangeDim * n * nRx), im: new Float64Array(rangeDim * n * nRx) };
+  for (let c = 0; c < nRx; c++) {
+    for (let s = 0; s < rangeDim; s++) _dopplerFFTBin(re, im, out, c, s, nPulse, rangeDim, n);
+  }
+  return out;
+}
+
+/** {@link applyDopplerFFT}, yielding to the event loop between range bins. */
+export async function applyDopplerFFTAsync(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, rangeDim: number, n?: number): Promise<ComplexBuffers> {
+  if (!n) n = nextPow2(nPulse);
+  const out: ComplexBuffers = { re: new Float64Array(rangeDim * n * nRx), im: new Float64Array(rangeDim * n * nRx) };
+  const maybeYield = makeYielder();
   for (let c = 0; c < nRx; c++) {
     for (let s = 0; s < rangeDim; s++) {
-      const R = new Float64Array(n);
-      const I = new Float64Array(n);
-      for (let p = 0; p < nPulse; p++) {
-        R[p] = re[(c * nPulse + p) * rangeDim + s];
-        I[p] = im[(c * nPulse + p) * rangeDim + s];
-      }
-      fft(R, I);
-      for (let p = 0; p < n; p++) {
-        const shifted = (p + half) % n;
-        outRe[(c * n + p) * rangeDim + s] = R[shifted];
-        outIm[(c * n + p) * rangeDim + s] = I[shifted];
-      }
+      _dopplerFFTBin(re, im, out, c, s, nPulse, rangeDim, n);
+      await maybeYield();
     }
   }
-  return { re: outRe, im: outIm };
+  return out;
+}
+
+/** One [pulse][rx] row in dB, the unit of work both variants schedule. */
+function _dbMagRow(re: Float64Array, im: Float64Array, p: number, r: number, nPulse: number, spp: number): number[] {
+  const row = new Array<number>(spp);
+  const base = (r * nPulse + p) * spp;
+  for (let s = 0; s < spp; s++) {
+    const mag = Math.sqrt(re[base + s] ** 2 + im[base + s] ** 2);
+    row[s] = 20 * Math.log10(mag + 1e-12);
+  }
+  return row;
 }
 
 export function toDbMag3D(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, spp: number): number[][][] {
   const out: number[][][] = [];
   for (let p = 0; p < nPulse; p++) {
     const rxArr: number[][] = [];
+    for (let r = 0; r < nRx; r++) rxArr.push(_dbMagRow(re, im, p, r, nPulse, spp));
+    out.push(rxArr);
+  }
+  return out;
+}
+
+/** {@link toDbMag3D}, yielding to the event loop between rows. */
+export async function toDbMag3DAsync(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, spp: number): Promise<number[][][]> {
+  const out: number[][][] = [];
+  const maybeYield = makeYielder();
+  for (let p = 0; p < nPulse; p++) {
+    const rxArr: number[][] = [];
     for (let r = 0; r < nRx; r++) {
-      const row = new Array<number>(spp);
-      const base = (r * nPulse + p) * spp;
-      for (let s = 0; s < spp; s++) {
-        const mag = Math.sqrt(re[base + s] ** 2 + im[base + s] ** 2);
-        row[s] = 20 * Math.log10(mag + 1e-12);
-      }
-      rxArr.push(row);
+      rxArr.push(_dbMagRow(re, im, p, r, nPulse, spp));
+      await maybeYield();
     }
     out.push(rxArr);
   }
@@ -120,16 +198,33 @@ export interface ComplexData {
   im: number[];
 }
 
+function _complexRow(re: Float64Array, im: Float64Array, p: number, r: number, nPulse: number, spp: number): ComplexData {
+  const base = (r * nPulse + p) * spp;
+  return {
+    re: Array.from(re.subarray(base, base + spp)),
+    im: Array.from(im.subarray(base, base + spp)),
+  };
+}
+
 export function toComplex3D(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, spp: number): ComplexData[][] {
   const out: ComplexData[][] = [];
   for (let p = 0; p < nPulse; p++) {
     const rxArr: ComplexData[] = [];
+    for (let r = 0; r < nRx; r++) rxArr.push(_complexRow(re, im, p, r, nPulse, spp));
+    out.push(rxArr);
+  }
+  return out;
+}
+
+/** {@link toComplex3D}, yielding to the event loop between rows. */
+export async function toComplex3DAsync(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, spp: number): Promise<ComplexData[][]> {
+  const out: ComplexData[][] = [];
+  const maybeYield = makeYielder();
+  for (let p = 0; p < nPulse; p++) {
+    const rxArr: ComplexData[] = [];
     for (let r = 0; r < nRx; r++) {
-      const base = (r * nPulse + p) * spp;
-      rxArr.push({
-        re: Array.from(re.subarray(base, base + spp)),
-        im: Array.from(im.subarray(base, base + spp)),
-      });
+      rxArr.push(_complexRow(re, im, p, r, nPulse, spp));
+      await maybeYield();
     }
     out.push(rxArr);
   }
