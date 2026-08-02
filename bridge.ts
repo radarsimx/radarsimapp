@@ -5,6 +5,13 @@ import koffi from "koffi";
 import * as path from "path";
 import * as fs from "fs";
 
+import {
+  errorMsg, toF32, toF64, deg2rad,
+  parseComplex, buildAntennaPattern, ComplexParsed,
+} from "./convert.js";
+import { randn, nextPow2, applyRangeFFT, applyDopplerFFT, toDbMag3D, toComplex3D } from "./dsp.js";
+import { loadStl, packSceneMesh, SceneMesh } from "./mesh.js";
+
 // ── Resolve real filesystem path (asar-unpacked in packaged builds) ──────────
 // __dirname is dist/ at runtime; the native library lives in radarsimlib/
 // at the project root (one level up from dist/).
@@ -167,298 +174,6 @@ const Force_Cleanup_All = lib.func("void Force_Cleanup_All()");
 const Is_Cleanup_In_Progress = lib.func("int Is_Cleanup_In_Progress()");
 const Get_License_Info = lib.func("int Get_License_Info(char *buffer, int buffer_size)");
 
-// ── Error codes (radarsim.h) ───────────────────────────────────────────────────
-const ERROR_MESSAGES: Record<number, string> = {
-  0: "Success",
-  1: "Null pointer encountered",
-  2: "Invalid parameter provided",
-  3: "Memory allocation failed",
-  4: "Free tier limit reached — purchase a license at https://radarsimx.com/ to unlock full capabilities",
-  5: "Unhandled exception occurred",
-  6: "Ray count exceeds grid capacity",
-  7: "CUDA device query failed",
-  100: "PointSimulator: cudaDeviceSynchronize failed (standard path)",
-  101: "PointSimulator: CUDA kernel launch failed (standard path)",
-  102: "PointSimulator: cudaDeviceSynchronize failed (per-frame phase noise path)",
-  103: "PointSimulator: CUDA kernel launch failed (per-frame phase noise path)",
-  200: "MeshSimulator ProcessBaseband: cudaDeviceSynchronize failed",
-  201: "MeshSimulator ProcessBaseband: CUDA kernel launch failed",
-  202: "MeshSimulator ProcessBackTracingBaseband: cudaDeviceSynchronize failed",
-  203: "MeshSimulator ProcessBackTracingBaseband: CUDA kernel launch failed",
-  300: "InterferenceSimulator: cudaDeviceSynchronize failed",
-  301: "InterferenceSimulator: CUDA kernel launch failed",
-  400: "LidarSimulator: CUDA kernel launch failed",
-  401: "LidarSimulator: cudaDeviceSynchronize failed",
-  500: "NoiseSimulator: CUDA kernel launch failed",
-  501: "NoiseSimulator: cudaDeviceSynchronize failed",
-};
-
-function _errorMsg(code: number, context: string): string {
-  const desc = ERROR_MESSAGES[code] || `Unknown error`;
-  return `${context}: ${desc} (code ${code})`;
-}
-
-// ── Type helpers ──────────────────────────────────────────────────────────────
-function toF32(arr: number[] | Float32Array): Float32Array {
-  return arr instanceof Float32Array ? arr : new Float32Array(arr);
-}
-function toF64(arr: number[] | Float64Array): Float64Array {
-  return arr instanceof Float64Array ? arr : new Float64Array(arr);
-}
-function toI32(arr: number[] | Int32Array): Int32Array {
-  return arr instanceof Int32Array ? arr : new Int32Array(arr);
-}
-function deg2rad(arr: number[]): Float32Array {
-  return new Float32Array(arr.map((v) => (v * Math.PI) / 180));
-}
-
-interface ComplexParsed {
-  re: number;
-  im: number;
-}
-
-/** Parse a complex number from string "1+2j", array [re, im], or plain number. */
-function parseComplex(v: string | number | number[]): ComplexParsed {
-  if (typeof v === "number") return { re: v, im: 0 };
-  if (Array.isArray(v)) return { re: v[0] || 0, im: v[1] || 0 };
-  if (typeof v === "string") {
-    const m = v.replace(/\s/g, "").match(/^([+-]?[\d.e+-]+)?([+-][\d.e+-]+)[ij]$/i);
-    if (m) return { re: parseFloat(m[1] || "0"), im: parseFloat(m[2]) };
-    return { re: parseFloat(v) || 0, im: 0 };
-  }
-  return { re: 0, im: 0 };
-}
-
-interface AntennaPattern {
-  phi: Float32Array;
-  phiPtn: Float32Array;
-  theta: Float32Array;
-  thetaPtn: Float32Array;
-  antennaGain: number;
-}
-
-function _buildAntennaPattern(
-  azAngle: number[] | undefined,
-  azPattern: number[] | undefined,
-  elAngle: number[] | undefined,
-  elPattern: number[] | undefined
-): AntennaPattern {
-  let phi: Float32Array, phiPtn: Float32Array, antennaGain: number;
-  if (azAngle && azPattern && azAngle.length > 0) {
-    if (azAngle.length !== azPattern.length) {
-      throw new Error("The length of azimuth_angle and azimuth_pattern must be the same.");
-    }
-    antennaGain = Math.max(...azPattern);
-    phi = new Float32Array(azAngle.map((v) => (v * Math.PI) / 180));
-    phiPtn = new Float32Array(azPattern.map((v) => v - antennaGain));
-  } else {
-    phi = new Float32Array([-Math.PI / 2, Math.PI / 2]);
-    phiPtn = new Float32Array([0, 0]);
-    antennaGain = 0;
-  }
-
-  let theta: Float32Array, thetaPtn: Float32Array;
-  if (elAngle && elPattern && elAngle.length > 0) {
-    if (elAngle.length !== elPattern.length) {
-      throw new Error("The length of elevation_angle and elevation_pattern must be the same.");
-    }
-    const elMax = Math.max(...elPattern);
-    const transformed = elAngle.map((v) => (90 - v) * Math.PI / 180).reverse();
-    const ptnFlipped = [...elPattern].reverse().map((v) => v - elMax);
-    theta = new Float32Array(transformed);
-    thetaPtn = new Float32Array(ptnFlipped);
-  } else {
-    theta = new Float32Array([0, Math.PI]);
-    thetaPtn = new Float32Array([0, 0]);
-  }
-
-  return { phi, phiPtn, theta, thetaPtn, antennaGain };
-}
-
-
-// ── Mesh (STL) loader ─────────────────────────────────────────────────────────
-const UNIT_SCALE: Record<string, number> = { mm: 1e-3, cm: 1e-2, m: 1.0, in: 0.0254 };
-
-interface StlMesh {
-  points: Float32Array;
-  cells: Int32Array;
-  cellSize: number;
-}
-
-function loadStl(filePath: string, unit: string = "m"): StlMesh {
-  const scale = UNIT_SCALE[unit] ?? 1.0;
-  const buf = fs.readFileSync(filePath);
-
-  const preview = buf.toString("ascii", 0, Math.min(buf.length, 256));
-  if (preview.trimStart().startsWith("solid") && buf.toString("ascii").includes("facet normal")) {
-    return _loadAsciiStl(buf.toString("ascii"), scale);
-  }
-
-  const numTri = buf.readUInt32LE(80);
-  const points = new Float32Array(numTri * 9);
-  const cells = new Int32Array(numTri * 3);
-  let offset = 84;
-  for (let i = 0; i < numTri; i++) {
-    offset += 12;
-    for (let v = 0; v < 3; v++) {
-      const b = i * 9 + v * 3;
-      points[b] = buf.readFloatLE(offset) * scale;
-      points[b + 1] = buf.readFloatLE(offset + 4) * scale;
-      points[b + 2] = buf.readFloatLE(offset + 8) * scale;
-      offset += 12;
-    }
-    cells[i * 3] = i * 3; cells[i * 3 + 1] = i * 3 + 1; cells[i * 3 + 2] = i * 3 + 2;
-    offset += 2;
-  }
-  return { points, cells, cellSize: numTri };
-}
-
-function _loadAsciiStl(text: string, scale: number): StlMesh {
-  const pts: number[] = [];
-  const re = /vertex\s+([\d.e+\-]+)\s+([\d.e+\-]+)\s+([\d.e+\-]+)/gi;
-  let m: RegExpExecArray | null;
-  let idx = 0;
-  while ((m = re.exec(text)) !== null) {
-    pts.push(parseFloat(m[1]) * scale, parseFloat(m[2]) * scale, parseFloat(m[3]) * scale);
-    idx++;
-  }
-  const cells = new Int32Array(idx);
-  for (let i = 0; i < idx; i++) cells[i] = i;
-  return { points: new Float32Array(pts), cells, cellSize: Math.floor(idx / 3) };
-}
-
-// ── Noise Utilities ──────────────────────────────────────────────────────────
-let _randnSpare: number | null = null;
-function _randn(): number {
-  if (_randnSpare !== null) { const v = _randnSpare; _randnSpare = null; return v; }
-  let u: number, v: number, s: number;
-  do { u = Math.random() * 2 - 1; v = Math.random() * 2 - 1; s = u * u + v * v; } while (s >= 1 || s === 0);
-  const mul = Math.sqrt(-2 * Math.log(s) / s);
-  _randnSpare = v * mul;
-  return u * mul;
-}
-
-// ── FFT ───────────────────────────────────────────────────────────────────────
-function _nextPow2(n: number): number { let p = 1; while (p < n) p <<= 1; return p; }
-
-function _fft(re: Float64Array, im: Float64Array): void {
-  const n = re.length;
-  let j = 0;
-  for (let i = 1; i < n; i++) {
-    let bit = n >> 1;
-    while (j & bit) { j ^= bit; bit >>= 1; }
-    j ^= bit;
-    if (i < j) {
-      let t = re[i]; re[i] = re[j]; re[j] = t;
-      t = im[i]; im[i] = im[j]; im[j] = t;
-    }
-  }
-  for (let len = 2; len <= n; len <<= 1) {
-    const ang = (-2 * Math.PI) / len;
-    const wRe = Math.cos(ang), wIm = Math.sin(ang);
-    for (let i = 0; i < n; i += len) {
-      let urRe = 1, urIm = 0;
-      const half = len >> 1;
-      for (let k = 0; k < half; k++) {
-        const uRe = re[i + k], uIm = im[i + k];
-        const vRe = re[i + k + half] * urRe - im[i + k + half] * urIm;
-        const vIm = re[i + k + half] * urIm + im[i + k + half] * urRe;
-        re[i + k] = uRe + vRe; im[i + k] = uIm + vIm;
-        re[i + k + half] = uRe - vRe; im[i + k + half] = uIm - vIm;
-        const tmp = urRe * wRe - urIm * wIm;
-        urIm = urRe * wIm + urIm * wRe;
-        urRe = tmp;
-      }
-    }
-  }
-}
-
-interface ComplexBuffers {
-  re: Float64Array;
-  im: Float64Array;
-}
-
-function _applyRangeFFT(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, spp: number, n?: number): ComplexBuffers {
-  if (!n) n = _nextPow2(spp);
-  const outRe = new Float64Array(n * nPulse * nRx);
-  const outIm = new Float64Array(n * nPulse * nRx);
-  for (let c = 0; c < nRx; c++) {
-    for (let p = 0; p < nPulse; p++) {
-      const inBase = (c * nPulse + p) * spp;
-      const outBase = (c * nPulse + p) * n;
-      const R = new Float64Array(n); R.set(re.subarray(inBase, inBase + Math.min(spp, n)));
-      const I = new Float64Array(n); I.set(im.subarray(inBase, inBase + Math.min(spp, n)));
-      _fft(R, I);
-      outRe.set(R, outBase);
-      outIm.set(I, outBase);
-    }
-  }
-  return { re: outRe, im: outIm };
-}
-
-function _applyDopplerFFT(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, rangeDim: number, n?: number): ComplexBuffers {
-  if (!n) n = _nextPow2(nPulse);
-  const outRe = new Float64Array(rangeDim * n * nRx);
-  const outIm = new Float64Array(rangeDim * n * nRx);
-  const half = Math.floor(n / 2);
-  for (let c = 0; c < nRx; c++) {
-    for (let s = 0; s < rangeDim; s++) {
-      const R = new Float64Array(n);
-      const I = new Float64Array(n);
-      for (let p = 0; p < nPulse; p++) {
-        R[p] = re[(c * nPulse + p) * rangeDim + s];
-        I[p] = im[(c * nPulse + p) * rangeDim + s];
-      }
-      _fft(R, I);
-      for (let p = 0; p < n; p++) {
-        const shifted = (p + half) % n;
-        outRe[(c * n + p) * rangeDim + s] = R[shifted];
-        outIm[(c * n + p) * rangeDim + s] = I[shifted];
-      }
-    }
-  }
-  return { re: outRe, im: outIm };
-}
-
-function _toDbMag3D(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, spp: number): number[][][] {
-  const out: number[][][] = [];
-  for (let p = 0; p < nPulse; p++) {
-    const rxArr: number[][] = [];
-    for (let r = 0; r < nRx; r++) {
-      const row = new Array<number>(spp);
-      const base = (r * nPulse + p) * spp;
-      for (let s = 0; s < spp; s++) {
-        const mag = Math.sqrt(re[base + s] ** 2 + im[base + s] ** 2);
-        row[s] = 20 * Math.log10(mag + 1e-12);
-      }
-      rxArr.push(row);
-    }
-    out.push(rxArr);
-  }
-  return out;
-}
-
-interface ComplexData {
-  re: number[];
-  im: number[];
-}
-
-function _toComplex3D(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, spp: number): ComplexData[][] {
-  const out: ComplexData[][] = [];
-  for (let p = 0; p < nPulse; p++) {
-    const rxArr: ComplexData[] = [];
-    for (let r = 0; r < nRx; r++) {
-      const base = (r * nPulse + p) * spp;
-      rxArr.push({
-        re: Array.from(re.subarray(base, base + spp)),
-        im: Array.from(im.subarray(base, base + spp)),
-      });
-    }
-    out.push(rxArr);
-  }
-  return out;
-}
-
 // ── Builders ──────────────────────────────────────────────────────────────────
 interface TransmitterResult {
   ptr: any;
@@ -563,7 +278,7 @@ function _buildTransmitter(txCfg: any): TransmitterResult {
     }
 
     const { phi, phiPtn, theta, thetaPtn, antennaGain } =
-      _buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
+      buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
         ch.elevation_angle, ch.elevation_pattern);
 
     let pModRe: Float32Array, pModIm: Float32Array;
@@ -610,7 +325,7 @@ function _buildTransmitter(txCfg: any): TransmitterResult {
       pModRe, pModIm,
       chDelay, (1 / 180) * Math.PI, ptrTx
     );
-    if (ret !== 0) throw new Error(_errorMsg(ret, "Add_Txchannel"));
+    if (ret !== 0) throw new Error(errorMsg(ret, "Add_Txchannel"));
   }
 
   return {
@@ -669,7 +384,7 @@ function _buildReceiver(rxCfg: any): ReceiverResult {
     }
 
     const { phi, phiPtn, theta, thetaPtn, antennaGain } =
-      _buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
+      buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
         ch.elevation_angle, ch.elevation_pattern);
 
     const ret = Add_Rxchannel(
@@ -678,7 +393,7 @@ function _buildReceiver(rxCfg: any): ReceiverResult {
       theta, thetaPtn, theta.length,
       antennaGain, ptrRx
     );
-    if (ret !== 0) throw new Error(_errorMsg(ret, "Add_Rxchannel"));
+    if (ret !== 0) throw new Error(errorMsg(ret, "Add_Rxchannel"));
   }
 
   return {
@@ -747,7 +462,7 @@ function _buildTargets(targetsCfg: any[], density: number = 1): any {
         t.environment || false,
         ptrTargets
       );
-      if (ret !== 0) throw new Error(_errorMsg(ret, "Add_Mesh_Target"));
+      if (ret !== 0) throw new Error(errorMsg(ret, "Add_Mesh_Target"));
     } else {
       const phaseRad = t.phase != null ? (t.phase * Math.PI) / 180 : 0;
       const ret = Add_Point_Target(
@@ -756,37 +471,13 @@ function _buildTargets(targetsCfg: any[], density: number = 1): any {
         phaseRad,
         ptrTargets
       );
-      if (ret !== 0) throw new Error(_errorMsg(ret, "Add_Point_Target"));
+      if (ret !== 0) throw new Error(errorMsg(ret, "Add_Point_Target"));
     }
   }
   return ptrTargets;
 }
 
-// ── Scene state ───────────────────────────────────────────────────────────────
-/**
- * Upper bound on triangles sent to the renderer per mesh. Beyond this the mesh
- * is strided so the scene preview stays interactive; the full mesh is always
- * what the simulator uses.
- */
-const SCENE_MAX_CELLS = 150000;
-
-interface SceneMesh {
-  /** Index into the mesh-target list (point targets are not counted). */
-  index: number;
-  /** Triangles in the source mesh. */
-  totalCells: number;
-  /** Triangles actually returned (< totalCells when strided). */
-  cells: number;
-  x: Float32Array;
-  y: Float32Array;
-  z: Float32Array;
-  i: Int32Array;
-  j: Int32Array;
-  k: Int32Array;
-  /** Axis-aligned bounds of the returned vertices: [minX,minY,minZ,maxX,maxY,maxZ]. */
-  bounds: number[];
-}
-
+// ── Scene state ─────────────────────────────────────────────────────────────
 interface SceneState {
   timestamp: number;
   /** Global Tx channel locations, [numTx][3] flattened (m). */
@@ -798,55 +489,6 @@ interface SceneState {
   meshes: SceneMesh[];
   /** Non-fatal problems — the caller falls back for whatever is missing. */
   warnings: string[];
-}
-
-/**
- * Repack Get_Target_Mesh_State output ([cells][3 vertices][3 xyz], doubles)
- * into Plotly mesh3d vertex/index arrays. Vertices are per-triangle, not
- * de-duplicated, so the index arrays are simply 0,1,2 / 3,4,5 / ...
- */
-function _packSceneMesh(index: number, totalCells: number, pts: Float64Array): SceneMesh {
-  const stride = Math.max(1, Math.ceil(totalCells / SCENE_MAX_CELLS));
-  const cells = Math.ceil(totalCells / stride);
-
-  const x = new Float32Array(cells * 3);
-  const y = new Float32Array(cells * 3);
-  const z = new Float32Array(cells * 3);
-  const i = new Int32Array(cells);
-  const j = new Int32Array(cells);
-  const k = new Int32Array(cells);
-
-  let minX = Infinity, minY = Infinity, minZ = Infinity;
-  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-
-  let tri = 0;
-  for (let c = 0; c < totalCells; c += stride) {
-    const src = c * 9;
-    const dst = tri * 3;
-    for (let v = 0; v < 3; v++) {
-      const vx = pts[src + v * 3];
-      const vy = pts[src + v * 3 + 1];
-      const vz = pts[src + v * 3 + 2];
-      x[dst + v] = vx;
-      y[dst + v] = vy;
-      z[dst + v] = vz;
-      if (vx < minX) minX = vx;
-      if (vy < minY) minY = vy;
-      if (vz < minZ) minZ = vz;
-      if (vx > maxX) maxX = vx;
-      if (vy > maxY) maxY = vy;
-      if (vz > maxZ) maxZ = vz;
-    }
-    i[tri] = dst;
-    j[tri] = dst + 1;
-    k[tri] = dst + 2;
-    tri++;
-  }
-
-  return {
-    index, totalCells, cells: tri, x, y, z, i, j, k,
-    bounds: [minX, minY, minZ, maxX, maxY, maxZ],
-  };
 }
 
 // ── RadarSimBridge ───────────────────────────────────────────────────────────
@@ -905,7 +547,7 @@ export class RadarSimBridge {
     Free_Receiver(rx.ptr);
     Free_Transmitter(tx.ptr);
 
-    if (status !== 0) throw new Error(_errorMsg(status, "Run_RadarSimulator"));
+    if (status !== 0) throw new Error(errorMsg(status, "Run_RadarSimulator"));
 
     const bbType = rxCfg.bb_type || "complex";
     if (bbType === "real") bbIm.fill(0);
@@ -942,8 +584,8 @@ export class RadarSimBridge {
         const reNoise = new Float64Array(totalSamplesPerRx);
         const imNoise = new Float64Array(totalSamplesPerRx);
         for (let i = 0; i < totalSamplesPerRx; i++) {
-          reNoise[i] = _randn() * scale;
-          if (rxBbType !== "real") imNoise[i] = _randn() * scale;
+          reNoise[i] = randn() * scale;
+          if (rxBbType !== "real") imNoise[i] = randn() * scale;
         }
         noisePerRx[r] = { re: reNoise, im: imNoise };
       }
@@ -963,15 +605,15 @@ export class RadarSimBridge {
       console.log("[bridge] Noise added (amplitude=%.3e, type=%s)", noiseAmplitude, rxBbType);
     }
 
-    output.baseband = _toComplex3D(bbRe, bbIm, numPulses, numChannels, spp);
+    output.baseband = toComplex3D(bbRe, bbIm, numPulses, numChannels, spp);
     output.bb_type = rxCfg.bb_type || "complex";
 
     if (procCfg.range_doppler !== false && numPulses > 1) {
-      const rdRangeN = procCfg.rd_range_fft || _nextPow2(spp);
-      const rdDopplerN = procCfg.rd_doppler_fft || _nextPow2(numPulses);
-      const rangeOut = _applyRangeFFT(bbRe, bbIm, numPulses, numChannels, spp, rdRangeN);
-      const rdOut = _applyDopplerFFT(rangeOut.re, rangeOut.im, numPulses, numChannels, rdRangeN, rdDopplerN);
-      output.range_doppler = _toDbMag3D(rdOut.re, rdOut.im, rdDopplerN, numChannels, rdRangeN);
+      const rdRangeN = procCfg.rd_range_fft || nextPow2(spp);
+      const rdDopplerN = procCfg.rd_doppler_fft || nextPow2(numPulses);
+      const rangeOut = applyRangeFFT(bbRe, bbIm, numPulses, numChannels, spp, rdRangeN);
+      const rdOut = applyDopplerFFT(rangeOut.re, rangeOut.im, numPulses, numChannels, rdRangeN, rdDopplerN);
+      output.range_doppler = toDbMag3D(rdOut.re, rdOut.im, rdDopplerN, numChannels, rdRangeN);
       output.rd_range_fft_size = rdRangeN;
       output.rd_doppler_fft_size = rdDopplerN;
       output.rd_range_axis = Array.from({ length: rdRangeN }, (_, i) => i);
@@ -980,9 +622,9 @@ export class RadarSimBridge {
     }
 
     if (procCfg.range_profile) {
-      const rpRangeN = procCfg.rp_range_fft || _nextPow2(spp);
-      const rpOut = _applyRangeFFT(bbRe, bbIm, numPulses, numChannels, spp, rpRangeN);
-      output.range_profile = _toDbMag3D(rpOut.re, rpOut.im, numPulses, numChannels, rpRangeN);
+      const rpRangeN = procCfg.rp_range_fft || nextPow2(spp);
+      const rpOut = applyRangeFFT(bbRe, bbIm, numPulses, numChannels, spp, rpRangeN);
+      output.range_profile = toDbMag3D(rpOut.re, rpOut.im, numPulses, numChannels, rpRangeN);
       output.rp_range_fft_size = rpRangeN;
       output.rp_range_axis = Array.from({ length: rpRangeN }, (_, i) => i);
     }
@@ -1039,7 +681,7 @@ export class RadarSimBridge {
       const rxLoc = new Float32Array(numRx * 3);
       const boresight = new Float32Array(3);
       const status: number = Get_Scene_State(ptrRadar, ts, 1, txLoc, rxLoc, boresight);
-      if (status !== 0) throw new Error(_errorMsg(status, "Get_Scene_State"));
+      if (status !== 0) throw new Error(errorMsg(status, "Get_Scene_State"));
 
       out.txLocations = txLoc;
       out.rxLocations = rxLoc;
@@ -1084,10 +726,10 @@ export class RadarSimBridge {
           const pts = new Float64Array(cells * 9);
           const status: number = Get_Target_Mesh_State(ptrTargets, m, ts, 1, null, 0, pts);
           if (status !== 0) {
-            out.warnings.push(_errorMsg(status, label));
+            out.warnings.push(errorMsg(status, label));
             continue;
           }
-          out.meshes.push(_packSceneMesh(uiIndex[m] ?? m, cells, pts));
+          out.meshes.push(packSceneMesh(uiIndex[m] ?? m, cells, pts));
         }
       } catch (err) {
         out.warnings.push(`Mesh geometry: ${(err as Error).message || String(err)}`);

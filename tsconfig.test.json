@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    // Tests run straight off source via Node's type stripping; nothing is emitted.
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    // dist/ is emitted without declarations, so let tsc infer from the JS.
+    "allowJs": true,
+    "checkJs": false
+  },
+  "include": ["test/**/*.ts"]
+}

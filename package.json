@@ -10,16 +10,23 @@
     "dist:win": "npm run build && electron-builder --win --publish never",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
     "dist:linux": "npm run build && electron-builder --linux --publish never",
-    "generate-gif": "node scripts/generate-install-gif.js"
+    "generate-gif": "node scripts/generate-install-gif.js",
+    "test": "npm run build && node --test \"test/**/*.test.ts\"",
+    "test:unit": "npm run build && node --test \"test/unit/**/*.test.ts\"",
+    "test:integration": "npm run build && node --test \"test/integration/**/*.test.ts\"",
+    "test:watch": "node --test --watch \"test/**/*.test.ts\"",
+    "typecheck:test": "tsc -p tsconfig.test.json"
   },
   "author": "RadarSimX",
   "license": "SEE LICENSE IN LICENSE.txt",
   "devDependencies": {
     "@napi-rs/canvas": "^1.0.0",
+    "@types/jsdom": "^28.0.3",
     "@types/node": "^25.7.0",
     "electron": "^42.0.1",
     "electron-builder": "^26.8.1",
     "gif-encoder-2": "^1.0.5",
+    "jsdom": "^29.1.1",
     "typescript": "^6.0.3"
   },
   "dependencies": {

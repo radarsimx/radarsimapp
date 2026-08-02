@@ -8,7 +8,7 @@ import { clearResultPlots, updateRadarOverviewPlot, updateTxInfo } from './plots
 
 const STATE_KEY = "radarsimapp_state";
 
-function defaultState(): AppState {
+export function defaultState(): AppState {
   return {
     fields: {
       "tx-f-start": "24",
@@ -73,7 +73,7 @@ const STATIC_FIELDS: string[] = [
 
 const CHECKBOX_FIELDS: string[] = ["proc-noise", "proc-range-doppler", "proc-range-profile", "proc-rd-range-fft-enable", "proc-rd-doppler-fft-enable"];
 
-function captureState(): AppState {
+export function captureState(): AppState {
   saveTxChannelStates();
   saveRxChannelStates();
   savePointTargetStates();
@@ -99,7 +99,7 @@ function captureState(): AppState {
   };
 }
 
-function applyState(state: AppState): void {
+export function applyState(state: AppState): void {
   if (!state) return;
 
   if (state.fields) {
@@ -149,7 +149,7 @@ async function saveConfigToFile(): Promise<boolean> {
   return window.api.saveConfig(JSON.stringify(state, null, 2));
 }
 
-function validateState(state: any): void {
+export function validateState(state: any): void {
   if (!state || typeof state !== "object" || Array.isArray(state)) {
     throw new Error("File does not contain a valid configuration object.");
   }
