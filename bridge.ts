@@ -128,6 +128,13 @@ function diagnoseLicense(licPath: string, product?: string): LicenseRejection {
     const licensed = Set_License_Files(licPaths, licPaths.length, product) === 1;
     console.log(`[bridge] License activation (${product}):`, licensed ? "success" : "failed");
     if (!licensed) {
+      // Name the build that did the rejecting. radarsimc's license parser has
+      // changed between releases, so a bug report is only actionable with the
+      // version attached -- and it catches a stale or mismatched library.
+      const version = new Int32Array(3);
+      Get_Version(version);
+      console.warn(`[bridge] radarsimc ${version[0]}.${version[1]}.${version[2]} — ${libPath}`);
+
       // A batch only fails when every file in it does, so each one needs a
       // reason of its own. Expired files are archived; the rest stay put.
       const expiredDir = path.join(baseDir, "expired");
