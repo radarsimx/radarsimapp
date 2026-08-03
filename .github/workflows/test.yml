@@ -60,33 +60,11 @@ jobs:
           } else {
             New-Item -ItemType Directory -Force -Path ./radarsimlib | Out-Null
             $path = Join-Path $PWD 'radarsimlib/license_RadarSimPy_CI.lic'
-
-            # Normalize before writing. radarsimc reads the .lic in text mode on
-            # Windows, so the CRT strips CR for it and a CRLF file validates
-            # there; on Linux/macOS nothing strips it, the CR stays glued to the
-            # base64 signature, and mbedtls rejects it ("Failed to decode
-            # signature"). Secrets pasted into the GitHub web UI arrive CRLF,
-            # which is why that failed on Ubuntu only. Also drop a BOM and any
-            # per-line padding -- trailing spaces break signature verification
-            # and leading ones break the base64 decode.
-            $lic = $env:TEST_LICENSE -replace "`r`n", "`n" -replace "`r", "`n"
-            $lic = $lic.TrimStart([char]0xFEFF)
-            $lic = (($lic -split "`n") | ForEach-Object { $_.Trim() }) -join "`n"
-
             # WriteAllText gives BOM-less UTF-8 on both PowerShell 5.1 and 7;
             # Out-File -Encoding utf8 differs between them, and a BOM corrupts
             # the first line of the key. Do not "simplify" this to Out-File.
-            [System.IO.File]::WriteAllText($path, $lic)
-
-            # Fingerprint the result without leaking it: a healthy RadarSimX key
-            # is ~35 lines with a 344-char signature on the last non-empty line
-            # of the SIGNATURE block. Line lengths alone pinpoint truncation,
-            # wrapping, or padding if this ever regresses.
-            $raw = $env:TEST_LICENSE
-            $crIn = ([regex]::Matches($raw, "`r")).Count
-            $lines = $lic -split "`n"
-            Write-Host "Wrote $path ($((Get-Item $path).Length) bytes, $($lines.Count) lines; secret carried $crIn CR)"
-            Write-Host "Line lengths: $(($lines | ForEach-Object { $_.Length }) -join ',')"
+            [System.IO.File]::WriteAllText($path, $env:TEST_LICENSE)
+            Write-Host "Wrote $path ($((Get-Item $path).Length) bytes)"
           }
 
       - name: Install dependencies
