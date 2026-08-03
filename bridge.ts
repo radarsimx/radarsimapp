@@ -45,6 +45,78 @@ const LICENSE_PRODUCTS: LicenseProduct[] = [
   { pattern: /^license_RadarSimPy_.*\.lic$/,  product: "RadarSimPy"  },
 ];
 
+// radarsimc's own spelling of each platform. A license issued for "all" runs
+// anywhere; anything else has to match the build it is loaded into.
+const PLATFORM_NAMES: Record<string, string> = {
+  win32: "Windows",
+  darwin: "macOS",
+  linux: "Linux",
+};
+
+interface LicensePayload {
+  product_name?: string;
+  product_platform?: string;
+  expiration_date?: string;
+}
+
+interface LicenseRejection {
+  reason: string;
+  expired: boolean;
+}
+
+// A .lic file is a text envelope around two base64 blocks: the license key --
+// JSON describing what was issued -- and its RSA signature. radarsimc writes
+// the reason it rejected a file straight to stderr rather than returning it,
+// so decode the key ourselves to explain the failure.
+function readLicensePayload(licPath: string): LicensePayload | null {
+  let text: string;
+  try {
+    text = fs.readFileSync(licPath, "utf8");
+  } catch {
+    return null;
+  }
+  for (const line of text.split(/\r?\n/)) {
+    const block = line.trim();
+    if (block.length < 40 || !/^[A-Za-z0-9+/]+={0,2}$/.test(block)) continue;
+    try {
+      // The signature is base64 too, but it is not JSON, so it falls through.
+      const payload: unknown = JSON.parse(Buffer.from(block, "base64").toString("utf8"));
+      if (payload && typeof payload === "object") return payload as LicensePayload;
+    } catch { /* Not the key block -- keep looking. */ }
+  }
+  return null;
+}
+
+// Explains why radarsimc turned a license file down. Only `expired` is certain
+// enough to archive a file on; every other verdict leaves it where it is, since
+// moving it destroys the evidence needed to fix it.
+function diagnoseLicense(licPath: string, product?: string): LicenseRejection {
+  const payload = readLicensePayload(licPath);
+  if (!payload) {
+    return { reason: "no readable license key block -- malformed or truncated file", expired: false };
+  }
+
+  // Payload timestamps are UTC, unlike the local-time dates in the file header.
+  const expiry = payload.expiration_date
+    ? Date.parse(`${payload.expiration_date.replace(" ", "T")}Z`)
+    : NaN;
+  if (!Number.isNaN(expiry) && expiry < Date.now()) {
+    return { reason: `expired on ${payload.expiration_date} UTC`, expired: true };
+  }
+
+  const platform = PLATFORM_NAMES[process.platform] ?? process.platform;
+  const issuedFor = payload.product_platform;
+  if (issuedFor && issuedFor.toLowerCase() !== "all" && issuedFor !== platform) {
+    return { reason: `issued for ${issuedFor}, but this build is ${platform}`, expired: false };
+  }
+
+  if (product && payload.product_name && payload.product_name !== product) {
+    return { reason: `issued for ${payload.product_name}, not ${product}`, expired: false };
+  }
+
+  return { reason: "rejected by radarsimc -- see its output above", expired: false };
+}
+
 {
   const allFiles = fs.readdirSync(baseDir);
   let anyFound = false;
@@ -56,12 +128,17 @@ const LICENSE_PRODUCTS: LicenseProduct[] = [
     const licensed = Set_License_Files(licPaths, licPaths.length, product) === 1;
     console.log(`[bridge] License activation (${product}):`, licensed ? "success" : "failed");
     if (!licensed) {
+      // A batch only fails when every file in it does, so each one needs a
+      // reason of its own. Expired files are archived; the rest stay put.
       const expiredDir = path.join(baseDir, "expired");
-      fs.mkdirSync(expiredDir, { recursive: true });
       for (const p of licPaths) {
+        const { reason, expired } = diagnoseLicense(p, product);
+        console.warn(`[bridge] ${path.basename(p)}: ${reason}`);
+        if (!expired) continue;
+        fs.mkdirSync(expiredDir, { recursive: true });
         fs.renameSync(p, path.join(expiredDir, path.basename(p)));
+        console.warn(`[bridge] Moved expired license file to:`, expiredDir);
       }
-      console.warn(`[bridge] Moved expired ${product} license files to:`, expiredDir);
     }
   }
   if (!anyFound) console.warn("[bridge] No license files found in", baseDir);
@@ -825,10 +902,18 @@ export class RadarSimBridge {
       if (licensed) return { licensed, product };
     }
 
-    const expiredDir = path.join(baseDir, "expired");
-    fs.mkdirSync(expiredDir, { recursive: true });
-    fs.renameSync(dest, path.join(expiredDir, path.basename(dest)));
-    throw new Error("License activation failed — please check that the license file is valid");
+    // `dest` is our copy, so dropping it costs nothing -- the file the user
+    // picked is untouched -- and it keeps a rejected license from being retried
+    // on every launch. An expired one is archived instead, as it always was.
+    const { reason, expired } = diagnoseLicense(dest, match?.product);
+    if (expired) {
+      const expiredDir = path.join(baseDir, "expired");
+      fs.mkdirSync(expiredDir, { recursive: true });
+      fs.renameSync(dest, path.join(expiredDir, fileName));
+    } else {
+      fs.rmSync(dest, { force: true });
+    }
+    throw new Error(`License activation failed — ${reason}`);
   }
 
   kill(): void {
