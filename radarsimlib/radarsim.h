@@ -38,8 +38,16 @@
 extern "C" {
 #endif
 
+/* Marks the public ABI. On ELF and Mach-O targets the library is compiled with
+ * -fvisibility=hidden, so this attribute is what keeps these functions -- and
+ * only these -- in the dynamic symbol table. Exporting anything else lets a
+ * foreign copy of a bundled dependency (mbedTLS, HDF5) interpose our internal
+ * calls at load time, because ELF resolves them through the PLT against the
+ * whole process. */
 #if defined _WIN64 || defined _WIN32
 #define EXPORTED __declspec(dllexport)
+#elif defined(__GNUC__) || defined(__clang__)
+#define EXPORTED __attribute__((visibility("default")))
 #else
 #define EXPORTED
 #endif
@@ -47,7 +55,7 @@ extern "C" {
 // #define RADARSIM_SIMPLE_CLEANUP
 
 #define VERSION_MAJOR 15
-#define VERSION_MINOR 3
+#define VERSION_MINOR 4
 #define VERSION_PATCH 0
 
 /*********************************************
@@ -779,7 +787,7 @@ EXPORTED int Run_NoiseSimulator(t_Radar* ptr_radar_c, double noise_level,
 
 /*********************************************
  *
- *  Scene State Query
+ *  Radar State Query
  *
  *********************************************/
 /**
@@ -813,7 +821,7 @@ EXPORTED int Run_NoiseSimulator(t_Radar* ptr_radar_c, double noise_level,
  * exactly one entry per frame. Timestamps outside the frame time range are
  * clamped to the nearest endpoint.
  */
-EXPORTED int Get_Scene_State(t_Radar* ptr_radar_c, double* timestamp_array,
+EXPORTED int Get_Radar_State(t_Radar* ptr_radar_c, double* timestamp_array,
                              int num_timestamps, float* tx_locations_out,
                              float* rx_locations_out, float* boresight_out);
 

@@ -147,8 +147,11 @@ describe("checkLibrary", () => {
   test("reports a version new enough for the bindings in use", () => {
     const [major, minor] = version.split(".").map(Number);
     assert.ok(major >= 15, `major ${major} older than expected`);
-    // gate_delay on Create_Receiver and the scene-state API landed in 15.3.
-    assert.ok(major * 1000 + minor >= 15003, `library is ${version}, need >= 15.3.0`);
+    // gate_delay on Create_Receiver and the state-query API landed in 15.3, and
+    // 15.4 renamed Get_Scene_State to Get_Radar_State. koffi resolves every
+    // binding when bridge.js loads, so an older library fails the import above
+    // rather than reaching here -- this keeps the requirement written down.
+    assert.ok(major * 1000 + minor >= 15004, `library is ${version}, need >= 15.4.0`);
   });
 
   test("reports availability and a boolean licence state", () => {

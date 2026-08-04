@@ -226,8 +226,8 @@ const Add_Mesh_Target_Array = lib.func(
 );
 const Free_Targets = lib.func("void Free_Targets(void *ptr_targets_c)");
 
-const Get_Scene_State = lib.func(
-  "int Get_Scene_State(void *ptr_radar_c, double *timestamp_array, int num_timestamps," +
+const Get_Radar_State = lib.func(
+  "int Get_Radar_State(void *ptr_radar_c, double *timestamp_array, int num_timestamps," +
   " float *tx_locations_out, float *rx_locations_out, float *boresight_out)"
 );
 const Get_Num_Targets = lib.func("int Get_Num_Targets(void *ptr_targets_c)");
@@ -783,7 +783,7 @@ export class RadarSimBridge {
    * Query the library for where the radar and its mesh targets actually are at
    * a given timestamp, for the Scene Overview plot.
    *
-   * Radar pose comes from Get_Scene_State and mesh geometry from
+   * Radar pose comes from Get_Radar_State and mesh geometry from
    * Get_Target_Mesh_State, so the plot shows the library's own transforms
    * rather than a JS re-implementation of them. Failures are collected in
    * `warnings` instead of thrown — a scene preview should degrade, not break,
@@ -822,8 +822,8 @@ export class RadarSimBridge {
       const txLoc = new Float32Array(numTx * 3);
       const rxLoc = new Float32Array(numRx * 3);
       const boresight = new Float32Array(3);
-      const status: number = Get_Scene_State(ptrRadar, ts, 1, txLoc, rxLoc, boresight);
-      if (status !== 0) throw new Error(errorMsg(status, "Get_Scene_State"));
+      const status: number = Get_Radar_State(ptrRadar, ts, 1, txLoc, rxLoc, boresight);
+      if (status !== 0) throw new Error(errorMsg(status, "Get_Radar_State"));
 
       out.txLocations = txLoc;
       out.rxLocations = rxLoc;

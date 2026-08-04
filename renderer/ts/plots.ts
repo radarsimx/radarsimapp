@@ -124,19 +124,6 @@ export function attachPatternListeners(pfx: string, index: number): void {
   });
 }
 
-// --- Boresight Arrow Helper ---
-function rotatePoint(x: number, y: number, z: number, yawDeg: number, pitchDeg: number, rollDeg: number): [number, number, number] {
-  const toRad = Math.PI / 180;
-  const yaw = yawDeg * toRad, pitch = pitchDeg * toRad, roll = rollDeg * toRad;
-  const cy = Math.cos(yaw), sy = Math.sin(yaw);
-  const cp = Math.cos(pitch), sp = Math.sin(pitch);
-  const cr = Math.cos(roll), sr = Math.sin(roll);
-  const rx = cy * cp * x + (cy * sp * sr - sy * cr) * y + (cy * sp * cr + sy * sr) * z;
-  const ry = sy * cp * x + (sy * sp * sr + cy * cr) * y + (sy * sp * cr - cy * sr) * z;
-  const rz = -sp * x + cp * sr * y + cp * cr * z;
-  return [rx, ry, rz];
-}
-
 function preserveCamera(container: any): any {
   return container._fullLayout?.scene?.camera ?? {};
 }
@@ -350,97 +337,24 @@ export function updateRxLocationsPlot(): void {
   scenePlot(container, [...arrow, trace], { ...smallPlotLayout, scene: mmScene }, smallPlotConfig);
 }
 
-// --- Radar Array Overview Plot ---
-export function updateRadarOverviewPlot(): void {
-  const container = document.getElementById("radar-overview-plot");
-  if (!container) return;
-
-  const radarX = parseNumber((document.getElementById("radar-loc-x") as HTMLInputElement | null)?.value);
-  const radarY = parseNumber((document.getElementById("radar-loc-y") as HTMLInputElement | null)?.value);
-  const radarZ = parseNumber((document.getElementById("radar-loc-z") as HTMLInputElement | null)?.value);
-  const yaw = parseNumber((document.getElementById("radar-rot-yaw") as HTMLInputElement | null)?.value);
-  const pitch = parseNumber((document.getElementById("radar-rot-pitch") as HTMLInputElement | null)?.value);
-  const roll = parseNumber((document.getElementById("radar-rot-roll") as HTMLInputElement | null)?.value);
-
-  const traces: any[] = [];
-
-  traces.push({
-    x: [radarX], y: [radarY], z: [radarZ],
-    text: ["Radar"],
-    type: "scatter3d", mode: "markers",
-    marker: { size: 5, color: "#e17055", symbol: "square", line: { width: 1, color: "#fab1a0" } },
-    textposition: "top center",
-    textfont: { size: 10, color: "#fab1a0" },
-    name: "Radar Origin", showlegend: true,
-  });
-
-  const txXs: number[] = [], txYs: number[] = [], txZs: number[] = [], txLabels: string[] = [];
-  txChannels.forEach((_: ChannelData, i: number) => {
-    const lx = parseNumber((document.getElementById(`tx-ch-${i}-loc-x`) as HTMLInputElement | null)?.value) * 1e-3;
-    const ly = parseNumber((document.getElementById(`tx-ch-${i}-loc-y`) as HTMLInputElement | null)?.value) * 1e-3;
-    const lz = parseNumber((document.getElementById(`tx-ch-${i}-loc-z`) as HTMLInputElement | null)?.value) * 1e-3;
-    const [rx, ry, rz] = rotatePoint(lx, ly, lz, yaw, pitch, roll);
-    txXs.push(radarX + rx); txYs.push(radarY + ry); txZs.push(radarZ + rz);
-    txLabels.push(`TX${i + 1}`);
-  });
-  if (txXs.length > 0) {
-    traces.push({
-      x: txXs, y: txYs, z: txZs,
-      text: txLabels,
-      type: "scatter3d", mode: "markers+text",
-      marker: { size: 7, color: "#689f38", symbol: "diamond", line: { width: 1, color: "#8bc34a" } },
-      textposition: "top center",
-      textfont: { size: 9, color: "#8bc34a" },
-      name: "TX", showlegend: true,
-    });
-  }
-
-  const rxXs: number[] = [], rxYs: number[] = [], rxZs: number[] = [], rxLabels: string[] = [];
-  rxChannels.forEach((_: ChannelData, i: number) => {
-    const lx = parseNumber((document.getElementById(`rx-ch-${i}-loc-x`) as HTMLInputElement | null)?.value) * 1e-3;
-    const ly = parseNumber((document.getElementById(`rx-ch-${i}-loc-y`) as HTMLInputElement | null)?.value) * 1e-3;
-    const lz = parseNumber((document.getElementById(`rx-ch-${i}-loc-z`) as HTMLInputElement | null)?.value) * 1e-3;
-    const [rx, ry, rz] = rotatePoint(lx, ly, lz, yaw, pitch, roll);
-    rxXs.push(radarX + rx); rxYs.push(radarY + ry); rxZs.push(radarZ + rz);
-    rxLabels.push(`RX${i + 1}`);
-  });
-  if (rxXs.length > 0) {
-    traces.push({
-      x: rxXs, y: rxYs, z: rxZs,
-      text: rxLabels,
-      type: "scatter3d", mode: "markers+text",
-      marker: { size: 7, color: "#6C5CE7", symbol: "circle", line: { width: 1, color: "#A29BFE" } },
-      textposition: "top center",
-      textfont: { size: 9, color: "#A29BFE" },
-      name: "RX", showlegend: true,
-    });
-  }
-
-  const boresightDir = rotatePoint(1, 0, 0, yaw, pitch, roll);
-  const arrow = boresightTraces(
-    sceneArrowLen([radarX, ...txXs, ...rxXs], [radarY, ...txYs, ...rxYs], [radarZ, ...txZs, ...rxZs], 0.001),
-    "#fd7e14", [radarX, radarY, radarZ], boresightDir
-  );
-
-  const layout = {
-    ...smallPlotLayout,
-    scene: { ...smallPlotLayout.scene },
-    legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
-    showlegend: true,
-  };
-
-  scenePlot(container, [...arrow, ...traces], layout, smallPlotConfig);
-}
-
 // --- Native Scene State ---
-// Radar pose and mesh geometry come from the library (Get_Scene_State /
-// Get_Target_Mesh_State) rather than being re-derived here, so the Scene
-// Overview matches the transforms the simulator actually applies. The call
-// crosses IPC and reloads the STL files, so it is debounced and cached against
-// the inputs that can move something in the scene.
+// Every pose drawn in the 3D scenes -- the global Tx/Rx channel positions, the
+// boresight, and the mesh geometry -- comes from the library (Get_Radar_State /
+// Get_Target_Mesh_State) rather than being re-derived here, so the plots show
+// the same platform rotation and motion the simulator applies, evaluated at
+// SCENE_TIMESTAMP. The call crosses IPC and reloads the STL files, so it is
+// debounced and cached against the inputs that can move something in the scene.
 let _sceneState: SceneState | null = null;
 let _sceneStateKey: string | null = null;
 let _sceneStateInFlight = false;
+/** Why the library could not report the radar pose; null while it can. */
+let _poseError: string | null = null;
+
+/** Scene time the plots are drawn at (s). Poses are queried at this instant. */
+const SCENE_TIMESTAMP = 0;
+
+/** Matches the per-field warning the bridge attaches to a failed pose query. */
+const POSE_WARNING_PREFIX = "Radar pose:";
 
 function _sceneStateKeyOf(cfg: any): string {
   return JSON.stringify({
@@ -449,7 +363,9 @@ function _sceneStateKeyOf(cfg: any): string {
     rx: (cfg.receiver?.channels || []).map((c: any) => c.location),
     meshes: (cfg.targets || [])
       .filter((t: any) => t && t.model)
-      .map((t: any) => [t.model, t.location, t.rotation, t.unit]),
+      // Speed and rotation rate move the mesh once SCENE_TIMESTAMP is nonzero,
+      // so they invalidate the cached pose like the static fields do.
+      .map((t: any) => [t.model, t.location, t.rotation, t.speed, t.rotation_rate, t.unit]),
   });
 }
 
@@ -471,25 +387,138 @@ const _refreshSceneState = debounce(async () => {
 
   _sceneStateInFlight = true;
   try {
-    const res = await window.api.getSceneState({ ...cfg, timestamp: 0 });
+    const res = await window.api.getSceneState({ ...cfg, timestamp: SCENE_TIMESTAMP });
     _sceneStateKey = key;
     if (res.success && res.data) {
       _sceneState = res.data;
       if (res.data.warnings.length > 0) {
         console.warn("[scene] " + res.data.warnings.join("; "));
       }
+      // A pose failure is reported per-field, so the meshes can still be good.
+      const posed = res.data.txLocations && res.data.rxLocations && res.data.boresight;
+      const warning = res.data.warnings.find((w: string) => w.startsWith(POSE_WARNING_PREFIX));
+      _poseError = posed ? null
+        : warning ? warning.slice(POSE_WARNING_PREFIX.length).trim()
+        : "radarsimlib reported no radar pose";
     } else {
       _sceneState = null;
+      _poseError = res.error || "scene query failed";
       console.warn("[scene] getSceneState failed:", res.error);
     }
   } catch (err) {
     _sceneState = null;
+    _poseError = (err as Error).message || String(err);
     console.warn("[scene] getSceneState threw:", err);
   } finally {
     _sceneStateInFlight = false;
   }
+  _renderRadarOverviewPlot();
   _renderTargetsPlot();
 }, 400);
+
+/** Split the library's flat [n][3] global channel positions into plot axes. */
+function _channelPoints(locations: Float32Array | null | undefined, prefix: string) {
+  const xs: number[] = [], ys: number[] = [], zs: number[] = [], labels: string[] = [];
+  const n = locations ? Math.floor(locations.length / 3) : 0;
+  for (let i = 0; i < n; i++) {
+    xs.push(locations![i * 3]);
+    ys.push(locations![i * 3 + 1]);
+    zs.push(locations![i * 3 + 2]);
+    labels.push(`${prefix}${i + 1}`);
+  }
+  return { xs, ys, zs, labels };
+}
+
+// The platform origin marker, shared by both scenes. radarsimlib exposes no
+// query for the platform position on its own -- only the channels hanging off
+// it -- so this is the configured location, which is the platform's pose at
+// SCENE_TIMESTAMP = 0. Drawing it at a nonzero scene time needs an origin from
+// the library, not a JS extrapolation of the speed inputs.
+function _radarOriginTrace(x: number, y: number, z: number): any {
+  return {
+    x: [x], y: [y], z: [z],
+    text: ["Radar"],
+    type: "scatter3d", mode: "markers",
+    marker: { size: 5, color: "#e17055", symbol: "square", line: { width: 1, color: "#fab1a0" } },
+    textposition: "top center",
+    textfont: { size: 10, color: "#fab1a0" },
+    name: "Radar Origin", showlegend: true,
+  };
+}
+
+// A scene missing its native pose is drawn without channels or boresight rather
+// than with a JS stand-in for them, so say why the markers are absent.
+function _poseAnnotations(): any[] {
+  if (!_poseError) return [];
+  return [{
+    text: `Pose unavailable — ${_poseError}`,
+    xref: "paper", yref: "paper", x: 0, y: 0,
+    xanchor: "left", yanchor: "bottom",
+    showarrow: false,
+    font: { size: 9, color: "#e17055" },
+  }];
+}
+
+// --- Radar Array Overview Plot ---
+export function updateRadarOverviewPlot(): void {
+  _renderRadarOverviewPlot();
+  _refreshSceneState();
+}
+
+function _renderRadarOverviewPlot(): void {
+  const container = document.getElementById("radar-overview-plot");
+  if (!container) return;
+
+  const radarX = parseNumber((document.getElementById("radar-loc-x") as HTMLInputElement | null)?.value);
+  const radarY = parseNumber((document.getElementById("radar-loc-y") as HTMLInputElement | null)?.value);
+  const radarZ = parseNumber((document.getElementById("radar-loc-z") as HTMLInputElement | null)?.value);
+
+  const traces: any[] = [_radarOriginTrace(radarX, radarY, radarZ)];
+
+  const tx = _channelPoints(_sceneState?.txLocations, "TX");
+  if (tx.xs.length > 0) {
+    traces.push({
+      x: tx.xs, y: tx.ys, z: tx.zs,
+      text: tx.labels,
+      type: "scatter3d", mode: "markers+text",
+      marker: { size: 7, color: "#689f38", symbol: "diamond", line: { width: 1, color: "#8bc34a" } },
+      textposition: "top center",
+      textfont: { size: 9, color: "#8bc34a" },
+      name: "TX", showlegend: true,
+    });
+  }
+
+  const rx = _channelPoints(_sceneState?.rxLocations, "RX");
+  if (rx.xs.length > 0) {
+    traces.push({
+      x: rx.xs, y: rx.ys, z: rx.zs,
+      text: rx.labels,
+      type: "scatter3d", mode: "markers+text",
+      marker: { size: 7, color: "#6C5CE7", symbol: "circle", line: { width: 1, color: "#A29BFE" } },
+      textposition: "top center",
+      textfont: { size: 9, color: "#A29BFE" },
+      name: "RX", showlegend: true,
+    });
+  }
+
+  const boresight = _sceneState?.boresight;
+  const arrow = boresight
+    ? boresightTraces(
+      sceneArrowLen([radarX, ...tx.xs, ...rx.xs], [radarY, ...tx.ys, ...rx.ys], [radarZ, ...tx.zs, ...rx.zs], 0.001),
+      "#fd7e14", [radarX, radarY, radarZ], [boresight[0], boresight[1], boresight[2]]
+    )
+    : [];
+
+  const layout = {
+    ...smallPlotLayout,
+    scene: { ...smallPlotLayout.scene },
+    legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
+    showlegend: true,
+    annotations: _poseAnnotations(),
+  };
+
+  scenePlot(container, [...arrow, ...traces], layout, smallPlotConfig);
+}
 
 const MESH_COLORS = ["#a29bfe", "#00cec9", "#fab1a0", "#74b9ff", "#ffeaa7"];
 
@@ -538,21 +567,8 @@ function _renderTargetsPlot(): void {
   const radarX = parseNumber((document.getElementById("radar-loc-x") as HTMLInputElement | null)?.value);
   const radarY = parseNumber((document.getElementById("radar-loc-y") as HTMLInputElement | null)?.value);
   const radarZ = parseNumber((document.getElementById("radar-loc-z") as HTMLInputElement | null)?.value);
-  const yaw = parseNumber((document.getElementById("radar-rot-yaw") as HTMLInputElement | null)?.value);
-  const pitch = parseNumber((document.getElementById("radar-rot-pitch") as HTMLInputElement | null)?.value);
-  const roll = parseNumber((document.getElementById("radar-rot-roll") as HTMLInputElement | null)?.value);
 
-  const traces: any[] = [];
-
-  traces.push({
-    x: [radarX], y: [radarY], z: [radarZ],
-    text: ["Radar"],
-    type: "scatter3d", mode: "markers",
-    marker: { size: 5, color: "#e17055", symbol: "square", line: { width: 1, color: "#fab1a0" } },
-    textposition: "top center",
-    textfont: { size: 10, color: "#fab1a0" },
-    name: "Radar Origin", showlegend: true,
-  });
+  const traces: any[] = [_radarOriginTrace(radarX, radarY, radarZ)];
 
   const ptXs: number[] = [], ptYs: number[] = [], ptZs: number[] = [], ptLabels: string[] = [];
   pointTargets.forEach((_: PointTargetData, i: number) => {
@@ -598,26 +614,27 @@ function _renderTargetsPlot(): void {
     });
   }
 
-  // Prefer the library's own boresight over re-deriving it from the Euler angles.
-  const nativeBoresight = _sceneState?.boresight;
-  const boresightDir = nativeBoresight
-    ? [nativeBoresight[0], nativeBoresight[1], nativeBoresight[2]]
-    : rotatePoint(1, 0, 0, yaw, pitch, roll);
-  const arrow = boresightTraces(
-    sceneArrowLen(
-      [radarX, ...ptXs, ...mxs, ..._meshSpan(0)],
-      [radarY, ...ptYs, ...mys, ..._meshSpan(1)],
-      [radarZ, ...ptZs, ...mzs, ..._meshSpan(2)],
-      1
-    ),
-    "#fd7e14", [radarX, radarY, radarZ], boresightDir
-  );
+  // Boresight comes from the library's own platform rotation, so the arrow is
+  // simply omitted when it could not supply one.
+  const boresight = _sceneState?.boresight;
+  const arrow = boresight
+    ? boresightTraces(
+      sceneArrowLen(
+        [radarX, ...ptXs, ...mxs, ..._meshSpan(0)],
+        [radarY, ...ptYs, ...mys, ..._meshSpan(1)],
+        [radarZ, ...ptZs, ...mzs, ..._meshSpan(2)],
+        1
+      ),
+      "#fd7e14", [radarX, radarY, radarZ], [boresight[0], boresight[1], boresight[2]]
+    )
+    : [];
 
   const layout = {
     ...smallPlotLayout,
     scene: { ...smallPlotLayout.scene },
     legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
     showlegend: true,
+    annotations: _poseAnnotations(),
   };
 
   scenePlot(container, [...arrow, ...traces], layout, smallPlotConfig);
