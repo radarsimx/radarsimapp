@@ -1,0 +1,23 @@
+version: 2
+
+updates:
+  # Keeps the `uses:` pins in .github/workflows/*.yml current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    labels:
+      - dependencies
+      - github-actions
+    # One PR for all action bumps -- they are pinned to major tags, so the
+    # updates are almost always in lockstep and not worth separate reviews.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
