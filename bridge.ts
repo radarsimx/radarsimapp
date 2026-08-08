@@ -383,68 +383,76 @@ function _buildTransmitter(txCfg: any): TransmitterResult {
 
   const txDelays: number[] = [];
 
-  for (const ch of txCfg.channels || [{}]) {
-    const loc = toF32(ch.location || [0, 0, 0]);
+  // The transmitter now exists and is registered for cleanup, so anything
+  // thrown while adding channels has to release it first -- see the note in
+  // _runSimulation on why a dropped handle is worse than a plain leak.
+  try {
+    for (const ch of txCfg.channels || [{}]) {
+      const loc = toF32(ch.location || [0, 0, 0]);
 
-    let polarRe: Float32Array, polarIm: Float32Array;
-    if (ch.polarization) {
-      const c = ch.polarization.map(parseComplex);
-      polarRe = new Float32Array(c.map((v: ComplexParsed) => v.re));
-      polarIm = new Float32Array(c.map((v: ComplexParsed) => v.im));
-    } else {
-      polarRe = new Float32Array([0, 0, 1]);
-      polarIm = new Float32Array(3);
+      let polarRe: Float32Array, polarIm: Float32Array;
+      if (ch.polarization) {
+        const c = ch.polarization.map(parseComplex);
+        polarRe = new Float32Array(c.map((v: ComplexParsed) => v.re));
+        polarIm = new Float32Array(c.map((v: ComplexParsed) => v.im));
+      } else {
+        polarRe = new Float32Array([0, 0, 1]);
+        polarIm = new Float32Array(3);
+      }
+
+      const { phi, phiPtn, theta, thetaPtn, antennaGain } =
+        buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
+          ch.elevation_angle, ch.elevation_pattern);
+
+      let pModRe: Float32Array, pModIm: Float32Array;
+      if (ch.pulse_amp && ch.pulse_phs) {
+        const phsRad = ch.pulse_phs.map((v: number) => (v * Math.PI) / 180);
+        pModRe = new Float32Array(ch.pulse_amp.map((a: number, i: number) => a * Math.cos(phsRad[i])));
+        pModIm = new Float32Array(ch.pulse_amp.map((a: number, i: number) => a * Math.sin(phsRad[i])));
+      } else if (ch.pulse_phs && !ch.pulse_amp) {
+        const phsRad = ch.pulse_phs.map((v: number) => (v * Math.PI) / 180);
+        pModRe = new Float32Array(phsRad.map((p: number) => Math.cos(p)));
+        pModIm = new Float32Array(phsRad.map((p: number) => Math.sin(p)));
+      } else if (ch.pulse_amp && !ch.pulse_phs) {
+        pModRe = toF32(ch.pulse_amp);
+        pModIm = new Float32Array(ch.pulse_amp.length);
+      } else {
+        pModRe = new Float32Array(numPulses).fill(1);
+        pModIm = new Float32Array(numPulses);
+      }
+
+      let modT: Float32Array, modVarRe: Float32Array, modVarIm: Float32Array, modLen = 0;
+      if (ch.mod_t && (ch.phs != null || ch.amp != null)) {
+        modT = toF32(ch.mod_t);
+        const amp = ch.amp || new Array(modT.length).fill(1);
+        const phs = ch.phs ? ch.phs.map((v: number) => (v * Math.PI) / 180)
+          : new Array(modT.length).fill(0);
+        modVarRe = new Float32Array(amp.map((a: number, i: number) => a * Math.cos(phs[i])));
+        modVarIm = new Float32Array(amp.map((a: number, i: number) => a * Math.sin(phs[i])));
+        modLen = modT.length;
+      } else {
+        modT = new Float32Array(0);
+        modVarRe = new Float32Array(0);
+        modVarIm = new Float32Array(0);
+      }
+
+      const chDelay: number = ch.delay || 0;
+      txDelays.push(chDelay);
+
+      const ret = Add_Txchannel(
+        loc, polarRe, polarIm,
+        phi, phiPtn, phi.length,
+        theta, thetaPtn, theta.length,
+        antennaGain,
+        modT, modVarRe, modVarIm, modLen,
+        pModRe, pModIm,
+        chDelay, (1 / 180) * Math.PI, ptrTx
+      );
+      if (ret !== 0) throw new Error(errorMsg(ret, "Add_Txchannel"));
     }
-
-    const { phi, phiPtn, theta, thetaPtn, antennaGain } =
-      buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
-        ch.elevation_angle, ch.elevation_pattern);
-
-    let pModRe: Float32Array, pModIm: Float32Array;
-    if (ch.pulse_amp && ch.pulse_phs) {
-      const phsRad = ch.pulse_phs.map((v: number) => (v * Math.PI) / 180);
-      pModRe = new Float32Array(ch.pulse_amp.map((a: number, i: number) => a * Math.cos(phsRad[i])));
-      pModIm = new Float32Array(ch.pulse_amp.map((a: number, i: number) => a * Math.sin(phsRad[i])));
-    } else if (ch.pulse_phs && !ch.pulse_amp) {
-      const phsRad = ch.pulse_phs.map((v: number) => (v * Math.PI) / 180);
-      pModRe = new Float32Array(phsRad.map((p: number) => Math.cos(p)));
-      pModIm = new Float32Array(phsRad.map((p: number) => Math.sin(p)));
-    } else if (ch.pulse_amp && !ch.pulse_phs) {
-      pModRe = toF32(ch.pulse_amp);
-      pModIm = new Float32Array(ch.pulse_amp.length);
-    } else {
-      pModRe = new Float32Array(numPulses).fill(1);
-      pModIm = new Float32Array(numPulses);
-    }
-
-    let modT: Float32Array, modVarRe: Float32Array, modVarIm: Float32Array, modLen = 0;
-    if (ch.mod_t && (ch.phs != null || ch.amp != null)) {
-      modT = toF32(ch.mod_t);
-      const amp = ch.amp || new Array(modT.length).fill(1);
-      const phs = ch.phs ? ch.phs.map((v: number) => (v * Math.PI) / 180)
-        : new Array(modT.length).fill(0);
-      modVarRe = new Float32Array(amp.map((a: number, i: number) => a * Math.cos(phs[i])));
-      modVarIm = new Float32Array(amp.map((a: number, i: number) => a * Math.sin(phs[i])));
-      modLen = modT.length;
-    } else {
-      modT = new Float32Array(0);
-      modVarRe = new Float32Array(0);
-      modVarIm = new Float32Array(0);
-    }
-
-    const chDelay: number = ch.delay || 0;
-    txDelays.push(chDelay);
-
-    const ret = Add_Txchannel(
-      loc, polarRe, polarIm,
-      phi, phiPtn, phi.length,
-      theta, thetaPtn, theta.length,
-      antennaGain,
-      modT, modVarRe, modVarIm, modLen,
-      pModRe, pModIm,
-      chDelay, (1 / 180) * Math.PI, ptrTx
-    );
-    if (ret !== 0) throw new Error(errorMsg(ret, "Add_Txchannel"));
+  } catch (err) {
+    Free_Transmitter(ptrTx);
+    throw err;
   }
 
   return {
@@ -489,30 +497,37 @@ function _buildReceiver(rxCfg: any): ReceiverResult {
   const ptrRx = Create_Receiver(rxFs, rfGain, res, bbGain, noiseBw, gateDelay);
   if (!ptrRx) throw new Error("Create_Receiver returned null");
 
-  for (const ch of rxCfg.channels || [{}]) {
-    const loc = toF32(ch.location || [0, 0, 0]);
+  // Same as the transmitter: the receiver is registered for cleanup the
+  // moment it exists, so a rejected channel must not drop the handle.
+  try {
+    for (const ch of rxCfg.channels || [{}]) {
+      const loc = toF32(ch.location || [0, 0, 0]);
 
-    let polarRe: Float32Array, polarIm: Float32Array;
-    if (ch.polarization) {
-      const c = ch.polarization.map(parseComplex);
-      polarRe = new Float32Array(c.map((v: ComplexParsed) => v.re));
-      polarIm = new Float32Array(c.map((v: ComplexParsed) => v.im));
-    } else {
-      polarRe = new Float32Array([0, 0, 1]);
-      polarIm = new Float32Array(3);
+      let polarRe: Float32Array, polarIm: Float32Array;
+      if (ch.polarization) {
+        const c = ch.polarization.map(parseComplex);
+        polarRe = new Float32Array(c.map((v: ComplexParsed) => v.re));
+        polarIm = new Float32Array(c.map((v: ComplexParsed) => v.im));
+      } else {
+        polarRe = new Float32Array([0, 0, 1]);
+        polarIm = new Float32Array(3);
+      }
+
+      const { phi, phiPtn, theta, thetaPtn, antennaGain } =
+        buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
+          ch.elevation_angle, ch.elevation_pattern);
+
+      const ret = Add_Rxchannel(
+        loc, polarRe, polarIm,
+        phi, phiPtn, phi.length,
+        theta, thetaPtn, theta.length,
+        antennaGain, ptrRx
+      );
+      if (ret !== 0) throw new Error(errorMsg(ret, "Add_Rxchannel"));
     }
-
-    const { phi, phiPtn, theta, thetaPtn, antennaGain } =
-      buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
-        ch.elevation_angle, ch.elevation_pattern);
-
-    const ret = Add_Rxchannel(
-      loc, polarRe, polarIm,
-      phi, phiPtn, phi.length,
-      theta, thetaPtn, theta.length,
-      antennaGain, ptrRx
-    );
-    if (ret !== 0) throw new Error(errorMsg(ret, "Add_Rxchannel"));
+  } catch (err) {
+    Free_Receiver(ptrRx);
+    throw err;
   }
 
   return {
@@ -551,50 +566,57 @@ async function _buildTargets(targetsCfg: any[], density: number = 1): Promise<an
   const ptrTargets = Init_Targets();
   if (!ptrTargets) throw new Error("Init_Targets returned null");
 
-  for (const t of targetsCfg) {
-    const loc = toF32(t.location || [0, 0, 0]);
-    const speed = toF32(t.speed || [0, 0, 0]);
+  // An unreadable model or a target the library rejects must not leave the
+  // target list behind for the unload-time cleanup to free.
+  try {
+    for (const t of targetsCfg) {
+      const loc = toF32(t.location || [0, 0, 0]);
+      const speed = toF32(t.speed || [0, 0, 0]);
 
-    if (t.model) {
-      const mesh = loadStl(t.model, t.unit || "m");
-      const origin = toF32(t.origin || [0, 0, 0]);
+      if (t.model) {
+        const mesh = loadStl(t.model, t.unit || "m");
+        const origin = toF32(t.origin || [0, 0, 0]);
 
-      const rot = toF32((t.rotation || [0, 0, 0]).map((v: number) => (v * Math.PI) / 180));
-      const rotRate = toF32((t.rotation_rate || [0, 0, 0]).map((v: number) => (v * Math.PI) / 180));
+        const rot = toF32((t.rotation || [0, 0, 0]).map((v: number) => (v * Math.PI) / 180));
+        const rotRate = toF32((t.rotation_rate || [0, 0, 0]).map((v: number) => (v * Math.PI) / 180));
 
-      let epReal: number, epImag: number;
-      if (!t.permittivity || t.permittivity === "PEC") {
-        epReal = -1;
-        epImag = 0;
+        let epReal: number, epImag: number;
+        if (!t.permittivity || t.permittivity === "PEC") {
+          epReal = -1;
+          epImag = 0;
+        } else {
+          const perm = parseComplex(t.permittivity);
+          epReal = perm.re;
+          epImag = perm.im;
+        }
+
+        // Off-thread: a million-triangle mesh takes real time to ingest.
+        const ret = await callAsync<number>(
+          Add_Mesh_Target,
+          mesh.points, mesh.cells, mesh.cellSize,
+          origin, loc, speed, rot, rotRate,
+          epReal, epImag, 1.0, 0.0,
+          t.skip_diffusion || false,
+          t.density || 0,
+          t.environment || false,
+          ptrTargets
+        );
+        if (ret !== 0) throw new Error(errorMsg(ret, "Add_Mesh_Target"));
       } else {
-        const perm = parseComplex(t.permittivity);
-        epReal = perm.re;
-        epImag = perm.im;
+        const phaseRad = t.phase != null ? (t.phase * Math.PI) / 180 : 0;
+        const ret = await callAsync<number>(
+          Add_Point_Target,
+          loc, speed,
+          t.rcs != null ? t.rcs : 0,
+          phaseRad,
+          ptrTargets
+        );
+        if (ret !== 0) throw new Error(errorMsg(ret, "Add_Point_Target"));
       }
-
-      // Off-thread: a million-triangle mesh takes real time to ingest.
-      const ret = await callAsync<number>(
-        Add_Mesh_Target,
-        mesh.points, mesh.cells, mesh.cellSize,
-        origin, loc, speed, rot, rotRate,
-        epReal, epImag, 1.0, 0.0,
-        t.skip_diffusion || false,
-        t.density || 0,
-        t.environment || false,
-        ptrTargets
-      );
-      if (ret !== 0) throw new Error(errorMsg(ret, "Add_Mesh_Target"));
-    } else {
-      const phaseRad = t.phase != null ? (t.phase * Math.PI) / 180 : 0;
-      const ret = await callAsync<number>(
-        Add_Point_Target,
-        loc, speed,
-        t.rcs != null ? t.rcs : 0,
-        phaseRad,
-        ptrTargets
-      );
-      if (ret !== 0) throw new Error(errorMsg(ret, "Add_Point_Target"));
     }
+  } catch (err) {
+    Free_Targets(ptrTargets);
+    throw err;
   }
   return ptrTargets;
 }
@@ -636,45 +658,66 @@ export class RadarSimBridge {
       density: simCfg.density, level: simCfg.level,
     }));
 
-    console.log("[bridge] Building transmitter...");
-    const tx = _buildTransmitter(txCfg);
-    console.log("[bridge] TX pointer:", tx.ptr);
-
-    console.log("[bridge] Building receiver...");
-    const rx = _buildReceiver(rxCfg);
-    console.log("[bridge] RX pointer:", rx.ptr);
-
-    console.log("[bridge] Creating radar...");
-    const ptrRadar = _createRadar(tx.ptr, rx.ptr, radarCfg);
-    console.log("[bridge] Radar pointer:", ptrRadar);
-
     const density = Number(simCfg.density) || 1;
     const levelMap: Record<string, number> = { frame: 0, pulse: 1, sample: 2 };
     const level = levelMap[simCfg.level] ?? 0;
 
-    console.log("[bridge] Building targets...");
-    const ptrTargets = await _buildTargets(config.targets || [], density);
-    console.log("[bridge] Targets pointer:", ptrTargets);
+    // Every handle the library hands out is also entered in its own cleanup
+    // registry, and Free_* is what unregisters it. So a handle dropped on an
+    // error path is not merely leaked for the life of the process: it is freed
+    // again by Force_Cleanup_All() when the library unloads at exit. On Linux
+    // that second pass corrupts the heap and aborts the process — after the
+    // work is done, which made it look like a phantom test-runner failure. The
+    // handles therefore live in a try/finally, so every exit from the native
+    // section releases them exactly once.
+    let tx: TransmitterResult | null = null;
+    let rx: ReceiverResult | null = null;
+    let ptrRadar: any = null;
+    let ptrTargets: any = null;
+    let bbSize = 0;
+    let bbRe: Float64Array;
+    let bbIm: Float64Array;
+    let status: number;
 
-    console.log("[bridge] Getting BB size...");
-    const bbSize: number = Get_BB_Size(ptrRadar);
-    console.log("[bridge] BB size:", bbSize);
-    if (bbSize <= 0) throw new Error(`Get_BB_Size returned ${bbSize} — check radar configuration`);
-    const bbRe = new Float64Array(bbSize);
-    const bbIm = new Float64Array(bbSize);
-    const rayFilter = new Int32Array(simCfg.ray_filter || [0, 10]);
+    try {
+      console.log("[bridge] Building transmitter...");
+      tx = _buildTransmitter(txCfg);
+      console.log("[bridge] TX pointer:", tx.ptr);
 
-    console.log("[bridge] Running RadarSimulator (level=%d, density=%f)...", level, density);
-    // The long one. Runs on a worker thread so the window stays responsive.
-    const status: number = await callAsync<number>(
-      Run_RadarSimulator, ptrRadar, ptrTargets, level, density, rayFilter, bbRe, bbIm
-    );
-    console.log("[bridge] Run_RadarSimulator status:", status);
+      console.log("[bridge] Building receiver...");
+      rx = _buildReceiver(rxCfg);
+      console.log("[bridge] RX pointer:", rx.ptr);
 
-    Free_Targets(ptrTargets);
-    Free_Radar(ptrRadar);
-    Free_Receiver(rx.ptr);
-    Free_Transmitter(tx.ptr);
+      console.log("[bridge] Creating radar...");
+      ptrRadar = _createRadar(tx.ptr, rx.ptr, radarCfg);
+      console.log("[bridge] Radar pointer:", ptrRadar);
+
+      console.log("[bridge] Building targets...");
+      ptrTargets = await _buildTargets(config.targets || [], density);
+      console.log("[bridge] Targets pointer:", ptrTargets);
+
+      console.log("[bridge] Getting BB size...");
+      bbSize = Get_BB_Size(ptrRadar);
+      console.log("[bridge] BB size:", bbSize);
+      if (bbSize <= 0) throw new Error(`Get_BB_Size returned ${bbSize} — check radar configuration`);
+      bbRe = new Float64Array(bbSize);
+      bbIm = new Float64Array(bbSize);
+      const rayFilter = new Int32Array(simCfg.ray_filter || [0, 10]);
+
+      console.log("[bridge] Running RadarSimulator (level=%d, density=%f)...", level, density);
+      // The long one. Runs on a worker thread so the window stays responsive.
+      status = await callAsync<number>(
+        Run_RadarSimulator, ptrRadar, ptrTargets, level, density, rayFilter, bbRe, bbIm
+      );
+      console.log("[bridge] Run_RadarSimulator status:", status);
+    } finally {
+      // Reverse order of creation. Free_Radar does not touch the TX/RX it was
+      // built from, so those are released separately.
+      if (ptrTargets) Free_Targets(ptrTargets);
+      if (ptrRadar) Free_Radar(ptrRadar);
+      if (rx) Free_Receiver(rx.ptr);
+      if (tx) Free_Transmitter(tx.ptr);
+    }
 
     if (status !== 0) throw new Error(errorMsg(status, "Run_RadarSimulator"));
 
