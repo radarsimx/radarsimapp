@@ -24,7 +24,6 @@ RadarSimApp is a cross-platform desktop application that brings the full power o
   - Baseband data from point targets and 3D mesh targets (STL)
   - Configurable fidelity levels: frame, pulse, and sample
   - Optional receiver noise injection
-  - RCS analysis across incidence angles
 - :signal_strength: **Signal Processing**
   - Range profile computation with configurable FFT size
   - Range-Doppler map with configurable Doppler FFT size
