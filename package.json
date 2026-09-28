@@ -36,7 +36,7 @@
     "electron-squirrel-startup": "^1.0.1",
     "h5wasm": "^0.10.3",
     "koffi": "^3.3.1",
-    "plotly.js-dist": "^3.5.1"
+    "plotly.js-dist": "^4.1.1"
   },
   "build": {
     "appId": "com.radarsimx.radarsimapp",
