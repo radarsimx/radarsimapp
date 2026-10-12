@@ -63,7 +63,7 @@ export function loadAsciiStl(text: string, scale: number): StlMesh {
  * is strided so the scene preview stays interactive; the full mesh is always
  * what the simulator uses.
  */
-export const SCENE_MAX_CELLS = 150000;
+export const SCENE_MAX_CELLS = 1000000;
 
 export interface SceneMesh {
   /** Index into the mesh-target list (point targets are not counted). */
@@ -84,8 +84,9 @@ export interface SceneMesh {
 
 /**
  * Repack Get_Target_Mesh_State output ([cells][3 vertices][3 xyz], doubles)
- * into Plotly mesh3d vertex/index arrays. Vertices are per-triangle, not
- * de-duplicated, so the index arrays are simply 0,1,2 / 3,4,5 / ...
+ * into per-axis vertex arrays plus triangle indices for the scene view.
+ * Vertices are per-triangle, not de-duplicated, so the index arrays are simply
+ * 0,1,2 / 3,4,5 / ...
  */
 export function packSceneMesh(index: number, totalCells: number, pts: Float64Array): SceneMesh {
   const stride = Math.max(1, Math.ceil(totalCells / SCENE_MAX_CELLS));

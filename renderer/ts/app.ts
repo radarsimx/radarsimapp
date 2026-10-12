@@ -1,107 +1,119 @@
 // ===== RadarSimApp - Main Renderer Script =====
 
-import { debounce, wrapNumberInput, parseNumber, createInput, el, createSVG } from './utils.js';
+import { debounce, wrapNumberInput } from './utils.js';
 import { txChannels, rxChannels, pointTargets, meshTargets } from './shared.js';
-import { updateTxWaveformPlot, updateTxLocationsPlot, updateRxLocationsPlot, updateRadarOverviewPlot, updateTargetsPlot, plotResults, markResultsOutdated, updateTxInfo } from './plots.js';
+import { updateTxWaveformPlot, updateTxLocationsPlot, updateRxLocationsPlot, plotResults, renderResultView, markResultsOutdated, updateTxInfo } from './plots.js';
 import { saveTxChannelStates, saveRxChannelStates, renderTxChannels, renderRxChannels } from './channels.js';
 import { savePointTargetStates, saveMeshTargetStates, renderPointTargets, renderMeshTargets } from './targets.js';
 import { collectConfig } from './config.js';
 import { debouncedAutoSave, resetToDefault, initApp } from './state.js';
+import { updateScene, setSceneSink } from './scene.js';
+import { SceneView, type SceneFraming, type CameraPreset } from './scene3d.js';
+import { updateReadout, formatLength } from './readout.js';
+import { pref, setPref, setStageView, setResultViewsAvailable, isResultView, layoutStage, type StageView } from './stage.js';
 
-// --- Tooltip ---
-const _appTooltip = document.createElement("div");
-_appTooltip.id = "app-tooltip";
-document.body.appendChild(_appTooltip);
-
-function _showTooltip(target: HTMLElement): void {
-  const text = target.getAttribute("data-tooltip");
-  if (!text) return;
-  const collapsed = document.getElementById("app")!.classList.contains("sidebar-collapsed");
-  const isNavItem = target.classList.contains("nav-item") || target.classList.contains("nav-item-label");
-  if (isNavItem && !collapsed) return;
-  _appTooltip.textContent = text;
-  _appTooltip.classList.add("visible");
-  const r = target.getBoundingClientRect();
-  _appTooltip.style.top = "-9999px";
-  _appTooltip.style.left = "-9999px";
-  const inSidebar = target.closest("#sidebar") !== null;
-  requestAnimationFrame(() => {
-    const tw = _appTooltip.offsetWidth;
-    const th = _appTooltip.offsetHeight;
-    let left: number, top: number;
-    if (inSidebar && collapsed) {
-      left = r.right + 8;
-      top = r.top + r.height / 2 - th / 2;
-    } else {
-      left = r.left + r.width / 2 - tw / 2;
-      top = r.top - th - 6;
-    }
-    left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
-    top = Math.max(8, Math.min(top, window.innerHeight - th - 8));
-    _appTooltip.style.left = left + "px";
-    _appTooltip.style.top = top + "px";
-  });
-}
-
-function _hideTooltip(): void {
-  _appTooltip.classList.remove("visible");
-}
-
-document.querySelectorAll("#sidebar [data-tooltip]")
-  .forEach((item) => {
-    const elem = item as HTMLElement;
-    elem.addEventListener("mouseenter", () => _showTooltip(elem));
-    elem.addEventListener("mouseleave", _hideTooltip);
-    elem.addEventListener("click", _hideTooltip);
-  });
-
-// --- Sidebar version ---
+// --- App version ---
 window.api.getAppVersion().then((v) => {
-  const verEl = document.getElementById("sidebar-version");
+  const verEl = document.getElementById("app-version");
   if (verEl) verEl.textContent = `v${v}`;
 });
 
 // --- State ---
 let lastSimResult: any = null;
 
-// --- Navigation ---
-document.querySelectorAll(".nav-item").forEach((item) => {
-  item.addEventListener("click", (e) => {
-    if ((e.target as HTMLElement).closest(".nav-item") !== item) return;
-    if (!(item as HTMLElement).dataset.panel) return;
+// --- 3D Scene ---
+// The view needs WebGL. Without it the panels and the result plots still work.
+let sceneView: SceneView | null = null;
+try {
+  sceneView = new SceneView(document.getElementById("scene-host")!);
+  sceneView.onScale = (cell) => {
+    document.getElementById("scene-scale")!.textContent = `Grid ${formatLength(cell)}`;
+  };
+  setSceneSink((model) => sceneView!.setModel(model));
+} catch (err) {
+  console.warn("[scene] 3D view unavailable:", err);
+  document.getElementById("scene-host")!.textContent = "3D view unavailable";
+}
 
-    document.querySelectorAll(".nav-item").forEach((n) => n.classList.remove("active"));
-    document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
-    item.classList.add("active");
+// --- Stage Views ---
+function _resizePlots(root: ParentNode): void {
+  root.querySelectorAll(".js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot as HTMLElement));
+}
 
-    const panelId = "panel-" + (item as HTMLElement).dataset.panel;
-    const activePanel = document.getElementById(panelId)!;
-    activePanel.classList.add("active");
+document.querySelectorAll<HTMLButtonElement>("button[data-view]").forEach((btn) => {
+  btn.addEventListener("click", () => setStageView(btn.dataset.view as StageView));
+});
 
-    activePanel.querySelectorAll(".js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot as HTMLElement));
+document.addEventListener("stageview", (e) => {
+  const view = (e as CustomEvent<StageView>).detail;
+  if (isResultView(view)) {
+    renderResultView();
+    _resizePlots(document.querySelector(".stage-view.active")!);
+  } else {
+    sceneView?.setFraming(view as SceneFraming);
+  }
+});
 
-    const panel = (item as HTMLElement).dataset.panel;
-    if (panel === "targets") updateTargetsPlot();
-    else if (panel === "radar") updateRadarOverviewPlot();
-    else if (panel === "transmitter") { updateTxLocationsPlot(); updateTxWaveformPlot(); }
-    else if (panel === "receiver") updateRxLocationsPlot();
-    else if (panel === "simulation") _updateAutoFftValues();
+document.querySelectorAll<HTMLButtonElement>("button[data-cam]").forEach((btn) => {
+  btn.addEventListener("click", () => sceneView?.setCamera(btn.dataset.cam as CameraPreset));
+});
+document.getElementById("btn-scene-fit")!.addEventListener("click", () => sceneView?.fit());
+
+// --- Panels ---
+// Panels, and the nodes of the tree inside them, fold away and start as they
+// were left. A plot has no size to draw at while anything around it is folded,
+// so it is drawn when what holds it opens.
+const PANEL_PLOTS: Record<string, () => void> = {
+  "transmitter": updateTxWaveformPlot,
+  "tx-channels": updateTxLocationsPlot,
+  "rx-channels": updateRxLocationsPlot,
+};
+
+document.querySelectorAll<HTMLDetailsElement>("details[data-panel]").forEach((panel) => {
+  const name = panel.dataset.panel!;
+  panel.open = pref(`panel.${name}`, panel.open);
+  panel.addEventListener("toggle", () => {
+    setPref(`panel.${name}`, panel.open);
+    if (!panel.open) return;
+    // Opening a node uncovers the open nodes inside it as well
+    [panel, ...panel.querySelectorAll<HTMLDetailsElement>("details[data-panel][open]")]
+      .forEach((shown) => PANEL_PLOTS[shown.dataset.panel!]?.());
+    _resizePlots(panel);
   });
 });
 
-// --- Resize all plots in the active panel on window resize ---
-window.addEventListener("resize", debounce(() => {
-  document.querySelectorAll(".panel.active .js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot as HTMLElement));
-}, 100));
+/** Unfold the node a button sits on, so what the button adds can be seen. */
+function _reveal(button: HTMLElement): void {
+  const node = button.closest("details");
+  if (node) node.open = true;
+}
 
-// --- Sidebar Toggle ---
-document.getElementById("btn-sidebar-toggle")!.addEventListener("click", () => {
-  const app = document.getElementById("app")!;
-  app.classList.toggle("sidebar-collapsed");
-  debouncedAutoSave();
-  setTimeout(() => {
-    document.querySelectorAll(".panel.active .js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot as HTMLElement));
-  }, 220);
+// --- Layout ---
+// The panels lie over the stage: tell the 3D view how much of it they cover,
+// and re-fit the plot between them when that changes.
+const _resizeStagePlots = debounce(() => {
+  const active = document.querySelector(".stage-view.active");
+  if (active) _resizePlots(active);
+}, 100);
+
+function _layout(): void {
+  const insets = layoutStage();
+  sceneView?.setInsets(insets);
+  _resizeStagePlots();
+}
+
+const _sizes = new ResizeObserver(_layout);
+document.querySelectorAll("#stage, .hud-col, #titlebar, .stage-bottom").forEach((elem) => _sizes.observe(elem));
+
+// --- Keyboard ---
+window.addEventListener("keydown", (e) => {
+  const dialogs = document.querySelectorAll(".dialog-overlay:not(.hidden)");
+  if (e.key === "Escape") {
+    dialogs.forEach((d) => d.classList.add("hidden"));
+  } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && dialogs.length === 0) {
+    e.preventDefault();
+    (document.getElementById("btn-run-sim") as HTMLButtonElement).click();
+  }
 });
 
 // --- Custom Number Input Spinners ---
@@ -121,19 +133,21 @@ const debouncedUpdateTxWaveformPlot = debounce(updateTxWaveformPlot);
 );
 document.getElementById("tx-prp")!.addEventListener("input", debouncedUpdateTxWaveformPlot);
 
+const debouncedUpdateReadout = debounce(updateReadout);
+["tx-prp", "tx-pulses", "rx-fs"].forEach((id) =>
+  document.getElementById(id)!.addEventListener("input", debouncedUpdateReadout)
+);
+
 // --- Radar Input Listeners ---
-const debouncedUpdateRadarPlots = debounce(() => {
-  updateRadarOverviewPlot();
-  updateTargetsPlot();
-});
+const debouncedUpdateScene = debounce(updateScene);
 [
   "radar-loc-x", "radar-loc-y", "radar-loc-z",
   "radar-rot-yaw", "radar-rot-pitch", "radar-rot-roll",
 ].forEach((id) => {
-  document.getElementById(id)?.addEventListener("input", debouncedUpdateRadarPlots);
+  document.getElementById(id)?.addEventListener("input", debouncedUpdateScene);
 });
 
-// --- Add Buttons ---
+// --- Reset ---
 document.getElementById("btn-reset-config")!.addEventListener("click", () => {
   document.getElementById("reset-dialog-overlay")!.classList.remove("hidden");
 });
@@ -261,15 +275,25 @@ function _syncProcSubOptions(): void {
   _updateAutoFftValues();
 }
 
-// Set initial state
-(function () {
+// Bring the processing options in line with their checkboxes: at startup, and
+// after a configuration is applied, which sets the fields without events.
+function _syncProcessing(): void {
   const rdCb = document.getElementById("proc-range-doppler") as HTMLInputElement;
   const rpCb = document.getElementById("proc-range-profile") as HTMLInputElement;
   if (rdCb.checked) { rpCb.checked = true; }
   _syncProcSubOptions();
-})();
+  ["proc-rd-range-fft", "proc-rd-doppler-fft"].forEach((id) => {
+    const enabled = (document.getElementById(id + "-enable") as HTMLInputElement).checked;
+    (document.getElementById(id) as HTMLInputElement).disabled = !enabled;
+  });
+}
+_syncProcessing();
+document.addEventListener("configapplied", _syncProcessing);
 
-document.getElementById("btn-add-tx-ch")!.addEventListener("click", () => {
+// --- Add Buttons ---
+
+document.getElementById("btn-add-tx-ch")!.addEventListener("click", (e) => {
+  _reveal(e.currentTarget as HTMLElement);
   saveTxChannelStates();
   txChannels.push({});
   renderTxChannels();
@@ -277,7 +301,8 @@ document.getElementById("btn-add-tx-ch")!.addEventListener("click", () => {
   debouncedAutoSave();
 });
 
-document.getElementById("btn-add-rx-ch")!.addEventListener("click", () => {
+document.getElementById("btn-add-rx-ch")!.addEventListener("click", (e) => {
+  _reveal(e.currentTarget as HTMLElement);
   saveRxChannelStates();
   rxChannels.push({});
   renderRxChannels();
@@ -285,20 +310,20 @@ document.getElementById("btn-add-rx-ch")!.addEventListener("click", () => {
   debouncedAutoSave();
 });
 
-document.getElementById("btn-add-point-target")!.addEventListener("click", () => {
+document.getElementById("btn-add-point-target")!.addEventListener("click", (e) => {
+  _reveal(e.currentTarget as HTMLElement);
   savePointTargetStates();
   pointTargets.push({ location: [10, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 });
   renderPointTargets();
-  updateTargetsPlot();
   markResultsOutdated();
   debouncedAutoSave();
 });
 
-document.getElementById("btn-add-mesh-target")!.addEventListener("click", () => {
+document.getElementById("btn-add-mesh-target")!.addEventListener("click", (e) => {
+  _reveal(e.currentTarget as HTMLElement);
   saveMeshTargetStates();
   meshTargets.push({});
   renderMeshTargets();
-  updateTargetsPlot();
   markResultsOutdated();
   debouncedAutoSave();
 });
@@ -345,7 +370,15 @@ document.getElementById("btn-run-sim")!.addEventListener("click", async () => {
     status.textContent = `Simulation complete. Baseband shape: [${result.data.baseband_shape.join(" × ")}]`;
     (document.getElementById("btn-export") as HTMLButtonElement).disabled = false;
 
+    // Bring up the most processed result the run produced
     const _resultData = result.data;
+    setResultViewsAvailable({
+      "baseband": !!_resultData.baseband,
+      "range-profile": !!_resultData.range_profile,
+      "range-doppler": !!_resultData.range_doppler,
+    });
+    setStageView(_resultData.range_doppler ? "range-doppler"
+      : _resultData.range_profile ? "range-profile" : "baseband");
     setTimeout(() => plotResults(_resultData), 0);
   } catch (err) {
     status.className = "status-msg error";
@@ -369,7 +402,7 @@ document.getElementById("btn-export")!.addEventListener("click", async () => {
   await window.api.exportResults(lastSimResult);
 });
 
-// --- Check Environment ---
+// --- About ---
 document.getElementById("btn-check-env")!.addEventListener("click", async () => {
   const overlay = document.getElementById("about-dialog-overlay")!;
   const versionEl = document.getElementById("about-version")!;
@@ -390,7 +423,7 @@ document.getElementById("btn-check-env")!.addEventListener("click", async () => 
       if (d.radarsimlib_available) {
         versionEl.textContent = `RadarSimApp v${appVersion} — RadarSimLib v${d.radarsimlib_version}`;
         licenseEl.textContent = d.licensed ? "License: Active" : "License: Unlicensed";
-        (licenseEl as HTMLElement).style.color = d.licensed ? "var(--success)" : "var(--error)";
+        (licenseEl as HTMLElement).style.color = d.licensed ? "var(--ok)" : "var(--danger)";
         document.getElementById("btn-activate")!.classList.toggle("hidden", d.licensed);
       } else {
         versionEl.textContent = `RadarSimApp v${appVersion} — RadarSimLib not found`;
@@ -404,7 +437,7 @@ document.getElementById("btn-check-env")!.addEventListener("click", async () => 
   }
 });
 
-// --- Activate License (sidebar button) ---
+// --- Activate License ---
 document.getElementById("btn-activate")!.addEventListener("click", () => {
   document.getElementById("license-dialog-status")!.textContent = "";
   document.getElementById("license-dialog-overlay")!.classList.remove("hidden");
@@ -442,7 +475,7 @@ async function _doLicenseActivation(): Promise<void> {
   const btn = document.getElementById("btn-license-select") as HTMLButtonElement;
   btn.disabled = true;
   statusEl.textContent = "Activating...";
-  (statusEl as HTMLElement).style.color = "var(--text-secondary)";
+  (statusEl as HTMLElement).style.color = "var(--ink-2)";
   try {
     const result = await window.api.activateLicense();
     if (result.cancelled) {
@@ -453,14 +486,14 @@ async function _doLicenseActivation(): Promise<void> {
       document.getElementById("license-dialog-overlay")!.classList.add("hidden");
       document.getElementById("btn-activate")!.classList.add("hidden");
       const licenseEl = document.getElementById("about-license");
-      if (licenseEl) { licenseEl.textContent = "License: Active"; (licenseEl as HTMLElement).style.color = "var(--success)"; }
+      if (licenseEl) { licenseEl.textContent = "License: Active"; (licenseEl as HTMLElement).style.color = "var(--ok)"; }
     } else {
       statusEl.textContent = result.error || "Activation failed. Please check the license file.";
-      (statusEl as HTMLElement).style.color = "var(--error)";
+      (statusEl as HTMLElement).style.color = "var(--danger)";
     }
   } catch (err) {
     statusEl.textContent = "Error: " + (err as Error).message;
-    (statusEl as HTMLElement).style.color = "var(--error)";
+    (statusEl as HTMLElement).style.color = "var(--danger)";
   } finally {
     btn.disabled = false;
   }
@@ -476,3 +509,5 @@ document.getElementById("btn-license-close")!.addEventListener("click", () => {
 
 // --- Initialize Application ---
 initApp();
+setStageView(pref<StageView>("view", "scene"));
+_layout();

@@ -21,6 +21,8 @@ npm run typecheck:test   # type-check the tests themselves
 | `unit/utils.test.mts` | renderer helpers and DOM builders |
 | `unit/config.test.mts` | `collectConfig()` — unit conversions and config shape |
 | `unit/state.test.mts` | `captureState`/`applyState`/`validateState` round-trip |
+| `unit/scene.test.mts` | the 3D scene's model — poses come from the library, not from JS |
+| `unit/readout.test.mts` | derived waveform readout (resolutions, unambiguous velocity) |
 | `integration/bridge.test.mts` | `RadarSimBridge` driving real `radarsimc` calls |
 
 ## How the imports work
@@ -49,6 +51,10 @@ a renamed or deleted field id fails the test rather than silently reading
 
 Note that jsdom has no `ResizeObserver` (the helper stubs it) and no Plotly or
 `window.api`; `state.test.mts` stubs those two itself.
+
+It has no WebGL either, so the three.js view (`scene3d.ts`) is never loaded in a
+test. `scene.ts` builds the model that view draws and hands it to whatever sink
+is registered; `scene.test.mts` registers itself as that sink.
 
 ## Native tests
 

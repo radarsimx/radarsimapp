@@ -28,9 +28,10 @@ RadarSimApp is a cross-platform desktop application that brings the full power o
   - Range profile computation with configurable FFT size
   - Range-Doppler map with configurable Doppler FFT size
 - :bar_chart: **Visualization**
+  - Live 3D scene of the radar, its channels, boresight and targets, with a ground grid and range rings
   - Interactive Plotly plots: baseband signal, range profile, range-Doppler map
-  - TX/RX channel location plots and virtual array overview
-  - Waveform frequency-vs-time preview
+  - TX/RX channel location plots and antenna pattern previews
+  - Waveform frequency-vs-time preview and derived readout (resolutions, unambiguous velocity)
 - :floppy_disk: **Configuration Management**
   - Save/load full radar configurations to/from JSON
 
@@ -48,6 +49,7 @@ RadarSimApp is a cross-platform desktop application that brings the full power o
 |---|---|
 | `koffi` | FFI bindings to the native RadarSimLib |
 | `plotly.js-dist` | Interactive result plots |
+| `three` | 3D scene view |
 | `h5wasm` | HDF5/JSON export support |
 | `electron-squirrel-startup` | Windows installer integration |
 

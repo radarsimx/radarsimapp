@@ -1,7 +1,8 @@
 // ===== RadarSimApp - Channel Functions =====
 
-import { el, createInput, createTextInput, createSVG, debounce, formatComplex, isValidComplex, parseNumber, parseCSV, confirmAsync } from './utils.js';
-import { updateChannelPatternPlot, attachPatternListeners, updateTxLocationsPlot, updateRxLocationsPlot, updateRadarOverviewPlot, markResultsOutdated } from './plots.js';
+import { el, createInput, createTextInput, createSVG, debounce, formatComplex, isValidComplex, parseNumber, parseCSV, confirmAsync, setCount } from './utils.js';
+import { updateChannelPatternPlot, attachPatternListeners, updateTxLocationsPlot, updateRxLocationsPlot, markResultsOutdated } from './plots.js';
+import { updateScene } from './scene.js';
 import { txChannels, rxChannels } from './shared.js';
 import { debouncedAutoSave } from './state.js';
 
@@ -124,7 +125,7 @@ function createChannelCard(prefix: string, index: number, data: ChannelData, isT
     el("div", { className: "channel-card-body" }, [
       fields,
       plots,
-      el("div", { style: "display:flex;justify-content:flex-end;margin-top:4px" }, [
+      el("div", { className: "card-actions" }, [
         el("button", { className: "btn-secondary btn-danger", title: "Remove", onClick: () => removeChannel(prefix, index) }, [
           createSVG("trash"),
           " Remove Channel",
@@ -142,6 +143,7 @@ export function renderTxChannels(): void {
   txChannels.forEach((ch, i) => {
     container.appendChild(createChannelCard("TX", i, ch, true));
   });
+  setCount("tx-ch-count", txChannels.length);
 
   requestAnimationFrame(() => {
     txChannels.forEach((_, i) => {
@@ -150,7 +152,7 @@ export function renderTxChannels(): void {
     });
     updateTxLocationsPlot();
     attachLocationListeners();
-    updateRadarOverviewPlot();
+    updateScene();
     const cards = document.querySelectorAll("#tx-channels-list .channel-card");
     if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
   });
@@ -162,6 +164,7 @@ export function renderRxChannels(): void {
   rxChannels.forEach((ch, i) => {
     container.appendChild(createChannelCard("RX", i, ch, false));
   });
+  setCount("rx-ch-count", rxChannels.length);
 
   requestAnimationFrame(() => {
     rxChannels.forEach((_, i) => {
@@ -170,7 +173,7 @@ export function renderRxChannels(): void {
     });
     updateRxLocationsPlot();
     attachRxLocationListeners();
-    updateRadarOverviewPlot();
+    updateScene();
     const cards = container.querySelectorAll(".channel-card");
     if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
   });
@@ -234,7 +237,7 @@ async function removeChannel(prefix: string, index: number): Promise<void> {
 
 function attachLocationListeners(): void {
   txChannels.forEach((_, i) => {
-    const debouncedUpdate = debounce(() => { updateTxLocationsPlot(); updateRadarOverviewPlot(); });
+    const debouncedUpdate = debounce(() => { updateTxLocationsPlot(); updateScene(); });
     ["loc-x", "loc-y", "loc-z"].forEach((field) => {
       const elem = document.getElementById(`tx-ch-${i}-${field}`);
       if (elem) {
@@ -246,7 +249,7 @@ function attachLocationListeners(): void {
 
 function attachRxLocationListeners(): void {
   rxChannels.forEach((_, i) => {
-    const debouncedUpdate = debounce(() => { updateRxLocationsPlot(); updateRadarOverviewPlot(); });
+    const debouncedUpdate = debounce(() => { updateRxLocationsPlot(); updateScene(); });
     ["loc-x", "loc-y", "loc-z"].forEach((field) => {
       const elem = document.getElementById(`rx-ch-${i}-${field}`);
       if (elem) {

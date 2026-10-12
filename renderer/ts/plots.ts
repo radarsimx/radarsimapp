@@ -1,37 +1,76 @@
 // ===== RadarSimApp - Plot Functions =====
 
 import { debounce, parseNumber, parseCSV } from './utils.js';
-import { txChannels, rxChannels, pointTargets, meshTargets } from './shared.js';
-import { collectConfig } from './config.js';
+import { txChannels, rxChannels } from './shared.js';
+import { updateReadout } from './readout.js';
+import { stageView, setResultViewsAvailable, type StageView } from './stage.js';
 
 // --- TX Bandwidth / Sweep Info ---
 export function updateTxInfo(): void {
-  const fStart = parseFloat((document.getElementById("tx-f-start") as HTMLInputElement).value) || 0;
-  const fEnd = parseFloat((document.getElementById("tx-f-end") as HTMLInputElement).value) || 0;
-  const tStart = parseFloat((document.getElementById("tx-t-start") as HTMLInputElement).value) || 0;
-  const tEnd = parseFloat((document.getElementById("tx-t-end") as HTMLInputElement).value) || 0;
-  (document.getElementById("tx-bandwidth") as HTMLInputElement).value = ((fEnd - fStart) * 1000).toFixed(1);
-  (document.getElementById("tx-pulse-length") as HTMLInputElement).value = (tEnd - tStart).toFixed(1);
+  updateReadout();
   updateTxWaveformPlot();
 }
 
 // --- Plotly Theme ---
+// The plots are drawn clear, straight onto the panel or the stage behind them,
+// so these have to agree with the palette in styles.css.
+const THEME = {
+  clear: "rgba(0,0,0,0)",
+  ink: "#e7e4ef",
+  inkDim: "#aca7ba",
+  inkFaint: "#7b768a",
+  grid: "rgba(184,163,230,0.14)",
+  zero: "rgba(184,163,230,0.3)",
+  accent: "#b8a3e6",
+  signal: "#8bc34a",
+  signalSoft: "rgba(139,195,74,0.08)",
+  tx: "#8bc34a",
+  rx: "#4e9eff",
+  second: "#2ec5d8",
+  secondSoft: "rgba(46,197,216,0.08)",
+  imag: "#ff7b3a",
+  boresight: "#f2aa2b",
+  panel: "#17131f",
+  mono: 'ui-monospace, "SFMono-Regular", "Cascadia Mono", Consolas, Menlo, monospace',
+};
+
+function axis(title?: string, size: number = 11): any {
+  return {
+    gridcolor: THEME.grid,
+    zerolinecolor: THEME.zero,
+    linecolor: THEME.grid,
+    color: THEME.inkDim,
+    ...(title ? { title: { text: title, font: { size } } } : {}),
+  };
+}
+
+function sceneAxis(title: string): any {
+  return {
+    title: { text: title }, gridcolor: THEME.grid, zerolinecolor: THEME.zero, showbackground: false,
+    color: THEME.inkDim,
+  };
+}
+
+function baseLayout(size: number): any {
+  return {
+    paper_bgcolor: THEME.clear,
+    plot_bgcolor: THEME.clear,
+    font: { family: THEME.mono, color: THEME.ink, size },
+    hoverlabel: { bgcolor: THEME.panel, bordercolor: THEME.accent, font: { family: THEME.mono, color: THEME.ink } },
+    modebar: { bgcolor: THEME.clear, color: THEME.inkFaint, activecolor: THEME.accent },
+  };
+}
+
+const overlayLegend: any = {
+  x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: THEME.clear, borderwidth: 0,
+};
+
 export const plotlyLayout: any = {
-  paper_bgcolor: "#12121a",
-  plot_bgcolor: "#12121a",
-  font: { color: "#e8e8f0", size: 12 },
-  margin: { l: 60, r: 20, t: 10, b: 50 },
-  xaxis: {
-    gridcolor: "#2a2a3e",
-    zerolinecolor: "#2a2a3e",
-  },
-  yaxis: {
-    gridcolor: "#2a2a3e",
-    zerolinecolor: "#2a2a3e",
-  },
-  coloraxis: {
-    colorscale: "Viridis",
-  },
+  ...baseLayout(12),
+  margin: { l: 64, r: 24, t: 16, b: 52 },
+  xaxis: axis(),
+  yaxis: axis(),
+  legend: overlayLegend,
 };
 
 export const plotlyConfig: any = {
@@ -41,15 +80,13 @@ export const plotlyConfig: any = {
 };
 
 const smallPlotLayout: any = {
-  paper_bgcolor: "#12121a",
-  plot_bgcolor: "#12121a",
-  font: { color: "#e8e8f0", size: 10 },
-  margin: { l: 0, r: 0, t: 20, b: 0 },
+  ...baseLayout(10),
+  margin: { l: 0, r: 0, t: 0, b: 0 },
   scene: {
-    xaxis: { title: "X (m)", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
-    yaxis: { title: "Y (m)", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
-    zaxis: { title: "Z (m)", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
-    bgcolor: "#12121a",
+    xaxis: sceneAxis("X (mm)"),
+    yaxis: sceneAxis("Y (mm)"),
+    zaxis: sceneAxis("Z (mm)"),
+    bgcolor: THEME.clear,
     aspectmode: "data",
   },
   showlegend: false,
@@ -59,12 +96,10 @@ const smallPlotConfig: any = { responsive: true, displayModeBar: "hover", displa
 
 // --- Antenna Pattern Plots ---
 const patternPlotLayout: any = {
-  paper_bgcolor: "#12121a",
-  plot_bgcolor: "#12121a",
-  font: { color: "#e8e8f0", size: 10 },
+  ...baseLayout(10),
   margin: { l: 40, r: 10, t: 8, b: 32 },
-  xaxis: { gridcolor: "#2a2a3e", zerolinecolor: "#3a3a4e", title: { text: "Angle (°)", font: { size: 10 } } },
-  yaxis: { gridcolor: "#2a2a3e", zerolinecolor: "#3a3a4e", title: { text: "dB", font: { size: 10 } } },
+  xaxis: axis("Angle (°)", 10),
+  yaxis: axis("dB", 10),
   showlegend: false,
 };
 
@@ -90,18 +125,18 @@ export function updateChannelPatternPlot(pfx: string, index: number): void {
     traces.push({
       x: azAngles, y: azPattern,
       type: "scatter", mode: "lines+markers", name: "Azimuth",
-      line: { color: "#689f38", width: 2 },
-      marker: { size: 4, color: "#8bc34a" },
-      fill: "tozeroy", fillcolor: "rgba(104, 159, 56, 0.08)",
+      line: { color: THEME.signal, width: 2 },
+      marker: { size: 4, color: THEME.signal },
+      fill: "tozeroy", fillcolor: THEME.signalSoft,
     });
   }
   if (elAngles.length > 0 && elPattern.length > 0) {
     traces.push({
       x: elAngles, y: elPattern,
       type: "scatter", mode: "lines+markers", name: "Elevation",
-      line: { color: "#00D2B4", width: 2 },
-      marker: { size: 4, color: "#55EFC4" },
-      fill: "tozeroy", fillcolor: "rgba(0, 210, 180, 0.08)",
+      line: { color: THEME.second, width: 2 },
+      marker: { size: 4, color: THEME.second },
+      fill: "tozeroy", fillcolor: THEME.secondSoft,
     });
   }
   if (traces.length === 0) return;
@@ -109,7 +144,7 @@ export function updateChannelPatternPlot(pfx: string, index: number): void {
   const layout = {
     ...patternPlotLayout,
     showlegend: true,
-    legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
+    legend: overlayLegend,
   };
   Plotly.react(plotDiv, traces, layout, patternPlotConfig);
 }
@@ -234,7 +269,7 @@ export function updateTxWaveformPlot(): void {
         x: [offset, offset + tStart],
         y: [fStart, fStart],
         type: "scatter", mode: "lines",
-        line: { color: "#689f38", width: 1, dash: "dot" },
+        line: { color: THEME.signal, width: 1, dash: "dot" },
         showlegend: false,
       });
     }
@@ -242,7 +277,7 @@ export function updateTxWaveformPlot(): void {
       x: [offset + tStart, offset + tEnd],
       y: [fStart, fEnd],
       type: "scatter", mode: "lines",
-      line: { color: "#689f38", width: 2.5 },
+      line: { color: THEME.signal, width: 2.5 },
       showlegend: false,
     });
     if (prp > tEnd) {
@@ -250,29 +285,17 @@ export function updateTxWaveformPlot(): void {
         x: [offset + tEnd, offset + prp],
         y: [fEnd, fStart],
         type: "scatter", mode: "lines",
-        line: { color: "#689f38", width: 1, dash: "dot" },
+        line: { color: THEME.signal, width: 1, dash: "dot" },
         showlegend: false,
       });
     }
   }
 
   const layout = {
-    paper_bgcolor: "#12121a",
-    plot_bgcolor: "#12121a",
-    font: { color: "#e8e8f0", size: 10 },
-    margin: { l: 56, r: 16, t: 16, b: 40 },
-    xaxis: {
-      title: { text: "Time (µs)", font: { size: 10 } },
-      gridcolor: "#2a2a3e",
-      zerolinecolor: "#3a3a4e",
-      color: "#8888a0",
-    },
-    yaxis: {
-      title: { text: "Frequency (GHz)", font: { size: 10 } },
-      gridcolor: "#2a2a3e",
-      zerolinecolor: "#3a3a4e",
-      color: "#8888a0",
-    },
+    ...baseLayout(10),
+    margin: { l: 52, r: 10, t: 10, b: 36 },
+    xaxis: axis("Time (µs)", 10),
+    yaxis: axis("Frequency (GHz)", 10),
     showlegend: false,
   };
 
@@ -298,14 +321,13 @@ export function updateTxLocationsPlot(): void {
     text: labels,
     type: "scatter3d",
     mode: "markers+text",
-    marker: { size: 8, color: "#689f38", symbol: "diamond", line: { width: 1, color: "#8bc34a" } },
+    marker: { size: 7, color: THEME.tx, symbol: "diamond" },
     textposition: "top center",
-    textfont: { size: 10, color: "#8bc34a" },
+    textfont: { size: 10, color: THEME.tx },
   };
 
-  const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), "#fd7e14");
-  const mmScene = { ...smallPlotLayout.scene, xaxis: { ...smallPlotLayout.scene.xaxis, title: "X (mm)" }, yaxis: { ...smallPlotLayout.scene.yaxis, title: "Y (mm)" }, zaxis: { ...smallPlotLayout.scene.zaxis, title: "Z (mm)" } };
-  scenePlot(container, [...arrow, trace], { ...smallPlotLayout, scene: mmScene }, smallPlotConfig);
+  const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), THEME.boresight);
+  scenePlot(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
 }
 
 // --- RX Channel Locations Plot ---
@@ -327,333 +349,33 @@ export function updateRxLocationsPlot(): void {
     text: labels,
     type: "scatter3d",
     mode: "markers+text",
-    marker: { size: 8, color: "#6C5CE7", symbol: "circle", line: { width: 1, color: "#A29BFE" } },
+    marker: { size: 7, color: THEME.rx, symbol: "circle" },
     textposition: "top center",
-    textfont: { size: 10, color: "#A29BFE" },
+    textfont: { size: 10, color: THEME.rx },
   };
 
-  const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), "#fd7e14");
-  const mmScene = { ...smallPlotLayout.scene, xaxis: { ...smallPlotLayout.scene.xaxis, title: "X (mm)" }, yaxis: { ...smallPlotLayout.scene.yaxis, title: "Y (mm)" }, zaxis: { ...smallPlotLayout.scene.zaxis, title: "Z (mm)" } };
-  scenePlot(container, [...arrow, trace], { ...smallPlotLayout, scene: mmScene }, smallPlotConfig);
-}
-
-// --- Native Scene State ---
-// Every pose drawn in the 3D scenes -- the global Tx/Rx channel positions, the
-// boresight, and the mesh geometry -- comes from the library (Get_Radar_State /
-// Get_Target_Mesh_State) rather than being re-derived here, so the plots show
-// the same platform rotation and motion the simulator applies, evaluated at
-// SCENE_TIMESTAMP. The call crosses IPC and reloads the STL files, so it is
-// debounced and cached against the inputs that can move something in the scene.
-let _sceneState: SceneState | null = null;
-let _sceneStateKey: string | null = null;
-let _sceneStateInFlight = false;
-/** Why the library could not report the radar pose; null while it can. */
-let _poseError: string | null = null;
-
-/** Scene time the plots are drawn at (s). Poses are queried at this instant. */
-const SCENE_TIMESTAMP = 0;
-
-/** Matches the per-field warning the bridge attaches to a failed pose query. */
-const POSE_WARNING_PREFIX = "Radar pose:";
-
-function _sceneStateKeyOf(cfg: any): string {
-  return JSON.stringify({
-    radar: cfg.radar,
-    tx: (cfg.transmitter?.channels || []).map((c: any) => c.location),
-    rx: (cfg.receiver?.channels || []).map((c: any) => c.location),
-    meshes: (cfg.targets || [])
-      .filter((t: any) => t && t.model)
-      // Speed and rotation rate move the mesh once SCENE_TIMESTAMP is nonzero,
-      // so they invalidate the cached pose like the static fields do.
-      .map((t: any) => [t.model, t.location, t.rotation, t.speed, t.rotation_rate, t.unit]),
-  });
-}
-
-const _refreshSceneState = debounce(async () => {
-  if (_sceneStateInFlight) {
-    _refreshSceneState(); // re-arm; the config may have changed since this call started
-    return;
-  }
-
-  let cfg: any;
-  try {
-    cfg = collectConfig();
-  } catch (_) {
-    return; // panel not built yet
-  }
-
-  const key = _sceneStateKeyOf(cfg);
-  if (key === _sceneStateKey) return;
-
-  _sceneStateInFlight = true;
-  try {
-    const res = await window.api.getSceneState({ ...cfg, timestamp: SCENE_TIMESTAMP });
-    _sceneStateKey = key;
-    if (res.success && res.data) {
-      _sceneState = res.data;
-      if (res.data.warnings.length > 0) {
-        console.warn("[scene] " + res.data.warnings.join("; "));
-      }
-      // A pose failure is reported per-field, so the meshes can still be good.
-      const posed = res.data.txLocations && res.data.rxLocations && res.data.boresight;
-      const warning = res.data.warnings.find((w: string) => w.startsWith(POSE_WARNING_PREFIX));
-      _poseError = posed ? null
-        : warning ? warning.slice(POSE_WARNING_PREFIX.length).trim()
-        : "radarsimlib reported no radar pose";
-    } else {
-      _sceneState = null;
-      _poseError = res.error || "scene query failed";
-      console.warn("[scene] getSceneState failed:", res.error);
-    }
-  } catch (err) {
-    _sceneState = null;
-    _poseError = (err as Error).message || String(err);
-    console.warn("[scene] getSceneState threw:", err);
-  } finally {
-    _sceneStateInFlight = false;
-  }
-  _renderRadarOverviewPlot();
-  _renderTargetsPlot();
-}, 400);
-
-/** Split the library's flat [n][3] global channel positions into plot axes. */
-function _channelPoints(locations: Float32Array | null | undefined, prefix: string) {
-  const xs: number[] = [], ys: number[] = [], zs: number[] = [], labels: string[] = [];
-  const n = locations ? Math.floor(locations.length / 3) : 0;
-  for (let i = 0; i < n; i++) {
-    xs.push(locations![i * 3]);
-    ys.push(locations![i * 3 + 1]);
-    zs.push(locations![i * 3 + 2]);
-    labels.push(`${prefix}${i + 1}`);
-  }
-  return { xs, ys, zs, labels };
-}
-
-// The platform origin marker, shared by both scenes. radarsimlib exposes no
-// query for the platform position on its own -- only the channels hanging off
-// it -- so this is the configured location, which is the platform's pose at
-// SCENE_TIMESTAMP = 0. Drawing it at a nonzero scene time needs an origin from
-// the library, not a JS extrapolation of the speed inputs.
-function _radarOriginTrace(x: number, y: number, z: number): any {
-  return {
-    x: [x], y: [y], z: [z],
-    text: ["Radar"],
-    type: "scatter3d", mode: "markers",
-    marker: { size: 5, color: "#e17055", symbol: "square", line: { width: 1, color: "#fab1a0" } },
-    textposition: "top center",
-    textfont: { size: 10, color: "#fab1a0" },
-    name: "Radar Origin", showlegend: true,
-  };
-}
-
-// A scene missing its native pose is drawn without channels or boresight rather
-// than with a JS stand-in for them, so say why the markers are absent.
-function _poseAnnotations(): any[] {
-  if (!_poseError) return [];
-  return [{
-    text: `Pose unavailable — ${_poseError}`,
-    xref: "paper", yref: "paper", x: 0, y: 0,
-    xanchor: "left", yanchor: "bottom",
-    showarrow: false,
-    font: { size: 9, color: "#e17055" },
-  }];
-}
-
-// --- Radar Array Overview Plot ---
-export function updateRadarOverviewPlot(): void {
-  _renderRadarOverviewPlot();
-  _refreshSceneState();
-}
-
-function _renderRadarOverviewPlot(): void {
-  const container = document.getElementById("radar-overview-plot");
-  if (!container) return;
-
-  const radarX = parseNumber((document.getElementById("radar-loc-x") as HTMLInputElement | null)?.value);
-  const radarY = parseNumber((document.getElementById("radar-loc-y") as HTMLInputElement | null)?.value);
-  const radarZ = parseNumber((document.getElementById("radar-loc-z") as HTMLInputElement | null)?.value);
-
-  const traces: any[] = [_radarOriginTrace(radarX, radarY, radarZ)];
-
-  const tx = _channelPoints(_sceneState?.txLocations, "TX");
-  if (tx.xs.length > 0) {
-    traces.push({
-      x: tx.xs, y: tx.ys, z: tx.zs,
-      text: tx.labels,
-      type: "scatter3d", mode: "markers+text",
-      marker: { size: 7, color: "#689f38", symbol: "diamond", line: { width: 1, color: "#8bc34a" } },
-      textposition: "top center",
-      textfont: { size: 9, color: "#8bc34a" },
-      name: "TX", showlegend: true,
-    });
-  }
-
-  const rx = _channelPoints(_sceneState?.rxLocations, "RX");
-  if (rx.xs.length > 0) {
-    traces.push({
-      x: rx.xs, y: rx.ys, z: rx.zs,
-      text: rx.labels,
-      type: "scatter3d", mode: "markers+text",
-      marker: { size: 7, color: "#6C5CE7", symbol: "circle", line: { width: 1, color: "#A29BFE" } },
-      textposition: "top center",
-      textfont: { size: 9, color: "#A29BFE" },
-      name: "RX", showlegend: true,
-    });
-  }
-
-  const boresight = _sceneState?.boresight;
-  const arrow = boresight
-    ? boresightTraces(
-      sceneArrowLen([radarX, ...tx.xs, ...rx.xs], [radarY, ...tx.ys, ...rx.ys], [radarZ, ...tx.zs, ...rx.zs], 0.001),
-      "#fd7e14", [radarX, radarY, radarZ], [boresight[0], boresight[1], boresight[2]]
-    )
-    : [];
-
-  const layout = {
-    ...smallPlotLayout,
-    scene: { ...smallPlotLayout.scene },
-    legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
-    showlegend: true,
-    annotations: _poseAnnotations(),
-  };
-
-  scenePlot(container, [...arrow, ...traces], layout, smallPlotConfig);
-}
-
-const MESH_COLORS = ["#a29bfe", "#00cec9", "#fab1a0", "#74b9ff", "#ffeaa7"];
-
-/** Min/max of one axis across the plotted meshes, for scene auto-scaling. */
-function _meshSpan(axis: 0 | 1 | 2): number[] {
-  const out: number[] = [];
-  for (const m of _sceneState?.meshes ?? []) {
-    if (m.bounds && isFinite(m.bounds[axis])) out.push(m.bounds[axis], m.bounds[axis + 3]);
-  }
-  return out;
-}
-
-function _meshTraces(): any[] {
-  if (!_sceneState || _sceneState.meshes.length === 0) return [];
-  return _sceneState.meshes.map((m: SceneMesh) => {
-    const color = MESH_COLORS[m.index % MESH_COLORS.length];
-    const decimated = m.cells < m.totalCells;
-    return {
-      type: "mesh3d",
-      x: m.x, y: m.y, z: m.z,
-      i: m.i, j: m.j, k: m.k,
-      color,
-      opacity: 0.85,
-      flatshading: true,
-      hoverinfo: "name",
-      lighting: { ambient: 0.55, diffuse: 0.8, specular: 0.15, roughness: 0.6 },
-      lightposition: { x: 1e4, y: 1e4, z: 1e4 },
-      name: decimated
-        ? `M${m.index + 1} (${m.cells} of ${m.totalCells} tri)`
-        : `M${m.index + 1} (${m.totalCells} tri)`,
-      showlegend: true,
-    };
-  });
-}
-
-// --- Targets Scene Plot ---
-export function updateTargetsPlot(): void {
-  _renderTargetsPlot();
-  _refreshSceneState();
-}
-
-function _renderTargetsPlot(): void {
-  const container = document.getElementById("targets-scene-plot");
-  if (!container) return;
-
-  const radarX = parseNumber((document.getElementById("radar-loc-x") as HTMLInputElement | null)?.value);
-  const radarY = parseNumber((document.getElementById("radar-loc-y") as HTMLInputElement | null)?.value);
-  const radarZ = parseNumber((document.getElementById("radar-loc-z") as HTMLInputElement | null)?.value);
-
-  const traces: any[] = [_radarOriginTrace(radarX, radarY, radarZ)];
-
-  const ptXs: number[] = [], ptYs: number[] = [], ptZs: number[] = [], ptLabels: string[] = [];
-  pointTargets.forEach((_: PointTargetData, i: number) => {
-    ptXs.push(parseNumber((document.getElementById(`pt-${i}-loc-x`) as HTMLInputElement | null)?.value ?? 50));
-    ptYs.push(parseNumber((document.getElementById(`pt-${i}-loc-y`) as HTMLInputElement | null)?.value));
-    ptZs.push(parseNumber((document.getElementById(`pt-${i}-loc-z`) as HTMLInputElement | null)?.value));
-    ptLabels.push(`T${i + 1}`);
-  });
-  if (ptXs.length > 0) {
-    traces.push({
-      x: ptXs, y: ptYs, z: ptZs,
-      text: ptLabels,
-      type: "scatter3d", mode: "markers+text",
-      marker: { size: 7, color: "#fdcb6e", symbol: "circle", line: { width: 1, color: "#ffeaa7" } },
-      textposition: "top center",
-      textfont: { size: 9, color: "#ffeaa7" },
-      name: "Point Target", showlegend: true,
-    });
-  }
-
-  // Mesh targets: real geometry from the library when available, otherwise a
-  // marker at the configured origin.
-  const plottedMeshes = new Set<number>((_sceneState?.meshes ?? []).map((m: SceneMesh) => m.index));
-  traces.push(..._meshTraces());
-
-  const mxs: number[] = [], mys: number[] = [], mzs: number[] = [], mLabels: string[] = [];
-  meshTargets.forEach((_: MeshTargetData, i: number) => {
-    if (plottedMeshes.has(i)) return;
-    mxs.push(parseNumber((document.getElementById(`mesh-${i}-loc-x`) as HTMLInputElement | null)?.value));
-    mys.push(parseNumber((document.getElementById(`mesh-${i}-loc-y`) as HTMLInputElement | null)?.value));
-    mzs.push(parseNumber((document.getElementById(`mesh-${i}-loc-z`) as HTMLInputElement | null)?.value));
-    mLabels.push(`M${i + 1}`);
-  });
-  if (mxs.length > 0) {
-    traces.push({
-      x: mxs, y: mys, z: mzs,
-      text: mLabels,
-      type: "scatter3d", mode: "markers+text",
-      marker: { size: 7, color: "#a29bfe", symbol: "diamond", line: { width: 1, color: "#dfe6e9" } },
-      textposition: "top center",
-      textfont: { size: 9, color: "#dfe6e9" },
-      name: "Mesh Target", showlegend: true,
-    });
-  }
-
-  // Boresight comes from the library's own platform rotation, so the arrow is
-  // simply omitted when it could not supply one.
-  const boresight = _sceneState?.boresight;
-  const arrow = boresight
-    ? boresightTraces(
-      sceneArrowLen(
-        [radarX, ...ptXs, ...mxs, ..._meshSpan(0)],
-        [radarY, ...ptYs, ...mys, ..._meshSpan(1)],
-        [radarZ, ...ptZs, ...mzs, ..._meshSpan(2)],
-        1
-      ),
-      "#fd7e14", [radarX, radarY, radarZ], [boresight[0], boresight[1], boresight[2]]
-    )
-    : [];
-
-  const layout = {
-    ...smallPlotLayout,
-    scene: { ...smallPlotLayout.scene },
-    legend: { x: 1, xanchor: "right", y: 1, font: { size: 10 }, bgcolor: "transparent", borderwidth: 0 },
-    showlegend: true,
-    annotations: _poseAnnotations(),
-  };
-
-  scenePlot(container, [...arrow, ...traces], layout, smallPlotConfig);
+  const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), THEME.boresight);
+  scenePlot(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
 }
 
 // --- Plot Simulation Results ---
+// One result is on the stage at a time. A plot is drawn when its view comes up,
+// and again only once its data or the channel / pulse picked has changed.
+const _stale = new Set<StageView>();
+
 export function plotResults(data: any): void {
   document.getElementById("results-outdated-banner")?.classList.add("hidden");
   if (data.range_doppler) {
     _lastRangeDopplerData = data.range_doppler;
     _lastRdRangeAxis = data.rd_range_axis || null;
     _lastRdVelocityAxis = data.rd_doppler_axis || null;
-    _plotRangeDoppler();
+    _stale.add("range-doppler");
   }
 
   if (data.range_profile) {
     _lastRangeProfileData = data.range_profile;
     _lastRangeAxis = data.rp_range_axis || null;
-    _plotRangeProfile();
+    _stale.add("range-profile");
   }
 
   if (data.baseband) {
@@ -667,8 +389,19 @@ export function plotResults(data: any): void {
     chInput.max = String(numCh - 1);
     pulseInput.value = String(Math.min(parseInt(pulseInput.value) || 0, numPulses - 1));
     chInput.value = String(Math.min(parseInt(chInput.value) || 0, numCh - 1));
-    _plotBaseband();
+    _stale.add("baseband");
   }
+
+  renderResultView();
+}
+
+/** Draw the result view that is up, if it has anything new to show. */
+export function renderResultView(): void {
+  const view = stageView();
+  if (!_stale.delete(view)) return;
+  if (view === "baseband") _plotBaseband();
+  else if (view === "range-profile") _plotRangeProfile();
+  else if (view === "range-doppler") _plotRangeDoppler();
 }
 
 let _lastBasebandData: any = null;
@@ -699,21 +432,24 @@ function _plotRangeDoppler(): void {
     z: rd,
     type: "surface",
     colorscale: "Viridis",
-    colorbar: { title: "dB" },
+    colorbar: {
+      title: { text: "dB" }, thickness: 12, len: 0.6, outlinewidth: 0, tickfont: { color: THEME.inkDim },
+    },
     showscale: true,
   };
   if (_lastRdRangeAxis) trace.x = _lastRdRangeAxis;
   if (_lastRdVelocityAxis) trace.y = _lastRdVelocityAxis;
 
   const layout = {
-    paper_bgcolor: "#12121a",
-    font: { color: "#e8e8f0", size: 12 },
-    margin: { l: 0, r: 0, t: 10, b: 0 },
+    ...baseLayout(12),
+    margin: { l: 0, r: 0, t: 0, b: 0 },
     scene: {
-      xaxis: { title: "Range Bin", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
-      yaxis: { title: "Doppler Bin", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
-      zaxis: { title: "dB", gridcolor: "#2a2a3e", backgroundcolor: "#12121a", color: "#8888a0" },
-      bgcolor: "#12121a",
+      xaxis: sceneAxis("Range Bin"),
+      yaxis: sceneAxis("Doppler Bin"),
+      zaxis: sceneAxis("dB"),
+      bgcolor: THEME.clear,
+      // Back far enough that the axis titles stay inside the plot
+      camera: { eye: { x: 1.55, y: 1.55, z: 1.1 } },
     },
   };
   Plotly.newPlot(container, [trace], layout, plotlyConfig);
@@ -734,13 +470,13 @@ function _plotRangeProfile(): void {
   const trace: any = {
     y: rp,
     type: "scatter", mode: "lines",
-    line: { color: "#689f38", width: 1.5 },
+    line: { color: THEME.signal, width: 1.5 },
   };
   if (_lastRangeAxis) trace.x = _lastRangeAxis;
   const layout = {
     ...plotlyLayout,
-    xaxis: { ...plotlyLayout.xaxis, title: "Range Bin" },
-    yaxis: { ...plotlyLayout.yaxis, title: "Magnitude (dB)" },
+    xaxis: axis("Range Bin"),
+    yaxis: axis("Magnitude (dB)"),
   };
   Plotly.newPlot(container, [trace], layout, plotlyConfig);
 }
@@ -761,21 +497,21 @@ function _plotBaseband(): void {
     {
       y: chData.re,
       type: "scatter", mode: "lines", name: "Real",
-      line: { color: "#8bc34a", width: 1 },
+      line: { color: THEME.signal, width: 1 },
     },
   ];
   if (_lastBbType !== "real") {
     traces.push({
       y: chData.im,
       type: "scatter", mode: "lines", name: "Imag",
-      line: { color: "#e17055", width: 1 },
+      line: { color: THEME.imag, width: 1 },
     });
   }
   const layout = {
     ...plotlyLayout,
     showlegend: true,
-    xaxis: { ...plotlyLayout.xaxis, title: "Sample" },
-    yaxis: { ...plotlyLayout.yaxis, title: "Amplitude" },
+    xaxis: axis("Sample"),
+    yaxis: axis("Amplitude"),
   };
   Plotly.newPlot(container, traces, layout, plotlyConfig);
 }
@@ -792,6 +528,7 @@ export function clearResultPlots(): void {
   _lastRangeDopplerData = null;
   _lastRdRangeAxis = null;
   _lastRdVelocityAxis = null;
+  _stale.clear();
 
   document.getElementById("results-outdated-banner")?.classList.add("hidden");
 
@@ -801,6 +538,7 @@ export function clearResultPlots(): void {
   const exportBtn = document.getElementById("btn-export") as HTMLButtonElement | null;
   if (exportBtn) exportBtn.disabled = true;
 
+  setResultViewsAvailable({});
   ["plot-baseband", "plot-range-profile", "plot-range-doppler"].forEach((id) => {
     const plotEl = document.getElementById(id);
     if (plotEl) {
@@ -812,17 +550,17 @@ export function clearResultPlots(): void {
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("bb-pulse-idx")?.addEventListener("change", () => {
-    _plotBaseband();
-    _plotRangeProfile();
+    _stale.add("baseband").add("range-profile");
+    renderResultView();
   });
   document.getElementById("bb-ch-idx")?.addEventListener("change", () => {
-    _plotBaseband();
-    _plotRangeProfile();
-    _plotRangeDoppler();
+    _stale.add("baseband").add("range-profile").add("range-doppler");
+    renderResultView();
   });
 
   const debouncedMarkOutdated = debounce(markResultsOutdated, 200);
-  const configPanels = ["panel-transmitter", "panel-receiver", "panel-radar", "panel-targets"];
+  // The transmitter and the receiver are inside the radar panel
+  const configPanels = ["panel-radar", "panel-targets", "panel-simulation"];
   const handler = (e: Event): void => {
     if ((e.target as HTMLElement).matches("input, select")) debouncedMarkOutdated();
   };
@@ -832,9 +570,4 @@ document.addEventListener("DOMContentLoaded", () => {
     panel.addEventListener("input", handler);
     panel.addEventListener("change", handler);
   });
-  const simConfigArea = document.querySelector("#panel-simulation .panel-split-left");
-  if (simConfigArea) {
-    simConfigArea.addEventListener("input", handler);
-    simConfigArea.addEventListener("change", handler);
-  }
 });

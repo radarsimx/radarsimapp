@@ -26,6 +26,7 @@
     "@napi-rs/canvas": "^1.0.10",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^26.6.4",
+    "@types/three": "^0.186.0",
     "electron": "^44.5.1",
     "electron-builder": "^26.8.1",
     "gif-encoder-2": "^1.0.5",
@@ -36,7 +37,8 @@
     "electron-squirrel-startup": "^1.0.1",
     "h5wasm": "^0.10.3",
     "koffi": "^3.3.2",
-    "plotly.js-dist": "^4.1.1"
+    "plotly.js-dist": "^4.1.1",
+    "three": "^0.186.1"
   },
   "build": {
     "appId": "com.radarsimx.radarsimapp",

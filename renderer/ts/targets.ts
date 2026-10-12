@@ -1,7 +1,8 @@
 // ===== RadarSimApp - Target Functions =====
 
-import { el, createInput, createSVG, debounce, parseNumber, confirmAsync } from './utils.js';
-import { updateTargetsPlot, markResultsOutdated } from './plots.js';
+import { el, createInput, createSVG, debounce, parseNumber, confirmAsync, setCount } from './utils.js';
+import { markResultsOutdated } from './plots.js';
+import { updateScene } from './scene.js';
 import { pointTargets, meshTargets } from './shared.js';
 import { debouncedAutoSave } from './state.js';
 
@@ -27,6 +28,7 @@ export function savePointTargetStates(): void {
 export function renderPointTargets(): void {
   const container = document.getElementById("point-targets-list")!;
   container.innerHTML = "";
+  setCount("point-target-count", pointTargets.length);
   pointTargets.forEach((t, i) => {
     const card = el("div", { className: "channel-card collapsed" }, [
       el("div", {
@@ -89,14 +91,14 @@ export function renderPointTargets(): void {
           ]),
         ]),
 
-        el("div", { style: "display:flex;justify-content:flex-end;margin-top:4px" }, [
+        el("div", { className: "card-actions" }, [
           el("button", {
             className: "btn-secondary btn-danger", title: "Remove", onClick: async () => {
               if (!(await confirmAsync(`Remove Target ${i + 1}?`))) return;
               savePointTargetStates();
               pointTargets.splice(i, 1);
               renderPointTargets();
-              updateTargetsPlot();
+              updateScene();
               markResultsOutdated();
               debouncedAutoSave();
             }
@@ -107,7 +109,7 @@ export function renderPointTargets(): void {
     container.appendChild(card);
   });
   requestAnimationFrame(() => {
-    const debouncedUpdate = debounce(updateTargetsPlot);
+    const debouncedUpdate = debounce(updateScene);
     pointTargets.forEach((_, i) => {
       ["loc-x", "loc-y", "loc-z"].forEach((f) => {
         document.getElementById(`pt-${i}-${f}`)?.addEventListener("input", debouncedUpdate);
@@ -115,7 +117,7 @@ export function renderPointTargets(): void {
     });
     const cards = document.querySelectorAll("#point-targets-list .channel-card");
     if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
-    updateTargetsPlot();
+    updateScene();
   });
 }
 
@@ -153,6 +155,7 @@ export function saveMeshTargetStates(): void {
 export function renderMeshTargets(): void {
   const container = document.getElementById("mesh-targets-list")!;
   container.innerHTML = "";
+  setCount("mesh-target-count", meshTargets.length);
   meshTargets.forEach((t, i) => {
     const card = el("div", { className: "channel-card collapsed" }, [
       el("div", {
@@ -173,14 +176,13 @@ export function renderMeshTargets(): void {
         // Model path
         el("div", { className: "form-group" }, [
           el("label", { textContent: "3D Model File" }),
-          el("div", { style: "display:flex;gap:8px" }, [
+          el("div", { className: "file-row" }, [
             (() => {
               const inp = el("input", {
                 type: "text",
                 id: `mesh-${i}-model`,
                 value: t.model ?? "",
                 placeholder: "Path to .stl / .obj / .ply",
-                style: "flex:1",
               });
               return inp;
             })(),
@@ -300,14 +302,14 @@ export function renderMeshTargets(): void {
           ]),
         ]),
 
-        el("div", { style: "display:flex;justify-content:flex-end;gap:8px;margin-top:4px" }, [
+        el("div", { className: "card-actions" }, [
           el("button", {
             className: "btn-secondary btn-danger", title: "Remove", onClick: async () => {
               if (!(await confirmAsync(`Remove Mesh ${i + 1}?`))) return;
               saveMeshTargetStates();
               meshTargets.splice(i, 1);
               renderMeshTargets();
-              updateTargetsPlot();
+              updateScene();
               markResultsOutdated();
               debouncedAutoSave();
             }
@@ -318,9 +320,9 @@ export function renderMeshTargets(): void {
     container.appendChild(card);
   });
   requestAnimationFrame(() => {
-    const debouncedUpdate = debounce(updateTargetsPlot);
+    const debouncedUpdate = debounce(updateScene);
     meshTargets.forEach((_, i) => {
-      // Everything that changes the geometry the Scene Overview gets back from
+      // Everything that changes the geometry the scene view gets back from
       // the library: which model, where it sits, how it is oriented and scaled.
       ["model", "loc-x", "loc-y", "loc-z", "rot-yaw", "rot-pitch", "rot-roll"].forEach((f) => {
         document.getElementById(`mesh-${i}-${f}`)?.addEventListener("input", debouncedUpdate);
@@ -330,6 +332,6 @@ export function renderMeshTargets(): void {
     });
     const cards = document.querySelectorAll("#mesh-targets-list .channel-card");
     if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
-    updateTargetsPlot();
+    updateScene();
   });
 }
