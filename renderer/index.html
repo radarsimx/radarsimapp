@@ -125,8 +125,9 @@
     <main class="view" id="content">
       <div class="hud-col hud-left">
 
-        <!-- Radar: its architecture as a block diagram. Picking a block shows its fields in Properties. -->
-        <details class="card" data-panel="radar" open>
+        <!-- Radar: its architecture as a block diagram, and under it the fields of the block picked.
+             Every block's fields are here; one set shows. -->
+        <details class="card" id="panel-radar" data-panel="radar" open>
           <summary class="card-head"><span class="idx">01</span>
             <h2>Radar</h2><span class="card-hint">architecture</span>
           </summary>
@@ -225,56 +226,11 @@
               </div>
             </div>
           </div>
-        </details>
 
-        <!-- Targets: what the radar looks at -->
-        <details class="card" data-panel="targets" open>
-          <summary class="card-head"><span class="idx">02</span>
-            <h2>Targets</h2><span class="card-hint">points &middot; meshes</span>
-          </summary>
-          <div class="outline" id="outline" role="tree" aria-label="Targets">
-            <div class="ol-node" data-node="point">
-              <div class="ol-row ol-group" role="treeitem" tabindex="0">
-                <button type="button" class="ol-fold" tabindex="-1" aria-label="Fold or unfold"></button>
-                <span class="ol-name">Point targets</span>
-                <span class="node-count" id="point-target-count"></span>
-                <button class="btn-icon" id="btn-add-point-target" title="Add a point target"
-                  aria-label="Add a point target">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                </button>
-              </div>
-              <div class="ol-children" role="group" id="ol-point"></div>
+          <div class="card-body insp-area">
+            <div class="insp-head">
+              <h3 id="insp-title">Waveform generator</h3><span class="insp-path" id="insp-path">Radar</span>
             </div>
-
-            <div class="ol-node" data-node="mesh">
-              <div class="ol-row ol-group" role="treeitem" tabindex="0">
-                <button type="button" class="ol-fold" tabindex="-1" aria-label="Fold or unfold"></button>
-                <span class="ol-name">Mesh targets</span>
-                <span class="node-count" id="mesh-target-count"></span>
-                <button class="btn-icon" id="btn-add-mesh-target" title="Add a mesh target"
-                  aria-label="Add a mesh target">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                </button>
-              </div>
-              <div class="ol-children" role="group" id="ol-mesh"></div>
-            </div>
-          </div>
-        </details>
-
-        <!-- Properties of whatever is picked above. Every component's fields are here; one set shows. -->
-        <details class="card" id="panel-properties" data-panel="properties" open>
-          <summary class="card-head"><span class="idx">03</span>
-            <h2 id="insp-title">Waveform generator</h2><span class="card-hint" id="insp-path">Radar</span>
-          </summary>
-          <div class="card-body">
 
             <!-- Platform -->
             <section class="insp" data-insp="platform">
@@ -481,6 +437,54 @@
                 <!-- Channels will be dynamically added here -->
               </div>
             </section>
+          </div>
+        </details>
+
+        <!-- Targets: what the radar looks at, and under the list the fields of the one picked -->
+        <details class="card" id="panel-targets" data-panel="targets" open>
+          <summary class="card-head"><span class="idx">02</span>
+            <h2>Targets</h2><span class="card-hint">points &middot; meshes</span>
+          </summary>
+          <div class="outline" id="outline" role="tree" aria-label="Targets">
+            <div class="ol-node" data-node="point">
+              <div class="ol-row ol-group" role="treeitem" tabindex="0">
+                <button type="button" class="ol-fold" tabindex="-1" aria-label="Fold or unfold"></button>
+                <span class="ol-name">Point targets</span>
+                <span class="node-count" id="point-target-count"></span>
+                <button class="btn-icon" id="btn-add-point-target" title="Add a point target"
+                  aria-label="Add a point target">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+              </div>
+              <div class="ol-children" role="group" id="ol-point"></div>
+            </div>
+
+            <div class="ol-node" data-node="mesh">
+              <div class="ol-row ol-group" role="treeitem" tabindex="0">
+                <button type="button" class="ol-fold" tabindex="-1" aria-label="Fold or unfold"></button>
+                <span class="ol-name">Mesh targets</span>
+                <span class="node-count" id="mesh-target-count"></span>
+                <button class="btn-icon" id="btn-add-mesh-target" title="Add a mesh target"
+                  aria-label="Add a mesh target">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+              </div>
+              <div class="ol-children" role="group" id="ol-mesh"></div>
+            </div>
+          </div>
+
+          <div class="card-body insp-area" id="target-properties">
+            <div class="insp-head">
+              <h3 id="target-title">Point target 1</h3><span class="insp-path" id="target-path">Targets</span>
+            </div>
 
             <!-- Targets > a point target -->
             <section class="insp" data-insp="point">
@@ -499,13 +503,14 @@
             </section>
           </div>
         </details>
+
       </div>
 
       <div class="hud-col hud-right">
 
         <!-- Simulation Panel -->
         <details class="card" id="panel-simulation" data-panel="simulation" open>
-          <summary class="card-head"><span class="idx">04</span>
+          <summary class="card-head"><span class="idx">03</span>
             <h2>Simulation</h2><span class="card-hint">fidelity &middot; processing</span>
           </summary>
           <div class="card-body">
@@ -591,7 +596,7 @@
 
         <!-- Readout: what the waveform resolves -->
         <details class="card" data-panel="readout" open>
-          <summary class="card-head"><span class="idx">05</span>
+          <summary class="card-head"><span class="idx">04</span>
             <h2>Readout</h2><span class="card-hint">derived</span>
           </summary>
           <div class="card-body">

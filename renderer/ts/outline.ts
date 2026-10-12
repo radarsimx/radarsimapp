@@ -1,23 +1,26 @@
 // ===== RadarSimApp - Scene Outline =====
-// The left of the window is a map of the scene and one set of properties. The
-// radar is drawn as its architecture -- the transmit chain, the receive chain,
-// their antennas, on the platform -- and the targets are listed under it.
-// Picking a component shows that component's fields, and only those.
+// The left of the window is two panels, each a map with the fields of what is
+// picked on it underneath. The radar's map is its architecture -- the transmit
+// chain, the receive chain, their antennas, on the platform; the targets' is a
+// list. Picking a component shows that component's fields, and only those.
 
 import { el } from './utils.js';
 import { txChannels, rxChannels, pointTargets, meshTargets } from './shared.js';
 import { pref, setPref } from './stage.js';
 import { showSidePlot } from './plots.js';
 
-/** What can be picked: the platform, a whole chain, one block of a chain, a channel or a target. */
-export type NodeKind =
+/** What can be picked on the radar: the platform, a whole chain, one block of a chain, a channel. */
+export type RadarKind =
   | "radar" | "transmitter" | "receiver"
   | "waveform" | "pa" | "lna" | "mixer" | "baseband" | "adc"
-  | "tx" | "rx" | "point" | "mesh";
-type ItemKind = "tx" | "rx" | "point" | "mesh";
+  | "tx" | "rx";
+/** What can be picked among the targets. */
+export type TargetKind = "point" | "mesh";
+export type NodeKind = RadarKind | TargetKind;
+type ItemKind = "tx" | "rx" | TargetKind;
 
-export interface Selection {
-  kind: NodeKind;
+export interface Selection<K extends NodeKind = NodeKind> {
+  kind: K;
   /** Which one, for the kinds there can be several of. */
   index?: number;
 }
@@ -29,52 +32,46 @@ interface NodeSpec {
   sections: string[];
 }
 
-const NODES: Record<Exclude<NodeKind, ItemKind>, NodeSpec> = {
+const NODES: Record<Exclude<RadarKind, ItemKind>, NodeSpec> = {
   radar: { title: "Platform", path: "Radar", sections: ["platform"] },
   transmitter: { title: "Transmitter", path: "Radar", sections: ["waveform", "pa"] },
   receiver: { title: "Receiver", path: "Radar", sections: ["lna", "mixer", "baseband", "adc"] },
-  waveform: { title: "Waveform generator", path: "Radar › Transmitter", sections: ["waveform"] },
-  pa: { title: "Power amplifier", path: "Radar › Transmitter", sections: ["pa"] },
-  lna: { title: "Low-noise amplifier", path: "Radar › Receiver", sections: ["lna"] },
-  mixer: { title: "Mixer", path: "Radar › Receiver", sections: ["mixer"] },
-  baseband: { title: "Baseband amplifier", path: "Radar › Receiver", sections: ["baseband"] },
-  adc: { title: "ADC", path: "Radar › Receiver", sections: ["adc"] },
+  waveform: { title: "Waveform generator", path: "Transmitter", sections: ["waveform"] },
+  pa: { title: "Power amplifier", path: "Transmitter", sections: ["pa"] },
+  lna: { title: "Low-noise amplifier", path: "Receiver", sections: ["lna"] },
+  mixer: { title: "Mixer", path: "Receiver", sections: ["mixer"] },
+  baseband: { title: "Baseband amplifier", path: "Receiver", sections: ["baseband"] },
+  adc: { title: "ADC", path: "Receiver", sections: ["adc"] },
 };
 
 interface ItemSpec {
   items: unknown[];
   /** Holds one card of fields per item (built by channels.ts / targets.ts). */
   listId: string;
-  /** Holds the items' entries in the map: antennas in the diagram, rows in the target list. */
+  /** Holds the items' entries on the map: antennas in the diagram, rows in the target list. */
   entriesId: string;
   /** As the item is marked in the 3D scene. */
   label: (i: number) => string;
   title: (i: number) => string;
   path: string;
-  /** Where the selection goes when the last item is removed. */
-  parent: NodeKind;
 }
 
 const ITEMS: Record<ItemKind, ItemSpec> = {
   tx: {
     items: txChannels, listId: "tx-channels-list", entriesId: "ol-tx",
-    label: (i) => `TX${i + 1}`, title: (i) => `TX channel ${i + 1}`,
-    path: "Radar › Transmitter", parent: "transmitter",
+    label: (i) => `TX${i + 1}`, title: (i) => `TX channel ${i + 1}`, path: "Transmitter",
   },
   rx: {
     items: rxChannels, listId: "rx-channels-list", entriesId: "ol-rx",
-    label: (i) => `RX${i + 1}`, title: (i) => `RX channel ${i + 1}`,
-    path: "Radar › Receiver", parent: "receiver",
+    label: (i) => `RX${i + 1}`, title: (i) => `RX channel ${i + 1}`, path: "Receiver",
   },
   point: {
     items: pointTargets, listId: "point-targets-list", entriesId: "ol-point",
-    label: (i) => `T${i + 1}`, title: (i) => `Point target ${i + 1}`,
-    path: "Targets", parent: "radar",
+    label: (i) => `T${i + 1}`, title: (i) => `Point target ${i + 1}`, path: "Point targets",
   },
   mesh: {
     items: meshTargets, listId: "mesh-targets-list", entriesId: "ol-mesh",
-    label: (i) => `M${i + 1}`, title: (i) => `Mesh target ${i + 1}`,
-    path: "Targets", parent: "radar",
+    label: (i) => `M${i + 1}`, title: (i) => `Mesh target ${i + 1}`, path: "Mesh targets",
   },
 };
 
@@ -82,20 +79,42 @@ function _isItem(kind: NodeKind): kind is ItemKind {
   return kind in ITEMS;
 }
 
-let _selection: Selection = pref<Selection>("selection", { kind: "waveform" });
-
-export function selection(): Selection {
-  return _selection;
+function _isTarget(kind: NodeKind): kind is TargetKind {
+  return kind === "point" || kind === "mesh";
 }
 
-/** Pick a node: its fields come up, and the plot that goes with them. */
+/** Keep an item's index within what there is; null when there are none. */
+function _within(kind: ItemKind, index: number | undefined): number | null {
+  const count = ITEMS[kind].items.length;
+  return count === 0 ? null : Math.min(Math.max(index ?? 0, 0), count - 1);
+}
+
+// Each panel has its own pick: one on the radar, and one among the targets
+// for as long as there is a target to pick.
+let _radar: Selection<RadarKind> = pref<Selection<RadarKind>>("selection", { kind: "waveform" });
+let _target: Selection<TargetKind> | null = pref<Selection<TargetKind> | null>("selection.target", { kind: "point", index: 0 });
+
+/** What is picked on the radar. */
+export function selection(): Selection<RadarKind> {
+  return _radar;
+}
+
+/** What is picked among the targets, if there are any. */
+export function targetSelection(): Selection<TargetKind> | null {
+  return _target;
+}
+
+/** Pick a node: its fields come up in its panel, and the plot that goes with them. */
 export function select(next: Selection): void {
-  _selection = next;
+  if (_isTarget(next.kind)) _target = next as Selection<TargetKind>;
+  else _radar = next as Selection<RadarKind>;
   _apply();
-  setPref("selection", _selection);
-  const { kind, index } = _selection;
-  if (kind === "waveform" || kind === "transmitter") showSidePlot("waveform");
-  else if (kind === "tx" || kind === "rx") showSidePlot("pattern", { pfx: kind, index: index ?? 0 });
+  setPref("selection", _radar);
+  setPref("selection.target", _target);
+  document.querySelector<HTMLElement>(`.hud-left [data-select="${next.kind}"].sel`)?.scrollIntoView?.({ block: "nearest" });
+
+  if (next.kind === "waveform" || next.kind === "transmitter") showSidePlot("waveform");
+  else if (next.kind === "tx" || next.kind === "rx") showSidePlot("pattern", { pfx: next.kind, index: next.index ?? 0 });
 }
 
 /** Rebuild the entries of the things there can be several of, after one is added or removed. */
@@ -124,54 +143,40 @@ export function renderOutline(): void {
   _apply();
 }
 
-/** Bring the map and the properties in line with the selection. */
-function _apply(): void {
-  // What was selected may have been removed since, or come from an older layout
-  if (_isItem(_selection.kind)) {
-    const spec = ITEMS[_selection.kind];
-    const count = spec.items.length;
-    if (count === 0) _selection = { kind: spec.parent };
-    else _selection = { kind: _selection.kind, index: Math.min(Math.max(_selection.index ?? 0, 0), count - 1) };
-  } else if (!(_selection.kind in NODES)) {
-    _selection = { kind: "waveform" };
+/** What was picked may have been removed since, or come from an older layout. */
+function _settle(): void {
+  if (_radar.kind === "tx" || _radar.kind === "rx") {
+    const index = _within(_radar.kind, _radar.index);
+    // With its last channel gone, a chain is what is left to show
+    _radar = index === null
+      ? { kind: _radar.kind === "tx" ? "transmitter" : "receiver" }
+      : { kind: _radar.kind, index };
+  } else if (!(_radar.kind in NODES)) {
+    _radar = { kind: "waveform" };
   }
-  const { kind, index } = _selection;
 
-  document.querySelectorAll<HTMLElement>(".hud-left [data-select]").forEach((entry) => {
-    const selected = entry.dataset.select === kind
-      && (entry.dataset.index === undefined || Number(entry.dataset.index) === index);
-    entry.classList.toggle("sel", selected);
-    entry.setAttribute("aria-pressed", String(selected));
-    if (selected) {
-      // A selection inside a folded branch would be out of sight
-      entry.closest(".ol-node")?.classList.remove("folded");
-      entry.scrollIntoView?.({ block: "nearest" });
+  // A target, of the kind picked if there is one, else of the other kind
+  const kinds: TargetKind[] = _target?.kind === "mesh" ? ["mesh", "point"] : ["point", "mesh"];
+  const wanted = _target?.index;
+  _target = null;
+  for (const kind of kinds) {
+    const index = _within(kind, kind === kinds[0] ? wanted : 0);
+    if (index !== null) {
+      _target = { kind, index };
+      break;
     }
-  });
-
-  const named = _isItem(kind)
-    ? { title: ITEMS[kind].title(index ?? 0), path: ITEMS[kind].path, sections: [kind as string] }
-    : NODES[kind];
-  document.querySelectorAll<HTMLElement>(".insp").forEach((section) => {
-    section.classList.toggle("active", named.sections.includes(section.dataset.insp!));
-  });
-  // A whole chain shows its blocks one under another, each under its own name
-  document.getElementById("panel-properties")?.classList.toggle("whole-chain", named.sections.length > 1);
-  (Object.keys(ITEMS) as ItemKind[]).forEach((k) => {
-    const cards = document.getElementById(ITEMS[k].listId)?.children ?? [];
-    Array.from(cards).forEach((card, i) => card.classList.toggle("collapsed", !(k === kind && i === index)));
-  });
-
-  const title = document.getElementById("insp-title");
-  const path = document.getElementById("insp-path");
-  if (title) title.textContent = named.title;
-  if (path) path.textContent = named.path;
+  }
 }
 
-// --- Diagram readings ---
-// Each block of the diagram carries the setting that most characterises it.
-function _value(id: string): string {
-  return (document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null)?.value ?? "";
+function _picked(entry: HTMLElement, sel: Selection | null): boolean {
+  return !!sel && entry.dataset.select === sel.kind
+    && (entry.dataset.index === undefined || Number(entry.dataset.index) === sel.index);
+}
+
+function _named(sel: Selection): NodeSpec {
+  return _isItem(sel.kind)
+    ? { title: ITEMS[sel.kind].title(sel.index ?? 0), path: ITEMS[sel.kind].path, sections: [sel.kind] }
+    : NODES[sel.kind];
 }
 
 function _show(id: string, text: string): void {
@@ -179,6 +184,49 @@ function _show(id: string, text: string): void {
   if (!elem) return;
   elem.textContent = text;
   elem.title = text;  // a narrow block may have to cut it short
+}
+
+/** Bring the maps and the fields under them in line with what is picked. */
+function _apply(): void {
+  _settle();
+
+  document.querySelectorAll<HTMLElement>(".hud-left [data-select]").forEach((entry) => {
+    const selected = _picked(entry, _isTarget(entry.dataset.select as NodeKind) ? _target : _radar);
+    entry.classList.toggle("sel", selected);
+    entry.setAttribute("aria-pressed", String(selected));
+    if (selected) {
+      // A selection inside a folded branch would be out of sight
+      entry.closest(".ol-node")?.classList.remove("folded");
+    }
+  });
+
+  const radar = _named(_radar);
+  const target = _target ? _named(_target) : null;
+  const sections = [...radar.sections, ...(target?.sections ?? [])];
+  document.querySelectorAll<HTMLElement>(".insp").forEach((section) => {
+    section.classList.toggle("active", sections.includes(section.dataset.insp!));
+  });
+  // A whole chain shows its blocks one under another, each under its own name
+  document.getElementById("panel-radar")?.classList.toggle("whole-chain", radar.sections.length > 1);
+  // With no targets there is nothing to show under their list
+  document.getElementById("target-properties")?.classList.toggle("empty", !target);
+
+  (Object.keys(ITEMS) as ItemKind[]).forEach((kind) => {
+    const sel = _isTarget(kind) ? _target : _radar;
+    const cards = document.getElementById(ITEMS[kind].listId)?.children ?? [];
+    Array.from(cards).forEach((card, i) => card.classList.toggle("collapsed", !(sel?.kind === kind && sel.index === i)));
+  });
+
+  _show("insp-title", radar.title);
+  _show("insp-path", radar.path);
+  _show("target-title", target?.title ?? "");
+  _show("target-path", target?.path ?? "");
+}
+
+// --- Diagram readings ---
+// Each block of the diagram carries the setting that most characterises it.
+function _value(id: string): string {
+  return (document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null)?.value ?? "";
 }
 
 export function updateDiagram(): void {
@@ -196,7 +244,7 @@ function _toggleFold(node: Element): void {
   setPref(`outline.folded.${(node as HTMLElement).dataset.node}`, folded);
 }
 
-/** Wire the map up. Its fixed parts are in index.html; the rest are built by renderOutline. */
+/** Wire the maps up. Their fixed parts are in index.html; the rest are built by renderOutline. */
 export function initOutline(): void {
   const map = document.querySelector<HTMLElement>(".hud-left");
   if (!map) return;
@@ -246,9 +294,9 @@ export function initOutline(): void {
   });
 
   // The readings on the diagram follow the fields, however they come to change
-  const properties = document.getElementById("panel-properties");
-  properties?.addEventListener("input", updateDiagram);
-  properties?.addEventListener("change", updateDiagram);
+  const radar = document.getElementById("panel-radar");
+  radar?.addEventListener("input", updateDiagram);
+  radar?.addEventListener("change", updateDiagram);
   document.addEventListener("configapplied", updateDiagram);
 
   updateDiagram();

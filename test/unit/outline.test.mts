@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 
 import { installAppDom, type DomHandle } from "../helpers/dom.mts";
 
-// The radar is drawn as its architecture and the targets are listed under it;
-// picking a component shows that component's fields. Every component's fields
-// stay in the page -- the configuration is read from all of them -- so what
-// these tests pin is which sets are showing, and that the selection never
-// points at something that is no longer there.
+// The radar is drawn as its architecture and the targets are listed in a panel
+// of their own; picking a component shows that component's fields under its
+// map. Every component's fields stay in the page -- the configuration is read
+// from all of them -- so what these tests pin is which sets are showing, and
+// that a pick never points at something that is no longer there.
 
 let handle: DomHandle;
 let outline: any;
@@ -15,8 +15,9 @@ let channels: any;
 let targets: any;
 let shared: any;
 
-function showing(): string[] {
-  return Array.from(document.querySelectorAll<HTMLElement>(".insp.active")).map((s) => s.dataset.insp!);
+/** The sets of fields showing in a panel. */
+function showing(panel: "radar" | "targets" = "radar"): string[] {
+  return Array.from(document.querySelectorAll<HTMLElement>(`#panel-${panel} .insp.active`)).map((s) => s.dataset.insp!);
 }
 
 function openCards(listId: string): number[] {
@@ -102,10 +103,10 @@ describe("selection", () => {
     assert.deepEqual(showing(), ["lna", "mixer", "baseband", "adc"]);
   });
 
-  test("one thing is marked as picked at a time", () => {
+  test("one thing on the radar is marked as picked at a time", () => {
     outline.select({ kind: "lna" });
     outline.select({ kind: "adc" });
-    const picked = Array.from(document.querySelectorAll<HTMLElement>(".hud-left .sel"));
+    const picked = Array.from(document.querySelectorAll<HTMLElement>("#arch .sel"));
     assert.deepEqual(picked.map((p) => p.dataset.select), ["adc"]);
   });
 
@@ -142,7 +143,47 @@ describe("selection", () => {
     assert.deepEqual(showing(), ["waveform", "pa"]);
   });
 
-  test("unfolds the branch of the target list a selection is in", () => {
+});
+
+describe("targets", () => {
+  test("a target's fields show under the target list, beside whatever is picked on the radar", () => {
+    outline.select({ kind: "mixer" });
+    outline.select({ kind: "point", index: 0 });
+
+    assert.deepEqual(showing("targets"), ["point"]);
+    assert.deepEqual(openCards("point-targets-list"), [0]);
+    assert.equal(document.getElementById("target-title")!.textContent, "Point target 1");
+    assert.deepEqual(showing("radar"), ["mixer"], "the radar keeps its own pick");
+  });
+
+  test("picking on the radar leaves the target picked", () => {
+    outline.select({ kind: "point", index: 0 });
+    outline.select({ kind: "adc" });
+    assert.deepEqual(outline.targetSelection(), { kind: "point", index: 0 });
+  });
+
+  test("moves to a target of the other kind when the last of one kind is removed", () => {
+    shared.meshTargets.push({});
+    targets.renderMeshTargets();
+    outline.select({ kind: "point", index: 0 });
+
+    shared.pointTargets.splice(0, 1);
+    targets.renderPointTargets();
+
+    assert.deepEqual(outline.targetSelection(), { kind: "mesh", index: 0 });
+    assert.deepEqual(showing("targets"), ["mesh"]);
+  });
+
+  test("shows nothing under the list once there are no targets", () => {
+    shared.pointTargets.splice(0, 1);
+    targets.renderPointTargets();
+
+    assert.equal(outline.targetSelection(), null);
+    assert.deepEqual(showing("targets"), []);
+    assert.ok(document.getElementById("target-properties")!.classList.contains("empty"));
+  });
+
+  test("unfolds the branch of the list a pick is in", () => {
     const branch = document.querySelector('.ol-node[data-node="point"]')!;
     branch.classList.add("folded");
     outline.select({ kind: "point", index: 0 });

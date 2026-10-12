@@ -504,7 +504,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const debouncedMarkOutdated = debounce(markResultsOutdated, 200);
-  const configPanels = ["panel-properties", "panel-simulation"];
+  const configPanels = ["panel-radar", "panel-targets", "panel-simulation"];
   const handler = (e: Event): void => {
     if ((e.target as HTMLElement).matches("input, select")) debouncedMarkOutdated();
   };

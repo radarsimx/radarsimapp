@@ -267,13 +267,19 @@ sup{top:-.5em}
 .ol-row.sel .btn-icon{color:#fff;background:rgba(255,255,255,.18)}
 .ol-row.sel .btn-icon:hover{background:rgba(255,255,255,.3)}
 
-/* The properties: every node's fields are in the page, and the one picked shows */
+/* Under a panel's map, the fields of what is picked on it: every component's
+   are in the page, and one set shows */
+.insp-area{border-top:1px solid var(--line)}
+.insp-area.empty{display:none}
+.insp-head{display:flex;align-items:baseline;gap:8px;min-width:0}
+.insp-head h3{font-size:13px;font-weight:600;white-space:nowrap;color:var(--accent)}
+.insp-path{margin-left:auto;overflow:hidden;font-size:11px;color:var(--ink-3);white-space:nowrap;text-overflow:ellipsis}
 .insp{display:none;flex-direction:column;gap:12px;min-width:0}
 .insp.active{display:flex}
 /* A whole chain shows its blocks one under another, each under its own name */
 .insp.active+.insp.active{padding-top:12px;border-top:1px solid var(--line)}
 .chain-only{display:none}
-#panel-properties.whole-chain .chain-only{display:block}
+#panel-radar.whole-chain .chain-only{display:block}
 .group{display:flex;flex-direction:column;gap:7px;min-width:0}
 .group+.group{padding-top:12px;border-top:1px solid var(--line)}
 .subsection-label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
