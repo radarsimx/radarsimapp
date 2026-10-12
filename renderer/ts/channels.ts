@@ -1,7 +1,8 @@
 // ===== RadarSimApp - Channel Functions =====
 
 import { el, createInput, createTextInput, createSVG, debounce, formatComplex, isValidComplex, parseNumber, parseCSV, confirmAsync, setCount } from './utils.js';
-import { updateChannelPatternPlot, attachPatternListeners, updateTxLocationsPlot, updateRxLocationsPlot, markResultsOutdated } from './plots.js';
+import { attachPatternListeners, updateLayoutPlot, redrawSidePlot, markResultsOutdated } from './plots.js';
+import { renderOutline } from './outline.js';
 import { updateScene } from './scene.js';
 import { txChannels, rxChannels } from './shared.js';
 import { debouncedAutoSave } from './state.js';
@@ -96,35 +97,10 @@ function createChannelCard(prefix: string, index: number, data: ChannelData, isT
     ]),
   );
 
-  // Build the combined pattern plot
-  const patternPlotDiv = el("div", { className: "pattern-plot", id: `${pfx}-ch-${index}-pattern-plot` });
-
-  const plots = el("div", { className: "channel-card-plots" }, [
-    el("div", { className: "pattern-plot-label", textContent: "Antenna Pattern" }),
-    patternPlotDiv,
-  ]);
-
+  // A channel's fields, all of them in the page; the outline picks the one that shows
   const card = el("div", { className: "channel-card collapsed" }, [
-    el("div", {
-      className: "channel-card-header", onClick: () => {
-        const isCollapsed = card.classList.contains("collapsed");
-        if (isCollapsed) {
-          card.parentElement?.querySelectorAll(".channel-card").forEach((c) => c.classList.add("collapsed"));
-        }
-        card.classList.toggle("collapsed");
-        if (isCollapsed) {
-          card.querySelectorAll(".js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot as HTMLElement));
-        }
-      }
-    }, [
-      el("span", { textContent: `${prefix} Channel ${index + 1}` }),
-      el("button", { className: "btn-icon btn-collapse", title: "Collapse" }, [
-        createSVG("chevron"),
-      ]),
-    ]),
     el("div", { className: "channel-card-body" }, [
       fields,
-      plots,
       el("div", { className: "card-actions" }, [
         el("button", { className: "btn-secondary btn-danger", title: "Remove", onClick: () => removeChannel(prefix, index) }, [
           createSVG("trash"),
@@ -144,17 +120,13 @@ export function renderTxChannels(): void {
     container.appendChild(createChannelCard("TX", i, ch, true));
   });
   setCount("tx-ch-count", txChannels.length);
+  renderOutline();
 
   requestAnimationFrame(() => {
-    txChannels.forEach((_, i) => {
-      updateChannelPatternPlot("tx", i);
-      attachPatternListeners("tx", i);
-    });
-    updateTxLocationsPlot();
+    txChannels.forEach((_, i) => attachPatternListeners("tx", i));
+    redrawSidePlot();
     attachLocationListeners();
     updateScene();
-    const cards = document.querySelectorAll("#tx-channels-list .channel-card");
-    if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
   });
 }
 
@@ -165,17 +137,13 @@ export function renderRxChannels(): void {
     container.appendChild(createChannelCard("RX", i, ch, false));
   });
   setCount("rx-ch-count", rxChannels.length);
+  renderOutline();
 
   requestAnimationFrame(() => {
-    rxChannels.forEach((_, i) => {
-      updateChannelPatternPlot("rx", i);
-      attachPatternListeners("rx", i);
-    });
-    updateRxLocationsPlot();
+    rxChannels.forEach((_, i) => attachPatternListeners("rx", i));
+    redrawSidePlot();
     attachRxLocationListeners();
     updateScene();
-    const cards = container.querySelectorAll(".channel-card");
-    if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
   });
 }
 
@@ -237,7 +205,7 @@ async function removeChannel(prefix: string, index: number): Promise<void> {
 
 function attachLocationListeners(): void {
   txChannels.forEach((_, i) => {
-    const debouncedUpdate = debounce(() => { updateTxLocationsPlot(); updateScene(); });
+    const debouncedUpdate = debounce(() => { updateLayoutPlot(); updateScene(); });
     ["loc-x", "loc-y", "loc-z"].forEach((field) => {
       const elem = document.getElementById(`tx-ch-${i}-${field}`);
       if (elem) {
@@ -249,7 +217,7 @@ function attachLocationListeners(): void {
 
 function attachRxLocationListeners(): void {
   rxChannels.forEach((_, i) => {
-    const debouncedUpdate = debounce(() => { updateRxLocationsPlot(); updateScene(); });
+    const debouncedUpdate = debounce(() => { updateLayoutPlot(); updateScene(); });
     ["loc-x", "loc-y", "loc-z"].forEach((field) => {
       const elem = document.getElementById(`rx-ch-${i}-${field}`);
       if (elem) {

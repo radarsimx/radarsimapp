@@ -3,7 +3,7 @@
 import { debounce, parseNumber, parseCSV } from './utils.js';
 import { txChannels, rxChannels } from './shared.js';
 import { updateReadout } from './readout.js';
-import { stageView, setResultViewsAvailable, type StageView } from './stage.js';
+import { stageView, isResultView, setResultViewsAvailable, setPref, type StageView } from './stage.js';
 
 // --- TX Bandwidth / Sweep Info ---
 export function updateTxInfo(): void {
@@ -29,7 +29,6 @@ const THEME = {
   second: "#2ec5d8",
   secondSoft: "rgba(46,197,216,0.08)",
   imag: "#ff7b3a",
-  boresight: "#f2aa2b",
   panel: "#17131f",
   mono: 'ui-monospace, "SFMono-Regular", "Cascadia Mono", Consolas, Menlo, monospace',
 };
@@ -79,19 +78,6 @@ export const plotlyConfig: any = {
   displaylogo: false,
 };
 
-const smallPlotLayout: any = {
-  ...baseLayout(10),
-  margin: { l: 0, r: 0, t: 0, b: 0 },
-  scene: {
-    xaxis: sceneAxis("X (mm)"),
-    yaxis: sceneAxis("Y (mm)"),
-    zaxis: sceneAxis("Z (mm)"),
-    bgcolor: THEME.clear,
-    aspectmode: "data",
-  },
-  showlegend: false,
-};
-
 const smallPlotConfig: any = { responsive: true, displayModeBar: "hover", displaylogo: false };
 
 // --- Antenna Pattern Plots ---
@@ -105,20 +91,73 @@ const patternPlotLayout: any = {
 
 const patternPlotConfig: any = { responsive: true, displayModeBar: false };
 
-export function updateChannelPatternPlot(pfx: string, index: number): void {
-  const azAnglesEl = document.getElementById(`${pfx}-ch-${index}-az-angles`) as HTMLTextAreaElement | null;
-  const azPatternEl = document.getElementById(`${pfx}-ch-${index}-az-pattern`) as HTMLTextAreaElement | null;
-  const elAnglesEl = document.getElementById(`${pfx}-ch-${index}-el-angles`) as HTMLTextAreaElement | null;
-  const elPatternEl = document.getElementById(`${pfx}-ch-${index}-el-pattern`) as HTMLTextAreaElement | null;
-  if (!azAnglesEl) return;
+// --- Secondary Plot ---
+// One small plot rides over the stage, beside the panels, and shows what is
+// being edited: the waveform, a channel's antenna pattern, or where the
+// channels sit on the platform.
+export type SidePlot = "waveform" | "pattern" | "layout";
 
-  const azAngles = parseCSV(azAnglesEl.value);
-  const azPattern = parseCSV(azPatternEl!.value);
-  const elAngles = parseCSV(elAnglesEl!.value);
-  const elPattern = parseCSV(elPatternEl!.value);
+export interface PatternChannel {
+  pfx: "tx" | "rx";
+  index: number;
+}
 
-  const plotDiv = document.getElementById(`${pfx}-ch-${index}-pattern-plot`);
+let _sidePlot: SidePlot = "waveform";
+let _patternChannel: PatternChannel = { pfx: "tx", index: 0 };
+/** What the plot's element holds now; a different kind is drawn from scratch. */
+let _sideDrawn: SidePlot | null = null;
+
+/** The element to draw a kind of plot into, or null while it is not the one showing. */
+function _sideContainer(kind: SidePlot): HTMLElement | null {
+  if (kind !== _sidePlot || isResultView(stageView())) return null;
+  if (document.getElementById("side-plot")?.classList.contains("collapsed")) return null;
+  const container = document.getElementById("side-plot-view");
+  if (container && _sideDrawn !== kind) {
+    Plotly.purge(container);
+    _sideDrawn = kind;
+  }
+  return container;
+}
+
+/** Bring a plot up; for a pattern, of the channel given or the one last shown. */
+export function showSidePlot(kind: SidePlot, channel?: PatternChannel): void {
+  _sidePlot = kind;
+  if (channel) _patternChannel = channel;
+  setPref("sidePlot", kind);
+  document.querySelectorAll<HTMLElement>("button[data-side]").forEach((b) => {
+    b.setAttribute("aria-checked", String(b.dataset.side === kind));
+  });
+  redrawSidePlot();
+}
+
+export function redrawSidePlot(): void {
+  if (_sidePlot === "waveform") updateTxWaveformPlot();
+  else if (_sidePlot === "pattern") _drawPattern();
+  else updateLayoutPlot();
+
+  const title = document.getElementById("side-plot-title");
+  if (title) {
+    title.textContent = _sidePlot === "waveform" ? "Frequency vs time"
+      : _sidePlot === "layout" ? "Array face, along boresight"
+      : `${_patternChannel.pfx.toUpperCase()} ${_patternChannel.index + 1} antenna pattern`;
+  }
+}
+
+// --- Antenna Pattern Plot ---
+function _drawPattern(): void {
+  // The channel last shown may have been removed since
+  const channels = _patternChannel.pfx === "tx" ? txChannels : rxChannels;
+  if (_patternChannel.index >= channels.length) {
+    _patternChannel = { ..._patternChannel, index: Math.max(0, channels.length - 1) };
+  }
+  const plotDiv = _sideContainer("pattern");
   if (!plotDiv) return;
+
+  const { pfx, index } = _patternChannel;
+  const field = (name: string): number[] =>
+    parseCSV((document.getElementById(`${pfx}-ch-${index}-${name}`) as HTMLTextAreaElement | null)?.value ?? "");
+  const azAngles = field("az-angles"), azPattern = field("az-pattern");
+  const elAngles = field("el-angles"), elPattern = field("el-pattern");
 
   const traces: any[] = [];
   if (azAngles.length > 0 && azPattern.length > 0) {
@@ -139,7 +178,6 @@ export function updateChannelPatternPlot(pfx: string, index: number): void {
       fill: "tozeroy", fillcolor: THEME.secondSoft,
     });
   }
-  if (traces.length === 0) return;
 
   const layout = {
     ...patternPlotLayout,
@@ -147,6 +185,11 @@ export function updateChannelPatternPlot(pfx: string, index: number): void {
     legend: overlayLegend,
   };
   Plotly.react(plotDiv, traces, layout, patternPlotConfig);
+}
+
+/** Redraw a channel's pattern, if that channel's is the one showing. */
+export function updateChannelPatternPlot(pfx: string, index: number): void {
+  if (pfx === _patternChannel.pfx && index === _patternChannel.index) _drawPattern();
 }
 
 export function attachPatternListeners(pfx: string, index: number): void {
@@ -159,98 +202,9 @@ export function attachPatternListeners(pfx: string, index: number): void {
   });
 }
 
-function preserveCamera(container: any): any {
-  return container._fullLayout?.scene?.camera ?? {};
-}
-
-const _sceneCounts = new WeakMap<HTMLElement, number>();
-function scenePlot(container: HTMLElement, traces: any[], layout: any, config: any): void {
-  const cam = preserveCamera(container);
-  if (layout.scene) layout.scene.camera = cam;
-  const count = traces.reduce((n: number, t: any) => n + (t.x ? t.x.length : 0), 0);
-  const prev = _sceneCounts.get(container);
-  if (prev === count && (container as any).data) {
-    Plotly.react(container, traces, layout, config);
-  } else {
-    _sceneCounts.set(container, count);
-    Plotly.newPlot(container, traces, layout, config);
-  }
-}
-
-function sceneArrowLen(xs: number[], ys: number[], zs: number[], minLen: number = 0.1): number {
-  if (xs.length === 0) return minLen;
-  const spanX = Math.max(...xs) - Math.min(...xs);
-  const spanY = Math.max(...ys) - Math.min(...ys);
-  const spanZ = Math.max(...zs) - Math.min(...zs);
-  return Math.max(Math.max(spanX, spanY, spanZ) * 0.2, minLen);
-}
-
-function boresightTraces(arrowLen: number, color: string, origin: number[] = [0, 0, 0], dir: number[] = [1, 0, 0]): any[] {
-  const [ox, oy, oz] = origin;
-  const [dx, dy, dz] = dir;
-
-  const tipX = ox + dx * arrowLen;
-  const tipY = oy + dy * arrowLen;
-  const tipZ = oz + dz * arrowLen;
-
-  let refX = 0, refY = 1, refZ = 0;
-  if (Math.abs(dy) > 0.9) { refX = 0; refY = 0; refZ = 1; }
-  const p1x = dy * refZ - dz * refY;
-  const p1y = dz * refX - dx * refZ;
-  const p1z = dx * refY - dy * refX;
-  const p1len = Math.sqrt(p1x * p1x + p1y * p1y + p1z * p1z) || 1;
-  const n1x = p1x / p1len, n1y = p1y / p1len, n1z = p1z / p1len;
-  const n2x = dy * n1z - dz * n1y;
-  const n2y = dz * n1x - dx * n1z;
-  const n2z = dx * n1y - dy * n1x;
-
-  const headLen = arrowLen * 0.12;
-  const headW = arrowLen * 0.04;
-
-  const barbs: number[][] = [
-    [n1x, n1y, n1z],
-    [-n1x, -n1y, -n1z],
-    [n2x, n2y, n2z],
-    [-n2x, -n2y, -n2z],
-  ];
-
-  const headXs: (number | null)[] = [], headYs: (number | null)[] = [], headZs: (number | null)[] = [];
-  for (const [bx, by, bz] of barbs) {
-    headXs.push(tipX, tipX - dx * headLen + bx * headW, null);
-    headYs.push(tipY, tipY - dy * headLen + by * headW, null);
-    headZs.push(tipZ, tipZ - dz * headLen + bz * headW, null);
-  }
-
-  const labelX = ox + dx * arrowLen * 1.15;
-  const labelY = oy + dy * arrowLen * 1.15;
-  const labelZ = oz + dz * arrowLen * 1.15;
-
-  return [
-    {
-      x: [ox, tipX], y: [oy, tipY], z: [oz, tipZ],
-      type: "scatter3d", mode: "lines",
-      line: { color, width: 4 },
-      showlegend: false, hoverinfo: "none", name: "",
-    },
-    {
-      x: headXs, y: headYs, z: headZs,
-      type: "scatter3d", mode: "lines",
-      line: { color, width: 4 },
-      showlegend: false, hoverinfo: "none", name: "",
-    },
-    {
-      x: [labelX], y: [labelY], z: [labelZ],
-      text: ["Boresight"],
-      type: "scatter3d", mode: "text",
-      textfont: { size: 9, color },
-      showlegend: false, hoverinfo: "none", name: "",
-    },
-  ];
-}
-
 // --- TX Waveform Preview Plot ---
 export function updateTxWaveformPlot(): void {
-  const container = document.getElementById("tx-waveform-plot");
+  const container = _sideContainer("waveform");
   if (!container) return;
 
   const fStart = parseNumber((document.getElementById("tx-f-start") as HTMLInputElement).value);
@@ -302,60 +256,51 @@ export function updateTxWaveformPlot(): void {
   Plotly.react(container, traces, layout, smallPlotConfig);
 }
 
-// --- TX Channel Locations Plot ---
-export function updateTxLocationsPlot(): void {
-  const container = document.getElementById("tx-locations-plot");
-  if (!container) return;
-
-  const xs: number[] = [], ys: number[] = [], zs: number[] = [], labels: string[] = [];
-  txChannels.forEach((_: ChannelData, i: number) => {
-    const x = parseNumber((document.getElementById(`tx-ch-${i}-loc-x`) as HTMLInputElement | null)?.value);
-    const y = parseNumber((document.getElementById(`tx-ch-${i}-loc-y`) as HTMLInputElement | null)?.value);
-    const z = parseNumber((document.getElementById(`tx-ch-${i}-loc-z`) as HTMLInputElement | null)?.value);
-    xs.push(x); ys.push(y); zs.push(z);
-    labels.push(`TX ${i + 1}`);
-  });
-
-  const trace = {
-    x: xs, y: ys, z: zs,
+// --- Channel Layout Plot ---
+// Where the channels sit on the platform, in its own frame: what the location
+// fields say, before the platform's position and rotation are applied. Drawn
+// as the face of the array, seen from behind it looking along the boresight
+// (+x), so +y is to the left and +z is up. The 3D scene has the rest.
+function _channelTrace(pfx: string, count: number, color: string, symbol: string): any {
+  const ys: number[] = [], zs: number[] = [], labels: string[] = [], hover: string[] = [];
+  const field = (i: number, axis: string): number =>
+    parseNumber((document.getElementById(`${pfx}-ch-${i}-loc-${axis}`) as HTMLInputElement | null)?.value);
+  for (let i = 0; i < count; i++) {
+    const x = field(i, "x"), y = field(i, "y"), z = field(i, "z");
+    ys.push(y); zs.push(z);
+    labels.push(`${pfx.toUpperCase()}${i + 1}`);
+    hover.push(`${pfx.toUpperCase()} ${i + 1}<br>x ${x} mm<br>y ${y} mm<br>z ${z} mm`);
+  }
+  return {
+    x: ys, y: zs,
     text: labels,
-    type: "scatter3d",
+    hovertext: hover, hoverinfo: "text",
+    type: "scatter",
     mode: "markers+text",
-    marker: { size: 7, color: THEME.tx, symbol: "diamond" },
-    textposition: "top center",
-    textfont: { size: 10, color: THEME.tx },
+    name: pfx.toUpperCase(),
+    marker: { size: 10, color, symbol, line: { width: 1, color: THEME.panel } },
+    textposition: pfx === "tx" ? "top center" : "bottom center",
+    textfont: { size: 10, color },
   };
-
-  const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), THEME.boresight);
-  scenePlot(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
 }
 
-// --- RX Channel Locations Plot ---
-export function updateRxLocationsPlot(): void {
-  const container = document.getElementById("rx-locations-plot");
+export function updateLayoutPlot(): void {
+  const container = _sideContainer("layout");
   if (!container) return;
 
-  const xs: number[] = [], ys: number[] = [], zs: number[] = [], labels: string[] = [];
-  rxChannels.forEach((_: ChannelData, i: number) => {
-    const x = parseNumber((document.getElementById(`rx-ch-${i}-loc-x`) as HTMLInputElement | null)?.value);
-    const y = parseNumber((document.getElementById(`rx-ch-${i}-loc-y`) as HTMLInputElement | null)?.value);
-    const z = parseNumber((document.getElementById(`rx-ch-${i}-loc-z`) as HTMLInputElement | null)?.value);
-    xs.push(x); ys.push(y); zs.push(z);
-    labels.push(`RX ${i + 1}`);
-  });
-
-  const trace = {
-    x: xs, y: ys, z: zs,
-    text: labels,
-    type: "scatter3d",
-    mode: "markers+text",
-    marker: { size: 7, color: THEME.rx, symbol: "circle" },
-    textposition: "top center",
-    textfont: { size: 10, color: THEME.rx },
+  const layout = {
+    ...baseLayout(10),
+    margin: { l: 46, r: 10, t: 10, b: 36 },
+    xaxis: { ...axis("Y (mm)", 10), autorange: "reversed" },
+    // One scale on both axes: the array keeps its shape
+    yaxis: { ...axis("Z (mm)", 10), scaleanchor: "x" },
+    showlegend: true,
+    legend: overlayLegend,
   };
-
-  const arrow = boresightTraces(sceneArrowLen(xs, ys, zs), THEME.boresight);
-  scenePlot(container, [...arrow, trace], { ...smallPlotLayout, scene: { ...smallPlotLayout.scene } }, smallPlotConfig);
+  Plotly.react(container, [
+    _channelTrace("tx", txChannels.length, THEME.tx, "diamond"),
+    _channelTrace("rx", rxChannels.length, THEME.rx, "circle-open"),
+  ], layout, smallPlotConfig);
 }
 
 // --- Plot Simulation Results ---
@@ -559,8 +504,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const debouncedMarkOutdated = debounce(markResultsOutdated, 200);
-  // The transmitter and the receiver are inside the radar panel
-  const configPanels = ["panel-radar", "panel-targets", "panel-simulation"];
+  const configPanels = ["panel-properties", "panel-simulation"];
   const handler = (e: Event): void => {
     if ((e.target as HTMLElement).matches("input, select")) debouncedMarkOutdated();
   };

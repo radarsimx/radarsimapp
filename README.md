@@ -30,8 +30,9 @@ RadarSimApp is a cross-platform desktop application that brings the full power o
 - :bar_chart: **Visualization**
   - Live 3D scene of the radar, its channels, boresight and targets, with a ground grid and range rings
   - Interactive Plotly plots: baseband signal, range profile, range-Doppler map
-  - TX/RX channel location plots and antenna pattern previews
-  - Waveform frequency-vs-time preview and derived readout (resolutions, unambiguous velocity)
+  - Radar architecture diagram (waveform generator, PA, LNA, mixer, baseband, ADC, antennas): click a block to edit it
+  - Floating preview plot that follows what is being edited: waveform frequency-vs-time, antenna patterns, array layout
+  - Derived readout: resolutions, unambiguous velocity, samples per pulse
 - :floppy_disk: **Configuration Management**
   - Save/load full radar configurations to/from JSON
 

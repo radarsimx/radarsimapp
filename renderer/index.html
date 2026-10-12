@@ -125,283 +125,378 @@
     <main class="view" id="content">
       <div class="hud-col hud-left">
 
-        <!-- Radar: the platform, with the transmitter and the receiver it carries and their channels -->
-        <details class="card" id="panel-radar" data-panel="radar" open>
+        <!-- Radar: its architecture as a block diagram. Picking a block shows its fields in Properties. -->
+        <details class="card" data-panel="radar" open>
           <summary class="card-head"><span class="idx">01</span>
-            <h2>Radar</h2><span class="card-hint">platform &middot; TX &middot; RX</span>
+            <h2>Radar</h2><span class="card-hint">architecture</span>
           </summary>
-          <div class="card-body tree">
+          <div class="arch" id="arch">
+            <!-- The platform carries everything drawn inside it -->
+            <button type="button" class="arch-platform" data-select="radar"
+              title="Platform: position, velocity, rotation">
+              <i class="mk-glyph mk-radar"></i><span class="blk-name">Platform</span>
+              <span class="blk-val" id="arch-platform"></span>
+            </button>
 
-            <!-- Radar > Platform -->
-            <details class="node" data-panel="platform">
-              <summary class="node-head">
-                <h3>Platform</h3><span class="node-hint">position &middot; motion</span>
-              </summary>
-              <div class="node-body">
-                <div class="group">
-                  <h4 class="subsection-label">Position <span class="unit">m</span></h4>
-                  <div class="form-row triple">
-                    <div class="form-group">
-                      <label for="radar-loc-x" class="ax-x">x</label>
-                      <input type="number" id="radar-loc-x" value="0" step="0.1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-loc-y" class="ax-y">y</label>
-                      <input type="number" id="radar-loc-y" value="0" step="0.1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-loc-z" class="ax-z">z</label>
-                      <input type="number" id="radar-loc-z" value="0" step="0.1" />
-                    </div>
-                  </div>
+            <div class="arch-grid">
+              <!-- Transmit chain, left to right: waveform generator, power amplifier, antennas -->
+              <button type="button" class="chain chain-tx" data-select="transmitter"
+                title="The whole transmit chain">Transmitter</button>
+              <button type="button" class="blk blk-waveform" data-select="waveform"
+                title="Waveform generator: frequency sweep, pulses, repetition period">
+                <svg class="blk-ico" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 17 L10 7 V17 L17 7 V17 L21 11" />
+                </svg>
+                <span class="blk-name">Waveform</span>
+                <span class="blk-val" id="arch-waveform"></span>
+              </button>
+              <!-- The sweep splits: on to the amplifier, and down to the mixer as its local oscillator -->
+              <div class="wire" aria-hidden="true"><i></i></div>
+              <button type="button" class="blk blk-pa" data-select="pa" title="Power amplifier: transmit power">
+                <svg class="blk-ico" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 5 L19 12 L6 19 Z" />
+                </svg>
+                <span class="blk-name">PA</span>
+                <span class="blk-val" id="arch-pa"></span>
+              </button>
+              <div class="ants ants-tx">
+                <div class="ants-head">
+                  <span class="ants-name">TX</span><span class="node-count" id="tx-ch-count"></span>
+                  <button class="btn-icon" id="btn-add-tx-ch" title="Add a TX channel" aria-label="Add a TX channel">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
                 </div>
-                <div class="group">
-                  <h4 class="subsection-label">Velocity <span class="unit">m/s</span></h4>
-                  <div class="form-row triple">
-                    <div class="form-group">
-                      <label for="radar-spd-x" class="ax-x">v<sub>x</sub></label>
-                      <input type="number" id="radar-spd-x" value="0" step="0.1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-spd-y" class="ax-y">v<sub>y</sub></label>
-                      <input type="number" id="radar-spd-y" value="0" step="0.1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-spd-z" class="ax-z">v<sub>z</sub></label>
-                      <input type="number" id="radar-spd-z" value="0" step="0.1" />
-                    </div>
-                  </div>
-                </div>
-                <div class="group">
-                  <h4 class="subsection-label">Rotation <span class="unit">&deg;</span></h4>
-                  <div class="form-row triple">
-                    <div class="form-group">
-                      <label for="radar-rot-yaw">yaw</label>
-                      <input type="number" id="radar-rot-yaw" value="0" step="1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-rot-pitch">pitch</label>
-                      <input type="number" id="radar-rot-pitch" value="0" step="1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-rot-roll">roll</label>
-                      <input type="number" id="radar-rot-roll" value="0" step="1" />
-                    </div>
-                  </div>
-                </div>
-                <div class="group">
-                  <h4 class="subsection-label">Rotation rate <span class="unit">&deg;/s</span></h4>
-                  <div class="form-row triple">
-                    <div class="form-group">
-                      <label for="radar-rr-yaw">yaw</label>
-                      <input type="number" id="radar-rr-yaw" value="0" step="1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-rr-pitch">pitch</label>
-                      <input type="number" id="radar-rr-pitch" value="0" step="1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-rr-roll">roll</label>
-                      <input type="number" id="radar-rr-roll" value="0" step="1" />
-                    </div>
-                  </div>
-                </div>
+                <div class="ant-list" id="ol-tx"></div>
               </div>
-            </details>
 
-            <!-- Radar > Transmitter -->
-            <details class="node" id="panel-transmitter" data-panel="transmitter" open>
-              <summary class="node-head">
-                <h3>Transmitter</h3><span class="node-hint">waveform &middot; power</span>
-              </summary>
-              <div class="node-body">
-                <div class="group">
-                  <h4 class="subsection-label">Waveform</h4>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="tx-f-start">Start frequency <span class="unit">GHz</span></label>
-                      <input type="number" id="tx-f-start" value="24" step="0.1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="tx-f-end">End frequency <span class="unit">GHz</span></label>
-                      <input type="number" id="tx-f-end" value="24.5" step="0.1" />
-                    </div>
-                  </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="tx-t-start">Sweep start <span class="unit">&micro;s</span></label>
-                      <input type="number" id="tx-t-start" value="0" step="1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="tx-t-end">Sweep end <span class="unit">&micro;s</span></label>
-                      <input type="number" id="tx-t-end" value="80" step="1" />
-                    </div>
-                  </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="tx-pulses">Pulses</label>
-                      <input type="number" id="tx-pulses" value="256" min="1" step="1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="tx-prp" title="Pulse repetition period">PRP <span class="unit">&micro;s</span></label>
-                      <input type="number" id="tx-prp" value="100" step="1" />
-                    </div>
-                  </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="tx-power">TX power <span class="unit">dBm</span></label>
-                      <input type="number" id="tx-power" value="0" step="1" />
-                    </div>
-                  </div>
-                  <!-- Frequency vs time of two pulses -->
-                  <div id="tx-waveform-plot" class="plot-container-sm has-data"></div>
+              <div class="lo" aria-hidden="true"><span>LO</span></div>
+
+              <!-- Receive chain, right to left: antennas, low-noise amplifier, mixer, baseband, converter -->
+              <button type="button" class="chain chain-rx" data-select="receiver"
+                title="The whole receive chain">Receiver</button>
+              <button type="button" class="blk blk-adc" data-select="adc" title="Analog-to-digital converter: sampling rate">
+                <svg class="blk-ico" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 18 H8 V14 H12 V10 H16 V6 H20" />
+                </svg>
+                <span class="blk-name">ADC</span>
+                <span class="blk-val" id="arch-adc"></span>
+              </button>
+              <button type="button" class="blk blk-baseband" data-select="baseband"
+                title="Baseband amplifier: gain, load resistor">
+                <svg class="blk-ico" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 8 H11 C15 8 15 17 21 17" />
+                </svg>
+                <span class="blk-name">BB</span>
+                <span class="blk-val" id="arch-baseband"></span>
+              </button>
+              <button type="button" class="blk blk-mixer" data-select="mixer"
+                title="Mixer: baseband type, range gate delay">
+                <svg class="blk-ico" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="8" />
+                  <path d="M6.5 6.5 L17.5 17.5 M17.5 6.5 L6.5 17.5" />
+                </svg>
+                <span class="blk-name">Mixer</span>
+                <span class="blk-val" id="arch-mixer"></span>
+              </button>
+              <button type="button" class="blk blk-lna" data-select="lna"
+                title="Low-noise amplifier: noise figure, RF gain">
+                <svg class="blk-ico" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18 5 L5 12 L18 19 Z" />
+                </svg>
+                <span class="blk-name">LNA</span>
+                <span class="blk-val" id="arch-lna"></span>
+              </button>
+              <div class="ants ants-rx">
+                <div class="ants-head">
+                  <span class="ants-name">RX</span><span class="node-count" id="rx-ch-count"></span>
+                  <button class="btn-icon" id="btn-add-rx-ch" title="Add an RX channel" aria-label="Add an RX channel">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
                 </div>
-
-                <!-- Radar > Transmitter > TX channels -->
-                <details class="node" data-panel="tx-channels" open>
-                  <summary class="node-head">
-                    <h3>TX channels</h3><span class="node-count" id="tx-ch-count"></span>
-                    <button class="btn-icon" id="btn-add-tx-ch" title="Add a TX channel" aria-label="Add a TX channel">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                    </button>
-                  </summary>
-                  <div class="node-body">
-                    <div id="tx-channels-list" class="item-list" data-empty="No TX channels">
-                      <!-- Channels will be dynamically added here -->
-                    </div>
-                    <!-- Where the channels sit on the platform -->
-                    <div id="tx-locations-plot" class="plot-container-sm has-data"></div>
-                  </div>
-                </details>
+                <div class="ant-list" id="ol-rx"></div>
               </div>
-            </details>
-
-            <!-- Radar > Receiver -->
-            <details class="node" id="panel-receiver" data-panel="receiver">
-              <summary class="node-head">
-                <h3>Receiver</h3><span class="node-hint">sampling &middot; noise</span>
-              </summary>
-              <div class="node-body">
-                <div class="group">
-                  <h4 class="subsection-label">Sampling</h4>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="rx-fs">Sampling rate <span class="unit">MHz</span></label>
-                      <input type="number" id="rx-fs" value="2" step="0.1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="rx-bb-type">Baseband</label>
-                      <select id="rx-bb-type">
-                        <option value="complex">Complex (I/Q)</option>
-                        <option value="real">Real</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="rx-gate-delay" title="Receive window opens this long after the chirp start, and the deramp reference is delayed by the same amount. A target at range c &times; gate delay / 2 lands at DC. 0 = zero-delay deramp.">Range gate delay <span class="unit">ns</span></label>
-                      <input type="number" id="rx-gate-delay" value="0" step="1" min="0" />
-                    </div>
-                  </div>
-                </div>
-                <div class="group">
-                  <h4 class="subsection-label">Noise &amp; gain</h4>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="rx-nf">Noise figure <span class="unit">dB</span></label>
-                      <input type="number" id="rx-nf" value="10" step="0.5" />
-                    </div>
-                    <div class="form-group">
-                      <label for="rx-rf-gain">RF gain <span class="unit">dB</span></label>
-                      <input type="number" id="rx-rf-gain" value="0" step="1" />
-                    </div>
-                  </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="rx-bb-gain">Baseband gain <span class="unit">dB</span></label>
-                      <input type="number" id="rx-bb-gain" value="0" step="1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="rx-load-r">Load resistor <span class="unit">&Omega;</span></label>
-                      <input type="number" id="rx-load-r" value="500" step="10" />
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Radar > Receiver > RX channels -->
-                <details class="node" data-panel="rx-channels" open>
-                  <summary class="node-head">
-                    <h3>RX channels</h3><span class="node-count" id="rx-ch-count"></span>
-                    <button class="btn-icon" id="btn-add-rx-ch" title="Add an RX channel" aria-label="Add an RX channel">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                    </button>
-                  </summary>
-                  <div class="node-body">
-                    <div id="rx-channels-list" class="item-list" data-empty="No RX channels">
-                      <!-- Channels will be dynamically added here -->
-                    </div>
-                    <div id="rx-locations-plot" class="plot-container-sm has-data"></div>
-                  </div>
-                </details>
-              </div>
-            </details>
+            </div>
           </div>
         </details>
 
         <!-- Targets: what the radar looks at -->
-        <details class="card" id="panel-targets" data-panel="targets" open>
+        <details class="card" data-panel="targets" open>
           <summary class="card-head"><span class="idx">02</span>
             <h2>Targets</h2><span class="card-hint">points &middot; meshes</span>
           </summary>
-          <div class="card-body tree">
-
-            <!-- Targets > Point targets -->
-            <details class="node" data-panel="point-targets" open>
-              <summary class="node-head">
-                <h3>Point targets</h3><span class="node-count" id="point-target-count"></span>
+          <div class="outline" id="outline" role="tree" aria-label="Targets">
+            <div class="ol-node" data-node="point">
+              <div class="ol-row ol-group" role="treeitem" tabindex="0">
+                <button type="button" class="ol-fold" tabindex="-1" aria-label="Fold or unfold"></button>
+                <span class="ol-name">Point targets</span>
+                <span class="node-count" id="point-target-count"></span>
                 <button class="btn-icon" id="btn-add-point-target" title="Add a point target"
                   aria-label="Add a point target">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.5">
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
                 </button>
-              </summary>
-              <div class="node-body">
-                <div id="point-targets-list" class="item-list" data-empty="No point targets"></div>
               </div>
-            </details>
+              <div class="ol-children" role="group" id="ol-point"></div>
+            </div>
 
-            <!-- Targets > Mesh targets -->
-            <details class="node" data-panel="mesh-targets" open>
-              <summary class="node-head">
-                <h3>Mesh targets</h3><span class="node-count" id="mesh-target-count"></span>
+            <div class="ol-node" data-node="mesh">
+              <div class="ol-row ol-group" role="treeitem" tabindex="0">
+                <button type="button" class="ol-fold" tabindex="-1" aria-label="Fold or unfold"></button>
+                <span class="ol-name">Mesh targets</span>
+                <span class="node-count" id="mesh-target-count"></span>
                 <button class="btn-icon" id="btn-add-mesh-target" title="Add a mesh target"
                   aria-label="Add a mesh target">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.5">
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
                 </button>
-              </summary>
-              <div class="node-body">
-                <div id="mesh-targets-list" class="item-list" data-empty="No mesh targets"></div>
-                <p class="plot-note">
-                  Very large models are drawn at reduced detail in the scene: past
-                  1,000,000 triangles only a sample is shown, and the legend
-                  says how many &mdash; <code>M1 (500000 of 2500000 tri)</code>.
-                  Simulations always run against the complete mesh.
-                </p>
               </div>
-            </details>
+              <div class="ol-children" role="group" id="ol-mesh"></div>
+            </div>
+          </div>
+        </details>
+
+        <!-- Properties of whatever is picked above. Every component's fields are here; one set shows. -->
+        <details class="card" id="panel-properties" data-panel="properties" open>
+          <summary class="card-head"><span class="idx">03</span>
+            <h2 id="insp-title">Waveform generator</h2><span class="card-hint" id="insp-path">Radar</span>
+          </summary>
+          <div class="card-body">
+
+            <!-- Platform -->
+            <section class="insp" data-insp="platform">
+              <div class="group">
+                <h4 class="subsection-label">Position <span class="unit">m</span></h4>
+                <div class="form-row triple">
+                  <div class="form-group">
+                    <label for="radar-loc-x" class="ax-x">x</label>
+                    <input type="number" id="radar-loc-x" value="0" step="0.1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-loc-y" class="ax-y">y</label>
+                    <input type="number" id="radar-loc-y" value="0" step="0.1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-loc-z" class="ax-z">z</label>
+                    <input type="number" id="radar-loc-z" value="0" step="0.1" />
+                  </div>
+                </div>
+              </div>
+              <div class="group">
+                <h4 class="subsection-label">Velocity <span class="unit">m/s</span></h4>
+                <div class="form-row triple">
+                  <div class="form-group">
+                    <label for="radar-spd-x" class="ax-x">v<sub>x</sub></label>
+                    <input type="number" id="radar-spd-x" value="0" step="0.1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-spd-y" class="ax-y">v<sub>y</sub></label>
+                    <input type="number" id="radar-spd-y" value="0" step="0.1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-spd-z" class="ax-z">v<sub>z</sub></label>
+                    <input type="number" id="radar-spd-z" value="0" step="0.1" />
+                  </div>
+                </div>
+              </div>
+              <div class="group">
+                <h4 class="subsection-label">Rotation <span class="unit">&deg;</span></h4>
+                <div class="form-row triple">
+                  <div class="form-group">
+                    <label for="radar-rot-yaw">yaw</label>
+                    <input type="number" id="radar-rot-yaw" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-rot-pitch">pitch</label>
+                    <input type="number" id="radar-rot-pitch" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-rot-roll">roll</label>
+                    <input type="number" id="radar-rot-roll" value="0" step="1" />
+                  </div>
+                </div>
+              </div>
+              <div class="group">
+                <h4 class="subsection-label">Rotation rate <span class="unit">&deg;/s</span></h4>
+                <div class="form-row triple">
+                  <div class="form-group">
+                    <label for="radar-rr-yaw">yaw</label>
+                    <input type="number" id="radar-rr-yaw" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-rr-pitch">pitch</label>
+                    <input type="number" id="radar-rr-pitch" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-rr-roll">roll</label>
+                    <input type="number" id="radar-rr-roll" value="0" step="1" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Transmitter > Waveform generator -->
+            <section class="insp" data-insp="waveform">
+              <div class="group">
+                <h4 class="subsection-label">Sweep</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="tx-f-start">Start frequency <span class="unit">GHz</span></label>
+                    <input type="number" id="tx-f-start" value="24" step="0.1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="tx-f-end">End frequency <span class="unit">GHz</span></label>
+                    <input type="number" id="tx-f-end" value="24.5" step="0.1" />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="tx-t-start">Sweep start <span class="unit">&micro;s</span></label>
+                    <input type="number" id="tx-t-start" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="tx-t-end">Sweep end <span class="unit">&micro;s</span></label>
+                    <input type="number" id="tx-t-end" value="80" step="1" />
+                  </div>
+                </div>
+              </div>
+              <div class="group">
+                <h4 class="subsection-label">Frame</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="tx-pulses">Pulses</label>
+                    <input type="number" id="tx-pulses" value="256" min="1" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="tx-prp" title="Pulse repetition period">PRP <span class="unit">&micro;s</span></label>
+                    <input type="number" id="tx-prp" value="100" step="1" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Transmitter > Power amplifier -->
+            <section class="insp" data-insp="pa">
+              <div class="group">
+                <h4 class="subsection-label chain-only">Power amplifier</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="tx-power">TX power <span class="unit">dBm</span></label>
+                    <input type="number" id="tx-power" value="0" step="1" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Receiver > Low-noise amplifier -->
+            <section class="insp" data-insp="lna">
+              <div class="group">
+                <h4 class="subsection-label chain-only">Low-noise amplifier</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="rx-nf">Noise figure <span class="unit">dB</span></label>
+                    <input type="number" id="rx-nf" value="10" step="0.5" />
+                  </div>
+                  <div class="form-group">
+                    <label for="rx-rf-gain">RF gain <span class="unit">dB</span></label>
+                    <input type="number" id="rx-rf-gain" value="0" step="1" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Receiver > Mixer -->
+            <section class="insp" data-insp="mixer">
+              <div class="group">
+                <h4 class="subsection-label chain-only">Mixer</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="rx-bb-type">Baseband</label>
+                    <select id="rx-bb-type">
+                      <option value="complex">Complex (I/Q)</option>
+                      <option value="real">Real</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="rx-gate-delay" title="Receive window opens this long after the chirp start, and the deramp reference is delayed by the same amount. A target at range c &times; gate delay / 2 lands at DC. 0 = zero-delay deramp.">Range gate delay <span class="unit">ns</span></label>
+                    <input type="number" id="rx-gate-delay" value="0" step="1" min="0" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Receiver > Baseband amplifier -->
+            <section class="insp" data-insp="baseband">
+              <div class="group">
+                <h4 class="subsection-label chain-only">Baseband amplifier</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="rx-bb-gain">Baseband gain <span class="unit">dB</span></label>
+                    <input type="number" id="rx-bb-gain" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="rx-load-r">Load resistor <span class="unit">&Omega;</span></label>
+                    <input type="number" id="rx-load-r" value="500" step="10" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Receiver > ADC -->
+            <section class="insp" data-insp="adc">
+              <div class="group">
+                <h4 class="subsection-label chain-only">ADC</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="rx-fs">Sampling rate <span class="unit">MHz</span></label>
+                    <input type="number" id="rx-fs" value="2" step="0.1" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Transmitter > a TX channel -->
+            <section class="insp" data-insp="tx">
+              <div id="tx-channels-list" class="item-list">
+                <!-- Channels will be dynamically added here -->
+              </div>
+            </section>
+
+            <!-- Receiver > an RX channel -->
+            <section class="insp" data-insp="rx">
+              <div id="rx-channels-list" class="item-list">
+                <!-- Channels will be dynamically added here -->
+              </div>
+            </section>
+
+            <!-- Targets > a point target -->
+            <section class="insp" data-insp="point">
+              <div id="point-targets-list" class="item-list"></div>
+            </section>
+
+            <!-- Targets > a mesh target -->
+            <section class="insp" data-insp="mesh">
+              <div id="mesh-targets-list" class="item-list"></div>
+              <p class="plot-note">
+                Very large models are drawn at reduced detail in the scene: past
+                1,000,000 triangles only a sample is shown, and the legend
+                says how many &mdash; <code>M1 (500000 of 2500000 tri)</code>.
+                Simulations always run against the complete mesh.
+              </p>
+            </section>
           </div>
         </details>
       </div>
@@ -410,7 +505,7 @@
 
         <!-- Simulation Panel -->
         <details class="card" id="panel-simulation" data-panel="simulation" open>
-          <summary class="card-head"><span class="idx">03</span>
+          <summary class="card-head"><span class="idx">04</span>
             <h2>Simulation</h2><span class="card-hint">fidelity &middot; processing</span>
           </summary>
           <div class="card-body">
@@ -496,7 +591,7 @@
 
         <!-- Readout: what the waveform resolves -->
         <details class="card" data-panel="readout" open>
-          <summary class="card-head"><span class="idx">04</span>
+          <summary class="card-head"><span class="idx">05</span>
             <h2>Readout</h2><span class="card-hint">derived</span>
           </summary>
           <div class="card-body">
@@ -575,6 +670,30 @@
           pan &middot; Wheel: zoom &middot; Double-click: fit</div>
       </div>
     </div>
+
+    <!-- Secondary plot: what is being edited, over the scene. Dragged by its bar, resized by its corner. -->
+    <section class="side-plot scene-only" id="side-plot" aria-label="Preview plot">
+      <header class="side-plot-head" id="side-plot-head">
+        <div class="seg" role="radiogroup" aria-label="Preview">
+          <button type="button" role="radio" data-side="waveform" aria-checked="true"
+            title="Frequency against time, for two pulses">Waveform</button>
+          <button type="button" role="radio" data-side="pattern" aria-checked="false"
+            title="Antenna pattern of the channel being edited">Pattern</button>
+          <button type="button" role="radio" data-side="layout" aria-checked="false"
+            title="Where the channels sit on the platform">Layout</button>
+        </div>
+        <span class="side-plot-title" id="side-plot-title"></span>
+        <button type="button" class="btn-icon" id="btn-side-plot-fold" title="Fold or unfold" aria-label="Fold the preview plot"
+          aria-expanded="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+      </header>
+      <div class="side-plot-body">
+        <div id="side-plot-view"></div>
+      </div>
+    </section>
   </div>
 
   <!-- Reset Confirmation Dialog -->

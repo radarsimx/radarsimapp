@@ -2,7 +2,7 @@
 
 import { debounce, wrapNumberInput } from './utils.js';
 import { txChannels, rxChannels, pointTargets, meshTargets } from './shared.js';
-import { updateTxWaveformPlot, updateTxLocationsPlot, updateRxLocationsPlot, plotResults, renderResultView, markResultsOutdated, updateTxInfo } from './plots.js';
+import { updateTxWaveformPlot, plotResults, renderResultView, markResultsOutdated, updateTxInfo, showSidePlot, redrawSidePlot, type SidePlot } from './plots.js';
 import { saveTxChannelStates, saveRxChannelStates, renderTxChannels, renderRxChannels } from './channels.js';
 import { savePointTargetStates, saveMeshTargetStates, renderPointTargets, renderMeshTargets } from './targets.js';
 import { collectConfig } from './config.js';
@@ -10,7 +10,8 @@ import { debouncedAutoSave, resetToDefault, initApp } from './state.js';
 import { updateScene, setSceneSink } from './scene.js';
 import { SceneView, type SceneFraming, type CameraPreset } from './scene3d.js';
 import { updateReadout, formatLength } from './readout.js';
-import { pref, setPref, setStageView, setResultViewsAvailable, isResultView, layoutStage, type StageView } from './stage.js';
+import { initOutline, select } from './outline.js';
+import { pref, setPref, setStageView, setResultViewsAvailable, isResultView, layoutStage, type StageView, type StageInsets } from './stage.js';
 
 // --- App version ---
 window.api.getAppVersion().then((v) => {
@@ -51,6 +52,9 @@ document.addEventListener("stageview", (e) => {
     _resizePlots(document.querySelector(".stage-view.active")!);
   } else {
     sceneView?.setFraming(view as SceneFraming);
+    // The secondary plot was put away while a result was up
+    _placeSidePlot();
+    redrawSidePlot();
   }
 });
 
@@ -60,33 +64,89 @@ document.querySelectorAll<HTMLButtonElement>("button[data-cam]").forEach((btn) =
 document.getElementById("btn-scene-fit")!.addEventListener("click", () => sceneView?.fit());
 
 // --- Panels ---
-// Panels, and the nodes of the tree inside them, fold away and start as they
-// were left. A plot has no size to draw at while anything around it is folded,
-// so it is drawn when what holds it opens.
-const PANEL_PLOTS: Record<string, () => void> = {
-  "transmitter": updateTxWaveformPlot,
-  "tx-channels": updateTxLocationsPlot,
-  "rx-channels": updateRxLocationsPlot,
-};
-
+// Panels fold away, and start as they were left.
 document.querySelectorAll<HTMLDetailsElement>("details[data-panel]").forEach((panel) => {
   const name = panel.dataset.panel!;
   panel.open = pref(`panel.${name}`, panel.open);
-  panel.addEventListener("toggle", () => {
-    setPref(`panel.${name}`, panel.open);
-    if (!panel.open) return;
-    // Opening a node uncovers the open nodes inside it as well
-    [panel, ...panel.querySelectorAll<HTMLDetailsElement>("details[data-panel][open]")]
-      .forEach((shown) => PANEL_PLOTS[shown.dataset.panel!]?.());
-    _resizePlots(panel);
-  });
+  panel.addEventListener("toggle", () => setPref(`panel.${name}`, panel.open));
 });
 
-/** Unfold the node a button sits on, so what the button adds can be seen. */
-function _reveal(button: HTMLElement): void {
-  const node = button.closest("details");
-  if (node) node.open = true;
+// --- Secondary Plot ---
+// A small plot over the stage for what is being edited. It can be dragged by
+// its bar, resized by its corner and folded, and it comes back as it was left.
+const sidePlot = document.getElementById("side-plot")!;
+let _insets: StageInsets = { left: 0, right: 0, top: 0, bottom: 0 };
+/** From the right edge of the left panels, and from the top of the stage; null until it is first laid out. */
+let _sidePlotAt = pref<{ x: number; y: number } | null>("sidePlotAt", null);
+
+function _placeSidePlot(): void {
+  const stage = document.getElementById("stage")!;
+  // Kept in the clear part of the stage: off the panels, the title bar and
+  // the view buttons. It starts in the lower left of it.
+  const maxX = stage.clientWidth - _insets.left - _insets.right - sidePlot.offsetWidth - 12;
+  const maxY = stage.clientHeight - _insets.bottom - sidePlot.offsetHeight - 16;
+  const at = _sidePlotAt ?? { x: 12, y: maxY };
+  sidePlot.style.setProperty("--side-x", Math.max(0, Math.min(at.x, maxX)) + "px");
+  sidePlot.style.setProperty("--side-y", Math.max(_insets.top, Math.min(at.y, maxY)) + "px");
 }
+
+const _sidePlotSize = pref<{ width: number; height: number } | null>("sidePlotSize", null);
+if (_sidePlotSize) {
+  sidePlot.style.width = _sidePlotSize.width + "px";
+  sidePlot.style.height = _sidePlotSize.height + "px";
+}
+sidePlot.classList.toggle("collapsed", pref("sidePlotFolded", false));
+
+document.querySelectorAll<HTMLButtonElement>("button[data-side]").forEach((btn) => {
+  btn.addEventListener("click", () => showSidePlot(btn.dataset.side as SidePlot));
+});
+
+document.getElementById("btn-side-plot-fold")!.addEventListener("click", (e) => {
+  const folded = sidePlot.classList.toggle("collapsed");
+  (e.currentTarget as HTMLElement).setAttribute("aria-expanded", String(!folded));
+  setPref("sidePlotFolded", folded);
+  redrawSidePlot();
+  _placeSidePlot();
+});
+
+// Dragged by its bar, but not by the buttons on it
+document.getElementById("side-plot-head")!.addEventListener("pointerdown", (down) => {
+  if ((down.target as HTMLElement).closest("button")) return;
+  const head = down.currentTarget as HTMLElement;
+  const from = { x: sidePlot.offsetLeft - _insets.left, y: sidePlot.offsetTop };
+  head.setPointerCapture(down.pointerId);
+  const move = (e: PointerEvent): void => {
+    _sidePlotAt = { x: from.x + e.clientX - down.clientX, y: from.y + e.clientY - down.clientY };
+    _placeSidePlot();
+  };
+  const up = (): void => {
+    head.removeEventListener("pointermove", move);
+    head.removeEventListener("pointerup", up);
+    if (_sidePlotAt) setPref("sidePlotAt", _sidePlotAt);
+  };
+  head.addEventListener("pointermove", move);
+  head.addEventListener("pointerup", up);
+});
+
+const _sidePlotResized = debounce(() => {
+  if (sidePlot.classList.contains("collapsed") || !sidePlot.offsetWidth) return;
+  setPref("sidePlotSize", { width: sidePlot.offsetWidth, height: sidePlot.offsetHeight });
+  _resizePlots(sidePlot);
+}, 100);
+new ResizeObserver(_sidePlotResized).observe(sidePlot);
+
+// It follows the editing: the waveform's fields bring up the waveform, a
+// channel's location the layout, the rest of a channel its antenna pattern
+document.querySelector(".hud-left")!.addEventListener("focusin", (e) => {
+  const id = (e.target as HTMLElement).id ?? "";
+  const channel = id.match(/^(tx|rx)-ch-(\d+)-(.+)$/);
+  if (channel) {
+    if (channel[3].startsWith("loc-")) showSidePlot("layout");
+    else showSidePlot("pattern", { pfx: channel[1] as "tx" | "rx", index: Number(channel[2]) });
+  } else if (/^tx-(f|t|prp|pulses|power)/.test(id)) {
+    showSidePlot("waveform");
+  }
+});
 
 // --- Layout ---
 // The panels lie over the stage: tell the 3D view how much of it they cover,
@@ -97,12 +157,14 @@ const _resizeStagePlots = debounce(() => {
 }, 100);
 
 function _layout(): void {
-  const insets = layoutStage();
-  sceneView?.setInsets(insets);
+  _insets = layoutStage();
+  sceneView?.setInsets(_insets);
+  _placeSidePlot();
   _resizeStagePlots();
 }
 
-const _sizes = new ResizeObserver(_layout);
+// On the next frame: laying out moves things the observer is watching
+const _sizes = new ResizeObserver(() => requestAnimationFrame(_layout));
 document.querySelectorAll("#stage, .hud-col, #titlebar, .stage-bottom").forEach((elem) => _sizes.observe(elem));
 
 // --- Keyboard ---
@@ -291,39 +353,40 @@ _syncProcessing();
 document.addEventListener("configapplied", _syncProcessing);
 
 // --- Add Buttons ---
+// What is added is picked in the outline, so its fields come up to be filled in.
 
-document.getElementById("btn-add-tx-ch")!.addEventListener("click", (e) => {
-  _reveal(e.currentTarget as HTMLElement);
+document.getElementById("btn-add-tx-ch")!.addEventListener("click", () => {
   saveTxChannelStates();
   txChannels.push({});
   renderTxChannels();
+  select({ kind: "tx", index: txChannels.length - 1 });
   markResultsOutdated();
   debouncedAutoSave();
 });
 
-document.getElementById("btn-add-rx-ch")!.addEventListener("click", (e) => {
-  _reveal(e.currentTarget as HTMLElement);
+document.getElementById("btn-add-rx-ch")!.addEventListener("click", () => {
   saveRxChannelStates();
   rxChannels.push({});
   renderRxChannels();
+  select({ kind: "rx", index: rxChannels.length - 1 });
   markResultsOutdated();
   debouncedAutoSave();
 });
 
-document.getElementById("btn-add-point-target")!.addEventListener("click", (e) => {
-  _reveal(e.currentTarget as HTMLElement);
+document.getElementById("btn-add-point-target")!.addEventListener("click", () => {
   savePointTargetStates();
   pointTargets.push({ location: [10, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 });
   renderPointTargets();
+  select({ kind: "point", index: pointTargets.length - 1 });
   markResultsOutdated();
   debouncedAutoSave();
 });
 
-document.getElementById("btn-add-mesh-target")!.addEventListener("click", (e) => {
-  _reveal(e.currentTarget as HTMLElement);
+document.getElementById("btn-add-mesh-target")!.addEventListener("click", () => {
   saveMeshTargetStates();
   meshTargets.push({});
   renderMeshTargets();
+  select({ kind: "mesh", index: meshTargets.length - 1 });
   markResultsOutdated();
   debouncedAutoSave();
 });
@@ -508,6 +571,8 @@ document.getElementById("btn-license-close")!.addEventListener("click", () => {
 });
 
 // --- Initialize Application ---
+initOutline();
 initApp();
 setStageView(pref<StageView>("view", "scene"));
 _layout();
+showSidePlot(pref<SidePlot>("sidePlot", "waveform"));

@@ -21,6 +21,7 @@ npm run typecheck:test   # type-check the tests themselves
 | `unit/utils.test.mts` | renderer helpers and DOM builders |
 | `unit/config.test.mts` | `collectConfig()` — unit conversions and config shape |
 | `unit/state.test.mts` | `captureState`/`applyState`/`validateState` round-trip |
+| `unit/outline.test.mts` | radar diagram and target list — what a pick shows, and where the selection goes when its node is removed |
 | `unit/scene.test.mts` | the 3D scene's model — poses come from the library, not from JS |
 | `unit/readout.test.mts` | derived waveform readout (resolutions, unambiguous velocity) |
 | `integration/bridge.test.mts` | `RadarSimBridge` driving real `radarsimc` calls |

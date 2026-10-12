@@ -18,7 +18,7 @@
   --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --r:6px;--r-lg:10px;
   --shadow:0 8px 28px rgba(0,0,0,.45);
-  --bar-h:52px;--col:clamp(300px,25vw,372px);
+  --bar-h:52px;--col:clamp(320px,25vw,372px);
 }
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -155,31 +155,127 @@ sup{top:-.5em}
 .card:not([open]) .card-hint{display:none}
 .idx{font:600 11px/1 var(--mono);color:var(--accent)}
 .card-body{display:flex;flex-direction:column;gap:12px;padding:12px}
-/* A panel holds a tree: what it contains, and what that contains in turn.
-   Each node folds, and its contents hang off a rule down its left side. */
-.tree{gap:2px;padding:6px 8px 8px}
-.node{min-width:0}
-.node-head{display:flex;align-items:center;gap:8px;min-height:30px;padding:0 4px 0 6px;list-style:none;cursor:pointer;
-  border-radius:var(--r)}
-.node-head::-webkit-details-marker{display:none}
-.node-head::before{content:"";flex-shrink:0;width:5px;height:5px;margin:0 3px 0 1px;border:solid var(--ink-3);
-  border-width:0 1.5px 1.5px 0;transform:rotate(-45deg);transition:transform .15s}
-.node[open]>.node-head::before{transform:translate(1px,-1px) rotate(45deg)}
-.node-head:hover{background:var(--panel-2)}
-.node-head h3{font-size:12.5px;font-weight:600;white-space:nowrap}
-.node[open]>.node-head h3{color:var(--accent)}
-.node-hint{margin-left:auto;overflow:hidden;font-size:11px;color:var(--ink-3);white-space:nowrap;text-overflow:ellipsis}
+/* ── Radar architecture ────────────────────────────────── */
+/* The radar as a block diagram, every block a button. The dashed frame is the
+   platform; inside it the transmit chain runs left to right along the top and
+   the receive chain right to left along the bottom, each ending in its
+   antennas, with the sweep fed down to the mixer as its local oscillator.
+   The rows and gaps are fixed sizes, so the wires can be drawn to meet. */
+.arch{--blk-h:64px;--cap-h:18px;--gx:12px;--gy:6px;--wire:#7a6fa3;margin:8px;border:1px dashed var(--line-2);
+  border-radius:var(--r-lg)}
+.arch-platform{display:flex;align-items:center;gap:8px;width:100%;height:30px;padding:0 10px;color:var(--ink);
+  background:transparent;border:0;border-bottom:1px dashed var(--line-2);
+  border-radius:calc(var(--r-lg) - 1px) calc(var(--r-lg) - 1px) 0 0}
+.arch-platform .mk-glyph{width:11px;height:11px;box-shadow:none}
+.arch-platform .blk-val{margin-left:auto}
+.arch-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 92px;
+  grid-template-rows:var(--cap-h) var(--blk-h) var(--cap-h) var(--blk-h);gap:var(--gy) var(--gx);padding:6px 8px 10px}
+.chain-tx{grid-area:1/1/2/3}
+.blk-waveform{grid-area:2/1/3/3}
+.wire{grid-area:2/3}
+.blk-pa{grid-area:2/4}
+.ants-tx{grid-area:1/5/3/6}
+.lo{grid-area:3/3}
+.chain-rx{grid-area:3/1/4/3}
+.blk-adc{grid-area:4/1}
+.blk-baseband{grid-area:4/2}
+.blk-mixer{grid-area:4/3}
+.blk-lna{grid-area:4/4}
+.ants-rx{grid-area:3/5/5/6}
+
+.chain{justify-self:start;padding:0 6px;margin-left:-6px;font-size:10.5px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-3);background:none;border:0;border-radius:4px}
+.blk{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:0;
+  padding:2px;color:var(--ink);background:var(--inset);border:1px solid var(--line-2);border-radius:var(--r);
+  transition:background .12s,border-color .12s}
+.blk-ico{width:16px;height:16px;fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.blk-name{font-size:11px;font-weight:600;line-height:1.25}
+.blk-val{max-width:100%;overflow:hidden;font:10px/1.25 var(--mono);color:var(--ink-3);white-space:nowrap;text-overflow:ellipsis}
+:is(.blk,.chain,.arch-platform,.ant):hover{background:var(--accent-soft)}
+.blk:hover{border-color:var(--accent)}
+:is(.blk,.chain,.arch-platform,.ant).sel{color:#fff;background:var(--primary)}
+:is(.blk,.ant).sel{border-color:var(--primary-edge)}
+.sel>.blk-val{color:rgba(255,255,255,.75)}
+.sel>.blk-ico{stroke:#fff}
+
+/* Wires. A block draws the wire that leaves its right side, across the gap. */
+:is(.blk-waveform,.blk-pa,.blk-adc,.blk-baseband,.blk-mixer,.blk-lna)::after{content:"";position:absolute;
+  left:calc(100% + 1px);top:50%;width:var(--gx);border-top:1.5px solid var(--wire);translate:0 -50%}
+/* Out of the amplifier, toward the antennas */
+.blk-pa::before{content:"";position:absolute;left:calc(100% + var(--gx) - 3px);top:50%;border:4px solid transparent;
+  border-right:0;border-left-color:var(--wire);translate:0 -50%}
+/* The receive chain runs the other way: into each block, from its right */
+:is(.blk-adc,.blk-baseband,.blk-mixer,.blk-lna)::before{content:"";position:absolute;left:calc(100% + 1px);top:50%;
+  border:4px solid transparent;border-left:0;border-right-color:var(--wire);translate:0 -50%}
+/* Where the sweep splits: straight on into the amplifier, and down */
+.wire,.lo{position:relative}
+.wire::before{content:"";position:absolute;left:0;right:calc(-1 * var(--gx));top:50%;border-top:1.5px solid var(--wire);
+  translate:0 -50%}
+.wire::after{content:"";position:absolute;right:calc(-1 * var(--gx) - 1px);top:50%;border:4px solid transparent;
+  border-right:0;border-left-color:var(--wire);translate:0 -50%}
+.wire i{position:absolute;left:50%;top:50%;width:6px;height:6px;background:var(--wire);border-radius:50%;translate:-50% -50%}
+.lo::before{content:"";position:absolute;left:50%;top:calc(-1 * (var(--gy) + var(--blk-h) / 2));
+  bottom:calc(-1 * var(--gy));border-left:1.5px solid var(--wire);translate:-50% 0}
+.lo::after{content:"";position:absolute;left:50%;bottom:calc(-1 * var(--gy) - 1px);border:4px solid transparent;
+  border-bottom:0;border-top-color:var(--wire);translate:-50% 0}
+.lo span{position:absolute;left:calc(50% + 6px);top:50%;font:9.5px/1 var(--mono);color:var(--ink-3);translate:0 -50%}
+
+/* The antennas of a chain: one small button to a channel */
+.ants{display:flex;flex-direction:column;gap:4px;min-width:0;min-height:0;padding:4px;background:var(--inset);
+  border:1px solid var(--line-2);border-radius:var(--r)}
+.ants-head{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.ants-name{font-size:11px;font-weight:600}
+.ants-head .btn-icon{width:18px;height:18px;margin-left:auto}
+.ant-list{display:flex;flex-wrap:wrap;align-content:flex-start;gap:2px;min-height:0;overflow:hidden auto;
+  scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+.ant{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:17px;padding:0 3px;
+  font:600 10px/1 var(--mono);color:var(--mk);background:transparent;
+  border:1px solid color-mix(in srgb,var(--mk) 45%,transparent);border-radius:4px}
+.ants-tx{--mk:var(--tx)}
+.ants-rx{--mk:var(--rx)}
+.ant .mk-glyph{display:none}
+
+/* The target list: a row to a target, under the kind it is. Children hang off
+   a rule down the left of their branch; the row picked is filled. */
+.outline{display:flex;flex-direction:column;max-height:min(46vh,460px);padding:6px;overflow:hidden auto;
+  scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+.ol-children{display:flex;flex-direction:column;margin-left:13px;padding-left:5px;border-left:1px solid var(--line)}
+.ol-node.folded>.ol-children{display:none}
+.ol-row{display:flex;align-items:center;gap:7px;flex-shrink:0;height:28px;padding:0 4px 0 2px;white-space:nowrap;
+  border-radius:var(--r);cursor:pointer}
+.ol-row:hover{background:var(--panel-2)}
+.ol-row.sel{color:#fff;background:var(--primary)}
+.ol-row:focus-visible{outline-offset:-2px}
+.ol-name{font-size:12.5px;font-weight:500}
+.ol-group .ol-name{color:var(--ink-2)}
+.ol-item{padding-left:26px;font-family:var(--mono);font-size:12px}
+.ol-item .mk-glyph{box-shadow:none}
+.ol-hint{margin-left:auto;padding-right:4px;font-size:11px;color:var(--ink-3)}
+.ol-row.sel .ol-hint{color:rgba(255,255,255,.7)}
+.ol-fold{display:grid;place-items:center;flex-shrink:0;width:18px;height:18px;padding:0;background:none;border:0;
+  border-radius:4px}
+.ol-fold::before{content:"";width:5px;height:5px;margin-top:-2px;border:solid var(--ink-3);border-width:0 1.5px 1.5px 0;
+  transform:rotate(45deg);transition:transform .15s}
+.ol-node.folded>.ol-row .ol-fold::before{margin:0 2px 0 0;transform:rotate(-45deg)}
+.ol-row.sel .ol-fold::before{border-color:#fff}
+.ol-node.ol-empty>.ol-row .ol-fold{visibility:hidden}
 .node-count{min-width:18px;padding:2px 6px;font:600 10.5px/1 var(--mono);text-align:center;color:var(--ink-2);
   background:var(--panel-2);border-radius:999px}
 .node-count:empty{display:none}
-.node-head .btn-icon{margin-left:auto;width:22px;height:22px}
-.node-body{display:flex;flex-direction:column;gap:12px;min-width:0;margin:2px 0 6px 11px;padding:6px 0 2px 11px;
-  border-left:1px solid var(--line-2)}
-.node-body>.node{margin-left:-6px}
-.item-list:empty::before{content:attr(data-empty);padding:8px;font-size:12px;text-align:center;color:var(--ink-3);
-  border:1px dashed var(--line-2);border-radius:var(--r)}
+.ol-row.sel .node-count{color:#fff;background:rgba(255,255,255,.18)}
+.ol-row .btn-icon{width:20px;height:20px;margin-left:auto}
+.ol-row.sel .btn-icon{color:#fff;background:rgba(255,255,255,.18)}
+.ol-row.sel .btn-icon:hover{background:rgba(255,255,255,.3)}
+
+/* The properties: every node's fields are in the page, and the one picked shows */
+.insp{display:none;flex-direction:column;gap:12px;min-width:0}
+.insp.active{display:flex}
+/* A whole chain shows its blocks one under another, each under its own name */
+.insp.active+.insp.active{padding-top:12px;border-top:1px solid var(--line)}
+.chain-only{display:none}
+#panel-properties.whole-chain .chain-only{display:block}
 .group{display:flex;flex-direction:column;gap:7px;min-width:0}
-.group+:is(.group,.node){padding-top:12px;border-top:1px solid var(--line)}
+.group+.group{padding-top:12px;border-top:1px solid var(--line)}
 .subsection-label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
 .unit{margin-left:4px;font:400 11px var(--mono);letter-spacing:0;text-transform:none;color:var(--ink-3)}
 .ax-x{color:var(--ax-x)!important}
@@ -283,32 +379,13 @@ select option{color:var(--ink);background:var(--solid)}
 .btn-icon:hover{color:#fff;background:var(--primary)}
 
 /* ── Channels and targets ──────────────────────────────── */
-/* Each is a row that opens into its fields; one is open at a time */
-.item-list{display:flex;flex-direction:column;gap:4px}
-.channel-card{background:var(--inset);border:1px solid var(--line);border-radius:var(--r)}
-.channel-card:not(.collapsed){border-color:var(--primary-edge)}
-.channel-card-header{display:flex;align-items:center;justify-content:space-between;padding:3px 3px 3px 10px;
-  border-radius:var(--r);cursor:pointer}
-.channel-card-header:hover{background:var(--panel-2)}
-.channel-card-header span{font-size:12.5px;font-weight:500}
-.channel-card:not(.collapsed) .channel-card-header span{font-weight:600;color:var(--accent)}
-.channel-card-header .btn-collapse{color:var(--ink-3);background:transparent}
-.channel-card-header .btn-collapse svg{transition:transform .15s}
-.channel-card.collapsed .btn-collapse svg{transform:rotate(-90deg)}
-.channel-card.collapsed .channel-card-body{display:none}
-.channel-card-body{display:flex;flex-direction:column;gap:8px;padding:8px 10px 10px;border-top:1px solid var(--line)}
-.channel-card-fields{display:flex;flex-direction:column;gap:8px}
-.card-actions{display:flex;justify-content:flex-end}
+/* One set of fields each, all kept in the page; the outline picks which shows */
+.item-list{display:flex;flex-direction:column}
+.channel-card.collapsed{display:none}
+.channel-card-body,.channel-card-fields{display:flex;flex-direction:column;gap:8px}
+.card-actions{display:flex;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--line)}
 .file-row{display:flex;gap:6px}
 .file-row input{flex:1;min-width:0}
-.pattern-plot-label{margin-bottom:4px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--ink-3)}
-.pattern-plot{width:100%;height:190px}
-
-/* Plots inside a panel */
-.plot-container-sm{width:100%;height:190px;overflow:hidden;background:var(--inset);border:1px solid var(--line);
-  border-radius:var(--r)}
-#tx-locations-plot,#rx-locations-plot{height:230px}
 
 /* ── Simulation and readout ────────────────────────────── */
 .run-controls{display:flex;align-items:center;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
@@ -364,6 +441,28 @@ select option{color:var(--ink);background:var(--solid)}
 .stage-help{font-size:11px;color:var(--ink-3);text-align:center;text-shadow:0 0 3px #000}
 /* The gap between the panels is narrow: what is not a control goes */
 @container (max-width:560px){.stage-help,.legend{display:none}}
+
+/* ── Secondary plot ────────────────────────────────────── */
+/* What is being edited, over the scene: placed from the edge of the left
+   panels, so it keeps clear of them as they fold */
+.side-plot{position:absolute;left:calc(var(--inset-l,0px) + var(--side-x,12px));top:var(--side-y,58%);display:flex;
+  flex-direction:column;width:400px;height:270px;min-width:290px;min-height:170px;
+  max-width:max(290px,calc(100% - var(--inset-l,0px) - var(--inset-r,0px) - 24px));
+  max-height:calc(100% - var(--bar-h) - 12px);overflow:hidden;resize:both;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);backdrop-filter:blur(10px)}
+.side-plot.collapsed{height:auto!important;min-height:0;resize:none}
+.side-plot.collapsed .side-plot-body{display:none}
+.side-plot-head{display:flex;align-items:center;gap:8px;padding:5px;border-bottom:1px solid var(--line);cursor:grab;
+  touch-action:none}
+.side-plot-head:active{cursor:grabbing}
+.side-plot.collapsed .side-plot-head{border-bottom:0}
+.side-plot .seg{background:transparent;backdrop-filter:none}
+.side-plot-title{flex:1;min-width:0;overflow:hidden;font-size:11.5px;text-align:right;color:var(--ink-3);
+  white-space:nowrap;text-overflow:ellipsis}
+#btn-side-plot-fold svg{transition:transform .15s}
+.side-plot.collapsed #btn-side-plot-fold svg{transform:rotate(-90deg)}
+.side-plot-body{flex:1;min-height:0;padding:4px 6px 6px}
+#side-plot-view{width:100%;height:100%}
 
 /* ── Dialogs ───────────────────────────────────────────── */
 .dialog-overlay,.confirm-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;

@@ -3,6 +3,7 @@
 import { el, createInput, createSVG, debounce, parseNumber, confirmAsync, setCount } from './utils.js';
 import { markResultsOutdated } from './plots.js';
 import { updateScene } from './scene.js';
+import { renderOutline } from './outline.js';
 import { pointTargets, meshTargets } from './shared.js';
 import { debouncedAutoSave } from './state.js';
 
@@ -31,20 +32,6 @@ export function renderPointTargets(): void {
   setCount("point-target-count", pointTargets.length);
   pointTargets.forEach((t, i) => {
     const card = el("div", { className: "channel-card collapsed" }, [
-      el("div", {
-        className: "channel-card-header", onClick: () => {
-          const isCollapsed = card.classList.contains("collapsed");
-          if (isCollapsed) {
-            card.parentElement?.querySelectorAll(".channel-card").forEach((c) => c.classList.add("collapsed"));
-          }
-          card.classList.toggle("collapsed");
-        }
-      }, [
-        el("span", { textContent: `Target ${i + 1}` }),
-        el("button", { className: "btn-icon btn-collapse", title: "Collapse" }, [
-          createSVG("chevron"),
-        ]),
-      ]),
       el("div", { className: "channel-card-body" }, [
         el("div", { className: "form-group" }, [
           el("label", { textContent: "Location (m)" }),
@@ -108,6 +95,7 @@ export function renderPointTargets(): void {
     ]);
     container.appendChild(card);
   });
+  renderOutline();
   requestAnimationFrame(() => {
     const debouncedUpdate = debounce(updateScene);
     pointTargets.forEach((_, i) => {
@@ -115,8 +103,6 @@ export function renderPointTargets(): void {
         document.getElementById(`pt-${i}-${f}`)?.addEventListener("input", debouncedUpdate);
       });
     });
-    const cards = document.querySelectorAll("#point-targets-list .channel-card");
-    if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
     updateScene();
   });
 }
@@ -158,20 +144,6 @@ export function renderMeshTargets(): void {
   setCount("mesh-target-count", meshTargets.length);
   meshTargets.forEach((t, i) => {
     const card = el("div", { className: "channel-card collapsed" }, [
-      el("div", {
-        className: "channel-card-header", onClick: () => {
-          const isCollapsed = card.classList.contains("collapsed");
-          if (isCollapsed) {
-            card.parentElement?.querySelectorAll(".channel-card").forEach((c) => c.classList.add("collapsed"));
-          }
-          card.classList.toggle("collapsed");
-        }
-      }, [
-        el("span", { textContent: `Mesh ${i + 1}` }),
-        el("button", { className: "btn-icon btn-collapse", title: "Collapse" }, [
-          createSVG("chevron"),
-        ]),
-      ]),
       el("div", { className: "channel-card-body" }, [
         // Model path
         el("div", { className: "form-group" }, [
@@ -319,6 +291,7 @@ export function renderMeshTargets(): void {
     ]);
     container.appendChild(card);
   });
+  renderOutline();
   requestAnimationFrame(() => {
     const debouncedUpdate = debounce(updateScene);
     meshTargets.forEach((_, i) => {
@@ -330,8 +303,6 @@ export function renderMeshTargets(): void {
       // Unit is a <select> — "change", not "input".
       document.getElementById(`mesh-${i}-unit`)?.addEventListener("change", debouncedUpdate);
     });
-    const cards = document.querySelectorAll("#mesh-targets-list .channel-card");
-    if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
     updateScene();
   });
 }
