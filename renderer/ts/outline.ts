@@ -236,7 +236,14 @@ function _value(id: string): string {
 }
 
 export function updateDiagram(): void {
-  _show("arch-platform", `${["x", "y", "z"].map((a) => _value(`radar-loc-${a}`) || "0").join(", ")} m`);
+  _show("arch-pose-loc", `${["x", "y", "z"].map((a) => _value(`radar-loc-${a}`) || "0").join(", ")} m`);
+  _show("arch-pose-rot", `${["yaw", "pitch", "roll"].map((a) => _value(`radar-rot-${a}`) || "0").join("/")}°`);
+  const v = ["x", "y", "z"].map((a) => Number(_value(`radar-spd-${a}`)) || 0);
+  const spin = ["yaw", "pitch", "roll"].some((a) => (Number(_value(`radar-rr-${a}`)) || 0) !== 0);
+  // How fast, and (on hover) which way; a turning platform says so
+  _show("arch-pose-speed", `${Number(Math.hypot(...v).toPrecision(3))} m/s${spin ? " ⟳" : ""}`);
+  const speed = document.getElementById("arch-pose-speed");
+  if (speed) speed.title = `velocity (${v.join(", ")}) m/s${spin ? ", turning" : ""}`;
   _show("arch-waveform", `${_value("tx-f-start")}–${_value("tx-f-end")} GHz`);
   _show("arch-pa", `${_value("tx-power")} dBm`);
   _show("arch-lna", `NF ${_value("rx-nf")}`);

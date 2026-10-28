@@ -78,6 +78,10 @@ sup{top:-.5em}
 .mk{display:flex;align-items:center;gap:5px;font:600 11px/1 var(--mono);color:var(--mk);white-space:nowrap;
   text-shadow:0 0 3px #000,0 0 3px #000;pointer-events:auto}
 .mk b{font-weight:600}
+/* The radar in the scene opens the platform's pose */
+.mk-pick{cursor:pointer}
+.mk-pick:hover .mk-glyph{scale:1.25}
+.mk-pick:hover b{text-decoration:underline;text-underline-offset:3px}
 .mk>.mk-glyph{translate:-50% 0}  /* the middle of the glyph is the point */
 .mk-glyph{display:inline-block;flex-shrink:0;width:9px;height:9px;background:var(--mk);box-shadow:0 0 6px var(--mk)}
 .mk-radar{--mk:var(--radar)}
@@ -168,11 +172,19 @@ sup{top:-.5em}
    The rows and gaps are fixed sizes, so the wires can be drawn to meet. */
 .arch{--blk-h:64px;--cap-h:18px;--gx:12px;--gy:6px;--wire:#7a6fa3;margin:8px;border:1px dashed var(--line-2);
   border-radius:var(--r-lg)}
-.arch-platform{display:flex;align-items:center;gap:8px;width:100%;height:30px;padding:0 10px;color:var(--ink);
-  background:transparent;border:0;border-bottom:1px dashed var(--line-2);
-  border-radius:calc(var(--r-lg) - 1px) calc(var(--r-lg) - 1px) 0 0}
-.arch-platform .mk-glyph{width:11px;height:11px;box-shadow:none}
-.arch-platform .blk-val{margin-left:auto}
+/* The platform's pose: a block across the top of the frame, its readings in a row */
+.blk.blk-pose{width:calc(100% - 16px);margin:8px 8px 0;padding:6px 10px 7px;align-items:stretch;gap:5px}
+.pose-head{display:flex;align-items:center;gap:7px}
+.pose-head .mk-glyph{width:11px;height:11px;box-shadow:none}
+.pose-edit{width:13px;height:13px;margin-left:auto;fill:none;stroke:var(--ink-3);stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+.blk-pose:hover .pose-edit{stroke:var(--accent)}
+.pose-vals{display:flex;gap:10px;min-width:0}
+.pose-val{display:flex;align-items:baseline;gap:4px;min-width:0}
+.pose-val:first-child{flex:1 1 auto}
+.pose-val i{font:normal 9.5px/1 var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
+.blk-pose.sel :is(.pose-val i,.pose-edit){color:rgba(255,255,255,.7);stroke:#fff}
+.blk-pose.sel .blk-val{color:rgba(255,255,255,.85)}
 .arch-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 92px;
   grid-template-rows:var(--cap-h) var(--blk-h) var(--cap-h) var(--blk-h);gap:var(--gy) var(--gx);padding:6px 8px 10px}
 .chain-tx{grid-area:1/1/2/3}
@@ -196,9 +208,9 @@ sup{top:-.5em}
 .blk-ico{width:16px;height:16px;fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .blk-name{font-size:11px;font-weight:600;line-height:1.25}
 .blk-val{max-width:100%;overflow:hidden;font:10px/1.25 var(--mono);color:var(--ink-3);white-space:nowrap;text-overflow:ellipsis}
-:is(.blk,.chain,.arch-platform,.ant):hover{background:var(--accent-soft)}
+:is(.blk,.chain,.ant):hover{background:var(--accent-soft)}
 .blk:hover{border-color:var(--accent)}
-:is(.blk,.chain,.arch-platform,.ant).sel{color:#fff;background:var(--primary)}
+:is(.blk,.chain,.ant).sel{color:#fff;background:var(--primary)}
 :is(.blk,.ant).sel{border-color:var(--primary-edge)}
 .sel>.blk-val{color:rgba(255,255,255,.75)}
 .sel>.blk-ico{stroke:#fff}

@@ -31,6 +31,12 @@ try {
     document.getElementById("scene-scale")!.textContent = `Grid ${formatLength(cell)}`;
   };
   setSceneSink((model) => sceneView!.setModel(model));
+  // The radar in the scene opens the platform's pose, its panel unfolded if need be
+  sceneView.onPickRadar = () => {
+    const panel = document.getElementById("panel-radar") as HTMLDetailsElement | null;
+    if (panel && !panel.open) panel.open = true;
+    select({ kind: "radar" });
+  };
 } catch (err) {
   console.warn("[scene] 3D view unavailable:", err);
   document.getElementById("scene-host")!.textContent = "3D view unavailable";

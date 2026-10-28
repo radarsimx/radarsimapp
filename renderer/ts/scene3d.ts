@@ -155,6 +155,8 @@ const TWEEN_MS = 320;
 export class SceneView {
   /** Told the grid's cell size (m) whenever it changes. */
   onScale: ((cell: number) => void) | null = null;
+  /** Told when the radar's marker is clicked (not dragged across). */
+  onPickRadar: (() => void) | null = null;
 
   private renderer: THREE.WebGLRenderer;
   private labels = new CSS2DRenderer();
@@ -293,7 +295,8 @@ export class SceneView {
     this.model = model;
 
     this.markers.clear();  // a removed marker takes its element with it
-    this.markers.add(markerObject("radar", { label: "Radar", position: model.radar }));
+    this.markers.add(this.pickable(markerObject("radar", { label: "Radar", position: model.radar }),
+      () => this.onPickRadar?.(), "Platform: click to edit its pose"));
     model.tx.forEach((m) => this.markers.add(markerObject("tx", m)));
     model.rx.forEach((m) => this.markers.add(markerObject("rx", m)));
     model.pointTargets.forEach((m) => this.markers.add(markerObject("point", m)));
@@ -361,6 +364,23 @@ export class SceneView {
       }
       this.beamFans.add(fans);
     }
+  }
+
+  /**
+   * Make a marker a click target. A drag that starts on it still orbits the
+   * view, so only a press and release in about the same place counts.
+   */
+  private pickable(marker: CSS2DObject, onPick: () => void, title: string): CSS2DObject {
+    const elem = marker.element;
+    elem.classList.add("mk-pick");
+    elem.title = title;
+    let down: [number, number] | null = null;
+    elem.addEventListener("pointerdown", (e) => { down = [e.clientX, e.clientY]; });
+    elem.addEventListener("click", (e) => {
+      if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 5) onPick();
+      down = null;
+    });
+    return marker;
   }
 
   /** From behind the array, looking out along the boresight. */

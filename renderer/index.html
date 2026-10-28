@@ -132,11 +132,21 @@
             <h2>Radar</h2><span class="card-hint">architecture</span>
           </summary>
           <div class="arch" id="arch">
-            <!-- The platform carries everything drawn inside it -->
-            <button type="button" class="arch-platform" data-select="radar"
-              title="Platform: position, velocity, rotation">
-              <i class="mk-glyph mk-radar"></i><span class="blk-name">Platform</span>
-              <span class="blk-val" id="arch-platform"></span>
+            <!-- The platform carries everything drawn inside it. Its pose is a block
+                 like the others: where the radar is, which way it faces, how fast it moves. -->
+            <button type="button" class="blk blk-pose" data-select="radar"
+              title="Platform pose: position, velocity, rotation. Click to edit, or click the radar in the scene.">
+              <span class="pose-head">
+                <i class="mk-glyph mk-radar"></i><span class="blk-name">Platform pose</span>
+                <svg class="pose-edit" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 20 H8 L19 9 L15 5 L4 16 Z M13 7 L17 11" />
+                </svg>
+              </span>
+              <span class="pose-vals">
+                <span class="pose-val"><i>pos</i><span class="blk-val" id="arch-pose-loc"></span></span>
+                <span class="pose-val"><i>rot</i><span class="blk-val" id="arch-pose-rot"></span></span>
+                <span class="pose-val"><i>speed</i><span class="blk-val" id="arch-pose-speed"></span></span>
+              </span>
             </button>
 
             <div class="arch-grid">
