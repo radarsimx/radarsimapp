@@ -166,35 +166,45 @@ export function updateChannelPatternPlot(pfx: string, index: number): void {
     peak - PATTERN_MIN_DEPTH_DB);
   const range = [floor, peak];
 
-  const traces = cuts.map((c) => {
+  const traces = cuts.flatMap((c) => {
     const { angles: theta, gains: dB } = _resampleCut(c.angles, c.gains);
-    return {
+    // Below the floor is drawn at the floor, not folded through the centre
+    const r = dB.map((g) => Math.max(g, floor));
+    // A cut over part of the circle is filled as a wedge back to the centre;
+    // filling the line alone would close it with a chord across the disc
+    const whole = theta[theta.length - 1] - theta[0] >= 360;
+    const fill = {
+      type: "scatterpolar", mode: "none", hoverinfo: "skip",
+      theta: whole ? theta : [theta[0], ...theta, theta[theta.length - 1]],
+      r: whole ? r : [floor, ...r, floor],
+      fill: "toself", fillcolor: c.fill,
+    };
+    const line = {
       type: "scatterpolar", mode: "lines", name: c.name,
-      theta,
-      // Below the floor is drawn at the floor, not folded through the centre
-      r: dB.map((g) => Math.max(g, floor)),
+      theta, r,
       customdata: dB,
       hovertemplate: `${c.name} %{theta:.0f}°: %{customdata:.1f} dB<extra></extra>`,
       line: { color: c.color, width: 2 },
-      fill: "toself", fillcolor: c.fill,
     };
+    return [fill, line];
   });
 
   // A pattern over less than the full circle is drawn as that much of a disc
-  let sector = [0, 360];
-  if (angles.length) {
-    const lo = Math.min(...angles), hi = Math.max(...angles);
-    if (hi - lo < 360) sector = [lo + 90, hi + 90];
-  }
-  const full = sector[1] - sector[0] >= 360;
-  // Signed angles, as the fields are written: −30° rather than 330°
+  const lo = angles.length ? Math.min(...angles) : -180;
+  const hi = angles.length ? Math.max(...angles) : 180;
+  const full = hi - lo >= 360;
+  const sector = full ? [0, 360] : [lo + 90, hi + 90];
+  // Signed angles, as the fields are written: −30° rather than 330°. Over part
+  // of the circle Plotly keeps only ticks inside the span, in the fields' own
+  // terms, so those are given signed too.
   const ticks: number[] = [];
-  for (let a = full ? -150 : -180; a <= 180; a += 30) ticks.push(a);
+  if (full) for (let a = -150; a <= 180; a += 30) ticks.push(a);
+  else for (let a = Math.ceil(lo / 30) * 30; a <= hi; a += 30) ticks.push(a);
 
   const layout = {
     ...baseLayout(10),
-    // A whole disc has labels at the top and bottom too
-    margin: full ? { l: 28, r: 28, t: 24, b: 24 } : { l: 28, r: 28, t: 12, b: 12 },
+    // Room for the angle labels round the rim and the dB labels at the centre
+    margin: full ? { l: 28, r: 28, t: 24, b: 24 } : { l: 40, r: 40, t: 24, b: 24 },
     // The fields under the plot carry the colour key: no legend over the disc
     showlegend: false,
     polar: {
@@ -203,7 +213,7 @@ export function updateChannelPatternPlot(pfx: string, index: number): void {
       angularaxis: {
         rotation: 90, direction: "counterclockwise", thetaunit: "degrees",
         gridcolor: THEME.grid, linecolor: THEME.grid, color: THEME.inkDim,
-        tickmode: "array", tickvals: ticks.map((a) => (a + 360) % 360), ticktext: ticks.map((a) => `${a}°`),
+        tickmode: "array", tickvals: full ? ticks.map((a) => (a + 360) % 360) : ticks, ticktext: ticks.map((a) => `${a}°`),
       },
       radialaxis: {
         range, gridcolor: THEME.grid, linecolor: THEME.grid, color: THEME.inkFaint,

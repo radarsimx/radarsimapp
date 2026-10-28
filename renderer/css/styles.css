@@ -20,7 +20,7 @@
   --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --r:6px;--r-lg:10px;
   --shadow:0 8px 28px rgba(0,0,0,.45);
-  --bar-h:52px;--col:clamp(320px,25vw,372px);
+  --bar-h:60px;--col:clamp(320px,25vw,372px);
 }
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -121,7 +121,7 @@ sup{top:-.5em}
 .brand-text{display:flex;flex-direction:column;min-width:0;line-height:1}
 .brand-mark{font-size:15px;font-weight:700;letter-spacing:.02em}
 .brand-sub{margin-top:4px;font-size:11px;color:var(--ink-3);white-space:nowrap}
-.plate{display:flex;align-items:center;gap:6px;padding:5px;background:var(--panel);border:1px solid var(--line);
+.plate{display:flex;align-items:center;align-self:end;margin-bottom:2px;gap:6px;padding:5px;background:var(--panel);border:1px solid var(--line);
   border-radius:var(--r-lg);backdrop-filter:blur(10px);-webkit-app-region:no-drag}
 .plate-sep{width:1px;height:18px;margin:0 2px;background:var(--line-2)}
 .btn-run{height:30px;padding:0 10px 0 12px;font-weight:700}
@@ -533,17 +533,31 @@ select option{color:var(--ink);background:var(--solid)}
 
 /* ── Simulation running ────────────────────────────────── */
 /* Invisible at first, but it takes the pointer for as long as a run lasts;
-   .sim-visible fades it in after a delay, so a fast run shows no flash */
+   .sim-visible fades it in after a delay, so a fast run shows no flash.
+   No backdrop blur: it re-blurs the whole window on every frame the scope
+   animates, and the GPU is busy with the simulation itself. */
 .sim-overlay{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;
-  background:rgba(9,7,13,.82);backdrop-filter:blur(4px);opacity:0;pointer-events:all;transition:opacity .25s ease}
+  background:rgba(9,7,13,.9);opacity:0;pointer-events:all;transition:opacity .25s ease}
 .sim-overlay.sim-visible{opacity:1}
 .sim-overlay-content{display:flex;flex-direction:column;align-items:center;gap:16px}
-/* A scope: two range rings and the sweep going round */
-.sim-spinner{width:88px;height:88px;border:1px solid var(--line-2);border-radius:50%;will-change:transform;
-  background:radial-gradient(circle,transparent 0 32%,var(--line-2) 32% 33.5%,transparent 33.5% 65%,var(--line-2) 65% 66.5%,transparent 66.5%),
-    conic-gradient(transparent 0 60%,var(--primary) 85%,var(--accent) 100%);
-  animation:sim-spin 1.5s linear infinite}
+/* A scope: the rings and crosshair stay put while the beam sweeps round,
+   and each target lights up as the beam passes it, then fades */
+.sim-scope{--sweep:2.4s;position:relative;width:120px;height:120px;border:1px solid var(--line-2);border-radius:50%;
+  overflow:hidden;box-shadow:0 0 32px rgba(184,163,230,.12),inset 0 0 24px rgba(184,163,230,.06);
+  background:
+    radial-gradient(circle,transparent 0 32.5%,var(--line) 32.5% 33.5%,transparent 33.5% 66%,var(--line) 66% 67%,transparent 67%),
+    linear-gradient(transparent calc(50% - .5px),var(--line) calc(50% - .5px) calc(50% + .5px),transparent calc(50% + .5px)),
+    linear-gradient(90deg,transparent calc(50% - .5px),var(--line) calc(50% - .5px) calc(50% + .5px),transparent calc(50% + .5px)),
+    radial-gradient(circle,rgba(78,58,114,.35),rgba(13,11,18,.6) 70%)}
+.sim-sweep{position:absolute;inset:0;border-radius:50%;will-change:transform;
+  background:conic-gradient(transparent 0 70%,rgba(184,163,230,.05) 75%,rgba(184,163,230,.38) 99.4%,var(--accent) 99.4% 100%);
+  animation:sim-spin var(--sweep) linear infinite}
+.sim-blip{position:absolute;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 6px 1px var(--accent);opacity:0;
+  animation:sim-blip var(--sweep) ease-out calc(var(--t) * var(--sweep)) infinite}
 @keyframes sim-spin{to{transform:rotate(360deg)}}
+@keyframes sim-blip{0%{opacity:1;transform:scale(1.3)}12%{transform:scale(1)}75%,100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.sim-blip{opacity:.6}}
 .sim-overlay-text{font-size:15px;font-weight:600;letter-spacing:.02em}
 .sim-overlay-sub{font-size:12px;color:var(--ink-2)}
 

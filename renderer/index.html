@@ -786,7 +786,12 @@
   <!-- Simulation Loading Overlay -->
   <div id="sim-overlay" class="sim-overlay hidden">
     <div class="sim-overlay-content">
-      <div class="sim-spinner"></div>
+      <div class="sim-scope" aria-hidden="true">
+        <div class="sim-sweep"></div>
+        <span class="sim-blip" style="left:76%;top:35%;--t:.167"></span>
+        <span class="sim-blip" style="left:60%;top:67.3%;--t:.417"></span>
+        <span class="sim-blip" style="left:16.2%;top:62.3%;--t:.694"></span>
+      </div>
       <p class="sim-overlay-text">Running simulation</p>
       <p class="sim-overlay-sub" id="sim-overlay-sub"></p>
     </div>
