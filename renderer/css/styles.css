@@ -142,7 +142,10 @@ sup{top:-.5em}
 .hud-col{position:absolute;top:calc(var(--bar-h) + 4px);display:flex;flex-direction:column;gap:8px;width:fit-content;
   max-height:calc(100% - var(--bar-h) - 16px);overflow:hidden auto;scrollbar-width:thin;scrollbar-gutter:stable;
   scrollbar-color:var(--line-2) transparent;pointer-events:auto}
-.hud-left{left:12px;align-items:flex-start}
+/* Right-to-left puts the left column's scrollbar on its outer edge; its cards read left-to-right
+   (and flex-end is the left side here) */
+.hud-left{left:2px;align-items:flex-end;direction:rtl}
+.hud-left>*{direction:ltr}
 .hud-right{right:2px;align-items:flex-end}
 /* Each card on a layer of its own: a blurred-glass card in a scrolling column
    can otherwise be left with its frame drawn and its text not (Chromium) */
