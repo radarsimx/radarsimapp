@@ -218,15 +218,25 @@ function _apply(): void {
     Array.from(cards).forEach((card, i) => card.classList.toggle("collapsed", !(sel?.kind === kind && sel.index === i)));
   });
 
-  // The scene shows the coverage of the channel, or the chain, picked here
-  const k = _radar.kind;
-  setCoverageFocus(k === "tx" || k === "rx" ? { kind: k, index: _radar.index ?? 0 }
-    : k === "transmitter" || k === "receiver" ? { kind: k } : null);
+  syncCoverageFocus();
 
   _show("insp-title", radar.title);
   _show("insp-path", radar.path);
   _show("target-title", target?.title ?? "");
   _show("target-path", target?.path ?? "");
+}
+
+/**
+ * The scene shows the coverage of the channel, or the chain, picked on the
+ * radar -- while the Radar panel is open. Folded, nothing there is in hand,
+ * and the fans go with it.
+ */
+export function syncCoverageFocus(): void {
+  const panel = document.getElementById("panel-radar") as HTMLDetailsElement | null;
+  const k = _radar.kind;
+  setCoverageFocus(panel && !panel.open ? null
+    : k === "tx" || k === "rx" ? { kind: k, index: _radar.index ?? 0 }
+    : k === "transmitter" || k === "receiver" ? { kind: k } : null);
 }
 
 // --- Diagram readings ---

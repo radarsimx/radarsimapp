@@ -123,7 +123,8 @@
 
     <!-- The panels, in a column down each side of the stage; the middle stays clear -->
     <main class="view" id="content">
-      <div class="hud-col hud-left">
+      <!-- Radar and Targets take turns: opening one folds the other -->
+      <div class="hud-col hud-left" data-accordion>
 
         <!-- Radar: its architecture as a block diagram, and under it the fields of the block picked.
              Every block's fields are here; one set shows. -->

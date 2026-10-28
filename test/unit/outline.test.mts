@@ -145,6 +145,28 @@ describe("selection", () => {
 
 });
 
+describe("coverage in the scene", () => {
+  test("follows what is picked on the radar, and only while its panel is open", async () => {
+    const scene: any = await import("../../dist/renderer/js/scene.js");
+    const panel = document.getElementById("panel-radar") as HTMLDetailsElement;
+    panel.open = true;
+
+    outline.select({ kind: "transmitter" });
+    assert.deepEqual(scene.coverageFocus(), { kind: "transmitter" });
+
+    panel.open = false;
+    outline.syncCoverageFocus();
+    assert.equal(scene.coverageFocus(), null, "the fans stayed up with the Radar panel folded");
+
+    panel.open = true;
+    outline.syncCoverageFocus();
+    assert.deepEqual(scene.coverageFocus(), { kind: "transmitter" }, "unfolding brings them back");
+
+    outline.select({ kind: "waveform" });
+    assert.equal(scene.coverageFocus(), null, "a block with no antennas has no coverage to show");
+  });
+});
+
 describe("targets", () => {
   test("a target's fields show under the target list, beside whatever is picked on the radar", () => {
     outline.select({ kind: "mixer" });

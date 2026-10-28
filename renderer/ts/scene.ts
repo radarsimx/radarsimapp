@@ -151,6 +151,11 @@ export function setCoverageFocus(focus: CoverageFocus): void {
   _publish();
 }
 
+/** Whose coverage the scene shows now. */
+export function coverageFocus(): CoverageFocus {
+  return _focus;
+}
+
 function _inFocus(pfx: "tx" | "rx", index: number): boolean {
   if (!_focus) return false;
   if (_focus.kind === "transmitter") return pfx === "tx";

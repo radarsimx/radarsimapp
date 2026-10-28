@@ -10,7 +10,8 @@ import { debouncedAutoSave, resetToDefault, initApp } from './state.js';
 import { updateScene, setSceneSink } from './scene.js';
 import { SceneView, type SceneFraming, type CameraPreset } from './scene3d.js';
 import { updateReadout, formatLength } from './readout.js';
-import { initOutline, select } from './outline.js';
+import { initOutline, select, syncCoverageFocus } from './outline.js';
+import { initColumnResize, place as placeColumnGrips } from './colresize.js';
 import { pref, setPref, setStageView, setResultViewsAvailable, isResultView, layoutStage, type StageView } from './stage.js';
 
 // --- App version ---
@@ -68,15 +69,36 @@ document.getElementById("btn-scene-fit")!.addEventListener("click", () => sceneV
 
 // --- Panels ---
 // Panels fold away, and start as they were left.
+// In a column marked as an accordion (the left one: Radar and Targets) one
+// panel is open at a time: opening one folds the rest.
+function _accordionSiblings(panel: HTMLDetailsElement): HTMLDetailsElement[] {
+  const col = panel.closest<HTMLElement>(".hud-col[data-accordion]");
+  return col ? Array.from(col.querySelectorAll<HTMLDetailsElement>(":scope > details[data-panel]"))
+    .filter((p) => p !== panel) : [];
+}
+
 document.querySelectorAll<HTMLDetailsElement>("details[data-panel]").forEach((panel) => {
   const name = panel.dataset.panel!;
   panel.open = pref(`panel.${name}`, panel.open);
   panel.addEventListener("toggle", () => {
     setPref(`panel.${name}`, panel.open);
-    // A folded panel had nothing to draw its plots into
-    if (panel.open) redrawInspectorPlots();
+    if (panel.open) {
+      _accordionSiblings(panel).forEach((p) => { p.open = false; });
+      // A folded panel had nothing to draw its plots into
+      redrawInspectorPlots();
+    }
+    placeColumnGrips();
+    // The coverage fans show only while the Radar panel is open
+    if (panel.id === "panel-radar") syncCoverageFocus();
   });
 });
+// Saved from before there was an accordion, two may start open: keep the first
+document.querySelectorAll<HTMLElement>(".hud-col[data-accordion]").forEach((col) => {
+  col.querySelectorAll<HTMLDetailsElement>(":scope > details[data-panel][open]").forEach((p, i) => {
+    if (i > 0) p.open = false;
+  });
+});
+initColumnResize();
 
 // --- Layout ---
 // The panels lie over the stage: tell the 3D view how much of it they cover,
@@ -88,6 +110,7 @@ const _resizeStagePlots = debounce(() => {
 
 function _layout(): void {
   sceneView?.setInsets(layoutStage());
+  placeColumnGrips();
   _resizeStagePlots();
 }
 
