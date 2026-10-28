@@ -2,115 +2,125 @@
   <img src="https://raw.githubusercontent.com/radarsimx/.github/refs/heads/main/profile/radarsimapp.svg" alt="RadarSimApp logo" width="200"/>
 </p>
 
-# RadarSimApp
-
-A **Radar** **Sim**ulation desktop **App** powered by [RadarSimLib](https://github.com/radarsimx/radarsimlib)
-
-RadarSimApp is a cross-platform desktop application that brings the full power of RadarSimLib into an intuitive graphical interface. Model FMCW radar transceivers, define point and mesh targets, run baseband simulations, and visualize Range-Doppler maps — all without writing a single line of code.
+<h1 align="center">RadarSimApp</h1>
 
 <p align="center">
-  <img src="./assets/radarsimapp.gif" alt="RadarSimApp UI demo" width="800"/>
+  A <b>Radar</b> <b>Sim</b>ulation desktop <b>App</b> powered by <a href="https://github.com/radarsimx/radarsimlib">RadarSimLib</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/radarsimx/radarsimapp/actions/workflows/test.yml"><img src="https://github.com/radarsimx/radarsimapp/actions/workflows/test.yml/badge.svg" alt="Tests"/></a>
+  <a href="https://github.com/radarsimx/radarsimapp/releases"><img src="https://img.shields.io/github/v/release/radarsimx/radarsimapp" alt="Release"/></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-4e3a72" alt="Platforms"/>
+</p>
+
+RadarSimApp puts RadarSimLib behind a graphical interface. You lay out an FMCW radar as a block diagram, place point and mesh targets in a live 3D scene, run a baseband simulation, and look at the range profile and Range-Doppler map, all without writing code.
+
+<p align="center">
+  <img src="./assets/radarsimapp.gif" alt="RadarSimApp demo: editing the waveform, adding antenna channels, placing targets, running a simulation and viewing the Range-Doppler map" width="900"/>
 </p>
 
 ---
 
-## Key Features
+## Highlights
 
-- :satellite: **Radar Modeling**
-  - Transmitter: FMCW/CW/custom waveforms, multi-channel TX, antenna patterns, phase noise
-  - Receiver: sampling rate, noise figure, RF/baseband gain, multi-channel RX, antenna patterns
-  - Radar platform: position, velocity, rotation, and rotation rate
-- :video_game: **Simulation**
-  - Baseband data from point targets and 3D mesh targets (STL)
-  - Configurable fidelity levels: frame, pulse, and sample
-  - Optional receiver noise injection
-- :signal_strength: **Signal Processing**
-  - Range profile computation with configurable FFT size
-  - Range-Doppler map with configurable Doppler FFT size
-- :bar_chart: **Visualization**
-  - Live 3D scene of the radar, its channels, boresight and targets, with a ground grid and range rings
-  - Interactive Plotly plots: baseband signal, range profile, range-Doppler map
-  - Radar architecture diagram (waveform generator, PA, LNA, mixer, baseband, ADC, antennas): click a block to edit it in place
-  - Floating preview plot that follows what is being edited: waveform frequency-vs-time, antenna patterns, array layout
-  - Derived readout: resolutions, unambiguous velocity, samples per pulse
-- :floppy_disk: **Configuration Management**
-  - Save/load full radar configurations to/from JSON
+- :satellite: **Radar as a block diagram.** The transmit and receive chains (waveform generator, PA, TX/RX antennas, LNA, mixer, baseband amplifier, ADC) are drawn as blocks. Click a block to edit it; the inspector shows only that block's fields.
+- :globe_with_meridians: **Live 3D scene.** The radar, its channels, boresight and targets sit on a ground grid with range rings. Orbit, pan and zoom, or jump to Iso / Top / Side views. The **Array** view shows the antenna layout face-on along boresight.
+- :chart_with_upwards_trend: **Instant previews.** Editing the waveform plots frequency against time; editing a channel plots its antenna pattern. The **Readout** panel updates bandwidth, range resolution, maximum velocity and velocity resolution as you type.
+- :dart: **Point and mesh targets.** Point targets take location, speed, RCS and phase. Mesh targets load STL models with a unit, location, speed, rotation, rotation rate and permittivity.
+- :zap: **Simulation and processing.** Choose frame, pulse or sample fidelity, set ray density, and add receiver noise if you want it. Range profile and Range-Doppler map are computed with configurable FFT sizes.
+- :bar_chart: **Results in place.** Baseband, range profile and Range-Doppler plots open in the middle of the window, with channel and pulse selectors. A banner warns you when results are older than the current settings.
+- :floppy_disk: **Save, load, export.** Settings are kept between sessions automatically. Save or load whole configurations as JSON, and export results to HDF5 (`.h5`) or JSON.
 
 ---
 
-## Dependencies
+## Radar model
 
-- **Node.js** ≥ 26
-- `radarsimc.dll` (Windows) / `libradarsimcpp.so` (Linux) / `libradarsimcpp.dylib` (macOS) placed in `radarsimlib/`
-- A valid `license_RadarSimM_*.lic` file placed in `radarsimlib/`
-
-**Node.js package dependencies** (installed via `npm install`):
-
-| Package | Purpose |
+| Block | Parameters |
 |---|---|
-| `koffi` | FFI bindings to the native RadarSimLib |
-| `plotly.js-dist` | Interactive result plots |
-| `three` | 3D scene view |
-| `h5wasm` | HDF5/JSON export support |
-| `electron-squirrel-startup` | Windows installer integration |
+| Platform pose | Position, velocity, rotation (yaw/pitch/roll), rotation rate |
+| Waveform generator | Start/end frequency, sweep start/end time, number of pulses, pulse repetition period |
+| Power amplifier | TX power |
+| TX / RX channels | Location, polarization, azimuth and elevation patterns, TX delay |
+| Low-noise amplifier | Noise figure, RF gain |
+| Mixer | Complex (I/Q) or real baseband, range gate delay |
+| Baseband amplifier | Baseband gain, load resistor |
+| ADC | Sampling rate |
+
+---
+
+## Quick start
+
+1. **Pick a block.** Click a block in the **Radar** panel (or the radar in the 3D scene) and edit its fields.
+2. **Add channels.** Use **+** next to **TX** or **RX** to add antennas, then click one to set its location and pattern.
+3. **Add targets.** Open the **Targets** panel and use **+** to add point or mesh targets.
+4. **Set up the run.** In **Simulation**, choose fidelity, noise, and which processing steps to run.
+5. **Run.** Click **Run** or press <kbd>Ctrl</kbd> + <kbd>Enter</kbd>.
+6. **Inspect.** Switch between **Baseband**, **Range profile** and **Range-Doppler** at the bottom of the window; step through channels and pulses.
+7. **Keep it.** **Save** the configuration, or **Export** the results.
+
+Click the **?** button in the title bar to see the app and library versions and the license status.
 
 ---
 
 ## Development
 
+### Requirements
+
+- **Node.js** 26 or newer
+- The RadarSimLib native library in `radarsimlib/`:
+  - Windows: `radarsimc.dll`
+  - macOS: `libradarsimc.dylib`
+  - Linux: `libradarsimc.so`
+- Optionally, a license file in `radarsimlib/` (`license_RadarSimApp_*.lic` or `license_RadarSimPy_*.lic`). Without one the app runs in free-tier mode, and you can activate a license later from the title bar.
+
+### Run from source
+
 ```bash
-# Clone the repository
 git clone https://github.com/radarsimx/radarsimapp.git
 cd radarsimapp
-
-# Install Node.js dependencies
 npm install
 
-# Place the native library and license file
+# Copy the native library (and license, if you have one) into radarsimlib/
 cp /path/to/radarsimc.dll radarsimlib/
-cp /path/to/license_RadarSimM_*.lic radarsimlib/
+cp /path/to/license_RadarSimApp_*.lic radarsimlib/
 
-# Run the app
-npm start
-
-# Run in development mode (with DevTools open)
-npm run dev
+npm start      # build and launch
+npm run dev    # build and launch with DevTools and the native window frame
 ```
 
----
-
-## Packaging
-
-Build a platform-specific installer or package:
+### Tests
 
 ```bash
-# Windows (Squirrel installer)
-npm run dist:win
-
-# macOS (DMG)
-npm run dist:mac
-
-# Linux (AppImage)
-npm run dist:linux
+npm test                  # build, then run all tests
+npm run test:unit         # no native library needed
+npm run test:integration  # drives the real native library
 ```
 
-The output is placed in `dist/`. The native library is automatically unpacked from the `.asar` archive at runtime via `asarUnpack`.
+See [test/README.md](test/README.md) for the layout of the test suite.
 
----
+### Packaging
 
-## Usage
+```bash
+npm run dist:win     # Windows Squirrel installer
+npm run dist:mac     # macOS DMG
+npm run dist:linux   # Linux AppImage
+```
 
-1. **About** — Click the **About** button in the sidebar footer to verify the library version and license status
-2. **Configure Transmitter** — Set start/end frequency, sweep timing, pulse count, TX power, and TX channels with antenna patterns
-3. **Configure Receiver** — Set sampling rate, baseband type, noise figure, gain, and RX channels with antenna patterns
-4. **Configure Radar** — Set platform position, velocity, rotation, and rotation rate
-5. **Add Targets** — Add point targets (location, RCS, speed, phase) or mesh targets (STL files with motion parameters)
-6. **Run Simulation** — Select fidelity level, toggle noise and processing options, then click **Run Simulation**
-7. **View Results** — Inspect the baseband signal, range profile, and Range-Doppler map; step through channels and pulses
-8. **Export** — Save the full simulation result to JSON for further analysis
+Output goes to `dist/`. The native library and `koffi` are unpacked from the `.asar` archive so they can be loaded at runtime. Pushing a `v*` tag builds all three platforms in CI.
+
+### Project layout
+
+| Path | Contents |
+|---|---|
+| `main.ts`, `preload.ts` | Electron main process, IPC and window handling |
+| `bridge.ts`, `convert.ts` | FFI bindings to RadarSimLib (via `koffi`) and data conversion |
+| `dsp.ts`, `mesh.ts` | FFT-based range/Doppler processing and STL loading |
+| `renderer/` | The UI: HTML, CSS and TypeScript for the panels, 3D scene (`three`) and plots (`plotly.js`) |
+| `test/` | Unit and integration tests (Node's built-in test runner) |
 
 ---
 
 ## License
 
-This project is licensed under the terms of the [LICENSE](LICENSE.txt) file.
+See [LICENSE.txt](LICENSE.txt).
