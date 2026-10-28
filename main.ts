@@ -25,14 +25,14 @@ const isDev: boolean = process.argv.includes("--dev");
  */
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 800,
-    minHeight: 500,
+    width: 1440,
+    height: 900,
+    minWidth: 1024,
+    minHeight: 640,
     title: "RadarSimApp",
     frame: isDev,
     show: false,
-    backgroundColor: "#0f0f14",
+    backgroundColor: "#0d0b12",
     icon: path.join(
       __dirname,
       "..",

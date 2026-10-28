@@ -4,7 +4,8 @@ import { debounce } from './utils.js';
 import { txChannels, rxChannels, pointTargets, meshTargets } from './shared.js';
 import { saveTxChannelStates, saveRxChannelStates, renderTxChannels, renderRxChannels } from './channels.js';
 import { savePointTargetStates, saveMeshTargetStates, renderPointTargets, renderMeshTargets } from './targets.js';
-import { clearResultPlots, updateRadarOverviewPlot, updateTxInfo } from './plots.js';
+import { clearResultPlots, updateTxInfo } from './plots.js';
+import { updateScene } from './scene.js';
 
 const STATE_KEY = "radarsimapp_state";
 
@@ -91,7 +92,6 @@ export function captureState(): AppState {
 
   return {
     fields,
-    sidebarCollapsed: document.getElementById("app")!.classList.contains("sidebar-collapsed"),
     txChannels: JSON.parse(JSON.stringify(txChannels)),
     rxChannels: JSON.parse(JSON.stringify(rxChannels)),
     pointTargets: JSON.parse(JSON.stringify(pointTargets)),
@@ -117,8 +117,6 @@ export function applyState(state: AppState): void {
     });
   }
 
-  document.getElementById("app")!.classList.toggle("sidebar-collapsed", !!state.sidebarCollapsed);
-
   if (Array.isArray(state.txChannels)) txChannels.splice(0, txChannels.length, ...state.txChannels);
   if (Array.isArray(state.rxChannels)) rxChannels.splice(0, rxChannels.length, ...state.rxChannels);
   if (Array.isArray(state.pointTargets)) pointTargets.splice(0, pointTargets.length, ...state.pointTargets);
@@ -130,7 +128,9 @@ export function applyState(state: AppState): void {
   renderMeshTargets();
 
   updateTxInfo();
-  updateRadarOverviewPlot();
+  updateScene();
+  // Fields were set without events; let whatever mirrors them catch up.
+  document.dispatchEvent(new CustomEvent("configapplied"));
 }
 
 export const debouncedAutoSave = debounce(() => {
@@ -220,6 +220,7 @@ export function initApp(): void {
     } catch (err) {
       status.textContent = (err as Error).message;
       status.className = "config-status err";
+      setTimeout(() => { status.textContent = ""; status.className = "config-status"; }, 6000);
     } finally {
       btn.disabled = false;
     }
@@ -242,7 +243,7 @@ export function initApp(): void {
     renderRxChannels();
     renderPointTargets();
     updateTxInfo();
-    updateRadarOverviewPlot();
+    updateScene();
   }
 
   attachAutoSave();

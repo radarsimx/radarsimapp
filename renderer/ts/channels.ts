@@ -1,7 +1,9 @@
 // ===== RadarSimApp - Channel Functions =====
 
-import { el, createInput, createTextInput, createSVG, debounce, formatComplex, isValidComplex, parseNumber, parseCSV, confirmAsync } from './utils.js';
-import { updateChannelPatternPlot, attachPatternListeners, updateTxLocationsPlot, updateRxLocationsPlot, updateRadarOverviewPlot, markResultsOutdated } from './plots.js';
+import { el, createInput, createTextInput, createSVG, debounce, formatComplex, isValidComplex, parseNumber, parseCSV, confirmAsync, setCount } from './utils.js';
+import { attachPatternListeners, redrawInspectorPlots, markResultsOutdated } from './plots.js';
+import { renderOutline } from './outline.js';
+import { updateScene } from './scene.js';
 import { txChannels, rxChannels } from './shared.js';
 import { debouncedAutoSave } from './state.js';
 
@@ -61,17 +63,18 @@ function createChannelCard(prefix: string, index: number, data: ChannelData, isT
     );
   }
 
-  // Antenna Pattern (azimuth)
+  // Antenna pattern: the plot of both cuts, then the azimuth and elevation fields
   fields.append(
+    el("div", { className: "insp-plot pattern-plot", id: `${pfx}-ch-${index}-pattern-plot` }),
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "Azimuth Angles (°)" }),
+      el("label", { className: "cut-key cut-az", textContent: "Azimuth Angles (°)" }),
       createTextInput(
         `${pfx}-ch-${index}-az-angles`,
         data.azimuth_angle?.join(", ") ?? "-90, 90"
       ),
     ]),
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "Azimuth Pattern (dB)" }),
+      el("label", { className: "cut-key cut-az", textContent: "Azimuth Pattern (dB)" }),
       createTextInput(
         `${pfx}-ch-${index}-az-pattern`,
         data.azimuth_pattern?.join(", ") ?? "0, 0"
@@ -80,14 +83,14 @@ function createChannelCard(prefix: string, index: number, data: ChannelData, isT
 
     // Antenna Pattern (elevation)
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "Elevation Angles (°)" }),
+      el("label", { className: "cut-key cut-el", textContent: "Elevation Angles (°)" }),
       createTextInput(
         `${pfx}-ch-${index}-el-angles`,
         data.elevation_angle?.join(", ") ?? "-90, 90"
       ),
     ]),
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "Elevation Pattern (dB)" }),
+      el("label", { className: "cut-key cut-el", textContent: "Elevation Pattern (dB)" }),
       createTextInput(
         `${pfx}-ch-${index}-el-pattern`,
         data.elevation_pattern?.join(", ") ?? "0, 0"
@@ -95,36 +98,11 @@ function createChannelCard(prefix: string, index: number, data: ChannelData, isT
     ]),
   );
 
-  // Build the combined pattern plot
-  const patternPlotDiv = el("div", { className: "pattern-plot", id: `${pfx}-ch-${index}-pattern-plot` });
-
-  const plots = el("div", { className: "channel-card-plots" }, [
-    el("div", { className: "pattern-plot-label", textContent: "Antenna Pattern" }),
-    patternPlotDiv,
-  ]);
-
+  // A channel's fields, all of them in the page; the outline picks the one that shows
   const card = el("div", { className: "channel-card collapsed" }, [
-    el("div", {
-      className: "channel-card-header", onClick: () => {
-        const isCollapsed = card.classList.contains("collapsed");
-        if (isCollapsed) {
-          card.parentElement?.querySelectorAll(".channel-card").forEach((c) => c.classList.add("collapsed"));
-        }
-        card.classList.toggle("collapsed");
-        if (isCollapsed) {
-          card.querySelectorAll(".js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot as HTMLElement));
-        }
-      }
-    }, [
-      el("span", { textContent: `${prefix} Channel ${index + 1}` }),
-      el("button", { className: "btn-icon btn-collapse", title: "Collapse" }, [
-        createSVG("chevron"),
-      ]),
-    ]),
     el("div", { className: "channel-card-body" }, [
       fields,
-      plots,
-      el("div", { style: "display:flex;justify-content:flex-end;margin-top:4px" }, [
+      el("div", { className: "card-actions" }, [
         el("button", { className: "btn-secondary btn-danger", title: "Remove", onClick: () => removeChannel(prefix, index) }, [
           createSVG("trash"),
           " Remove Channel",
@@ -142,17 +120,14 @@ export function renderTxChannels(): void {
   txChannels.forEach((ch, i) => {
     container.appendChild(createChannelCard("TX", i, ch, true));
   });
+  setCount("tx-ch-count", txChannels.length);
+  renderOutline();
 
   requestAnimationFrame(() => {
-    txChannels.forEach((_, i) => {
-      updateChannelPatternPlot("tx", i);
-      attachPatternListeners("tx", i);
-    });
-    updateTxLocationsPlot();
+    txChannels.forEach((_, i) => attachPatternListeners("tx", i));
+    redrawInspectorPlots();
     attachLocationListeners();
-    updateRadarOverviewPlot();
-    const cards = document.querySelectorAll("#tx-channels-list .channel-card");
-    if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
+    updateScene();
   });
 }
 
@@ -162,17 +137,14 @@ export function renderRxChannels(): void {
   rxChannels.forEach((ch, i) => {
     container.appendChild(createChannelCard("RX", i, ch, false));
   });
+  setCount("rx-ch-count", rxChannels.length);
+  renderOutline();
 
   requestAnimationFrame(() => {
-    rxChannels.forEach((_, i) => {
-      updateChannelPatternPlot("rx", i);
-      attachPatternListeners("rx", i);
-    });
-    updateRxLocationsPlot();
+    rxChannels.forEach((_, i) => attachPatternListeners("rx", i));
+    redrawInspectorPlots();
     attachRxLocationListeners();
-    updateRadarOverviewPlot();
-    const cards = container.querySelectorAll(".channel-card");
-    if (cards.length > 0) cards[cards.length - 1].classList.remove("collapsed");
+    updateScene();
   });
 }
 
@@ -234,7 +206,7 @@ async function removeChannel(prefix: string, index: number): Promise<void> {
 
 function attachLocationListeners(): void {
   txChannels.forEach((_, i) => {
-    const debouncedUpdate = debounce(() => { updateTxLocationsPlot(); updateRadarOverviewPlot(); });
+    const debouncedUpdate = debounce(updateScene);
     ["loc-x", "loc-y", "loc-z"].forEach((field) => {
       const elem = document.getElementById(`tx-ch-${i}-${field}`);
       if (elem) {
@@ -246,7 +218,7 @@ function attachLocationListeners(): void {
 
 function attachRxLocationListeners(): void {
   rxChannels.forEach((_, i) => {
-    const debouncedUpdate = debounce(() => { updateRxLocationsPlot(); updateRadarOverviewPlot(); });
+    const debouncedUpdate = debounce(updateScene);
     ["loc-x", "loc-y", "loc-z"].forEach((field) => {
       const elem = document.getElementById(`rx-ch-${i}-${field}`);
       if (elem) {

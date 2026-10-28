@@ -53,6 +53,12 @@ export function el(tag: string, attrs: Record<string, any> = {}, children: (HTML
   return e;
 }
 
+/** Show how many items a list holds, beside its title. */
+export function setCount(id: string, count: number): void {
+  const badge = document.getElementById(id);
+  if (badge) badge.textContent = String(count);
+}
+
 export function wrapNumberInput(input: HTMLInputElement): HTMLDivElement {
   const wrapper = document.createElement("div");
   wrapper.className = "number-input-wrapper";

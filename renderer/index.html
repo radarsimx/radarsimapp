@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" style="background:#0f0f14">
+<html lang="en" style="background:#0d0b12">
 
 <head>
   <meta charset="UTF-8" />
@@ -8,9 +8,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RadarSimApp</title>
   <link rel="stylesheet" href="css/styles.css" />
+  <!-- The renderer is unbundled ES modules: this is how they find three.js -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "../node_modules/three/build/three.module.js",
+        "three/addons/": "../node_modules/three/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 
-<body style="background:#0f0f14">
+<body style="background:#0d0b12">
   <!-- Startup Loading Overlay -->
   <div id="startup-overlay">
     <div class="startup-overlay-content">
@@ -18,752 +27,767 @@
       <p class="startup-title">RadarSimApp</p>
     </div>
   </div>
-  <!-- Custom titlebar -->
-  <div id="titlebar">
-    <div id="titlebar-drag">
-      <img src="assets/logo.svg" width="16" height="16" alt="" />
-      <span>RadarSimApp</span>
-    </div>
-    <div id="window-controls">
-      <button id="btn-win-minimize" title="Minimize" aria-label="Minimize">
-        <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
-      </button>
-      <button id="btn-win-maximize" title="Maximize" aria-label="Maximize">
-        <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor"/></svg>
-      </button>
-      <button id="btn-win-close" title="Close" aria-label="Close">
-        <svg width="10" height="10" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2"/><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2"/></svg>
-      </button>
-    </div>
-  </div>
 
-  <div id="app">
-    <script>
-      // Apply sidebar collapse state before first paint to avoid visual flash.
-      try {
-        const s = JSON.parse(localStorage.getItem('radarsimapp_state') || 'null');
-        if (s && s.sidebarCollapsed) {
-          document.getElementById('app').classList.add('sidebar-collapsed', 'no-sidebar-transition');
-          requestAnimationFrame(() => requestAnimationFrame(() =>
-            document.getElementById('app').classList.remove('no-sidebar-transition')
-          ));
-        }
-      } catch (_) {}
-    </script>
-    <!-- Sidebar Navigation -->
-    <nav id="sidebar">
-      <div class="sidebar-header">
-        <button id="btn-sidebar-toggle" title="Toggle sidebar" aria-label="Toggle sidebar">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="18" x2="21" y2="18" />
+  <!-- The stage fills the window; everything else lies over it -->
+  <div class="stage" id="stage" data-view="scene">
+    <!-- 3D scene: radar, channels, boresight and targets -->
+    <div class="s3-host" id="scene-host"></div>
+
+    <!-- Result plots take the scene's place, between the panels -->
+    <div class="stage-plots">
+      <div class="stage-view" data-view="baseband">
+        <div id="plot-baseband" class="result-plot"></div>
+      </div>
+      <div class="stage-view" data-view="range-profile">
+        <div id="plot-range-profile" class="result-plot"></div>
+      </div>
+      <div class="stage-view" data-view="range-doppler">
+        <div id="plot-range-doppler" class="result-plot"></div>
+      </div>
+    </div>
+
+    <!-- Title bar: the window's drag strip, with the brand, the actions and the window buttons on it -->
+    <header id="titlebar">
+      <div class="brand">
+        <span class="logo-link" onclick="window.api.openExternal('https://radarsimx.com/')" title="RadarSimX">
+          <img src="assets/logo.svg" width="30" height="30" alt="RadarSimApp logo" />
+        </span>
+        <div class="brand-text">
+          <span class="brand-mark">RadarSimApp</span>
+          <span class="brand-sub"><span id="app-version"></span> &middot; RadarSimX</span>
+        </div>
+      </div>
+
+      <div class="plate">
+        <button id="btn-save-config" class="btn-secondary btn-sm" title="Save the configuration to a file">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+            <polyline points="17 21 17 13 7 13 7 21" />
+            <polyline points="7 3 7 8 15 8" />
+          </svg>
+          <span>Save</span>
+        </button>
+        <button id="btn-load-config" class="btn-secondary btn-sm" title="Load a configuration from a file">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            <line x1="12" y1="11" x2="12" y2="17" />
+            <polyline points="9 14 12 17 15 14" />
+          </svg>
+          <span>Load</span>
+        </button>
+        <button id="btn-reset-config" class="btn-secondary btn-sm btn-icon-only" title="Reset to factory defaults"
+          aria-label="Reset to factory defaults">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="1 4 1 10 7 10" />
+            <path d="M3.51 15a9 9 0 1 0 .49-4.95" />
           </svg>
         </button>
-        <div class="logo">
-          <span class="logo-link" onclick="window.api.openExternal('https://radarsimx.com/')" title="RadarSimX">
-            <img src="assets/logo.svg" width="128" height="128" alt="RadarSimApp logo" />
-          </span>
-          <span class="logo-link" onclick="window.api.openExternal('https://radarsimx.com/')"
-            title="RadarSimX">RadarSimApp</span>
-        </div>
-      </div>
-      <ul class="nav-list">
-        <li class="nav-item nav-item--has-sub active" data-panel="radar">
-          <div class="nav-item-label" data-tooltip="Radar">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10" />
-              <circle cx="12" cy="12" r="4" />
-              <line x1="12" y1="12" x2="18.36" y2="5.64" stroke-linecap="round" />
-            </svg>
-            <span>Radar</span>
-          </div>
-          <ul class="nav-sublist">
-            <li class="nav-item" data-panel="transmitter" data-tooltip="Transmitter">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="19" x2="12" y2="9" />
-                <polyline points="9,12 12,9 15,12" />
-                <path d="M7,17 Q4,13 7,9" />
-                <path d="M17,17 Q20,13 17,9" />
-                <path d="M4,19.5 Q0,13 4,6.5" />
-                <path d="M20,19.5 Q24,13 20,6.5" />
-              </svg>
-              <span>Transmitter</span>
-            </li>
-            <li class="nav-item" data-panel="receiver" data-tooltip="Receiver">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="5" x2="12" y2="15" />
-                <polyline points="9,12 12,15 15,12" />
-                <path d="M7,7 Q4,11 7,15" />
-                <path d="M17,7 Q20,11 17,15" />
-                <path d="M4,4.5 Q0,11 4,17.5" />
-                <path d="M20,4.5 Q24,11 20,17.5" />
-              </svg>
-              <span>Receiver</span>
-            </li>
-          </ul>
-        </li>
-        <li class="nav-item" data-panel="targets" data-tooltip="Targets">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10" />
-            <!-- <circle cx="12" cy="12" r="6" /> -->
-            <circle cx="12" cy="12" r="2" />
-            <line x1="12" y1="2" x2="12" y2="6" />
-            <line x1="12" y1="18" x2="12" y2="22" />
-            <line x1="2" y1="12" x2="6" y2="12" />
-            <line x1="18" y1="12" x2="22" y2="12" />
-          </svg>
-          <span>Targets</span>
-        </li>
-        <li class="nav-item" data-panel="simulation" data-tooltip="Simulation">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        <span class="plate-sep"></span>
+        <button id="btn-activate" class="btn-secondary btn-sm btn-warn hidden" title="Activate a license">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <span>Activate</span>
+        </button>
+        <button id="btn-check-env" class="btn-secondary btn-sm btn-icon-only" title="About" aria-label="About">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        </button>
+        <button id="btn-run-sim" class="btn-primary btn-run" title="Run the simulation (Ctrl+Enter)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none">
             <polygon points="6 3 20 12 6 21 6 3" />
           </svg>
-          <span>Simulation</span>
-        </li>
-      </ul>
-      <div class="sidebar-footer">
-        <div class="config-controls">
-          <button id="btn-save-config" class="btn-secondary btn-sm" data-tooltip="Save configuration">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-              <polyline points="17 21 17 13 7 13 7 21" />
-              <polyline points="7 3 7 8 15 8" />
-            </svg>
-            Save
-          </button>
-          <button id="btn-load-config" class="btn-secondary btn-sm" data-tooltip="Load configuration">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              <line x1="12" y1="11" x2="12" y2="17" />
-              <polyline points="9 14 12 17 15 14" />
-            </svg>
-            Load
-          </button>
-          <button id="btn-reset-config" class="btn-secondary btn-sm btn-icon-only"
-            data-tooltip="Reset to factory defaults">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="1 4 1 10 7 10" />
-              <path d="M3.51 15a9 9 0 1 0 .49-4.95" />
-            </svg>
-          </button>
-        </div>
-        <div id="config-status" class="config-status"></div>
-        <div class="footer-actions">
-          <button id="btn-activate" class="footer-action-btn footer-action-btn--warning hidden" data-tooltip="Activate License">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-            <span>Activate</span>
-          </button>
-          <button id="btn-check-env" class="footer-action-btn" data-tooltip="About">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            <span>About</span>
-          </button>
-        </div>
-        <div id="env-status" class="env-status" style="display:none"></div>
-        <div class="sidebar-meta">
-          <span><span id="sidebar-version"></span> &copy; RadarSimX, LLC</span>
-        </div>
+          <span>Run</span>
+          <kbd>Ctrl &crarr;</kbd>
+        </button>
       </div>
-    </nav>
 
-    <!-- Reset Confirmation Dialog -->
-    <div id="reset-dialog-overlay" class="dialog-overlay hidden" role="dialog" aria-modal="true"
-      aria-labelledby="reset-dialog-title">
-      <div class="dialog-box">
-        <div class="dialog-header">
-          <h2 id="reset-dialog-title">Reset Configuration</h2>
-          <button class="btn-icon dialog-close" id="btn-reset-cancel-x" aria-label="Close">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-        <div class="dialog-body">
-          <p>Reset all configuration to factory defaults?</p>
-        </div>
-        <div class="dialog-footer">
-          <button id="btn-reset-confirm" class="btn-danger">Reset</button>
-          <button id="btn-reset-cancel" class="btn-secondary">Cancel</button>
-        </div>
+      <div id="window-controls">
+        <button id="btn-win-minimize" title="Minimize" aria-label="Minimize">
+          <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+        </button>
+        <button id="btn-win-maximize" title="Maximize" aria-label="Maximize">
+          <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor"/></svg>
+        </button>
+        <button id="btn-win-close" title="Close" aria-label="Close">
+          <svg width="10" height="10" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2"/><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
       </div>
-    </div>
+    </header>
 
-    <!-- License Activation Dialog -->
-    <div id="license-dialog-overlay" class="dialog-overlay hidden" role="dialog" aria-modal="true"
-      aria-labelledby="license-dialog-title">
-      <div class="dialog-box license-dialog-box">
-        <div class="dialog-header">
-          <h2 id="license-dialog-title">Activate License</h2>
-          <button class="btn-icon dialog-close" id="btn-license-close" aria-label="Close">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-        <div class="dialog-body">
-          <div class="license-dialog-icon">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
-              stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
+    <!-- The panels, in a column down each side of the stage; the middle stays clear -->
+    <main class="view" id="content">
+      <!-- Radar and Targets take turns: opening one folds the other -->
+      <div class="hud-col hud-left" data-accordion>
+
+        <!-- Radar: its architecture as a block diagram, and under it the fields of the block picked.
+             Every block's fields are here; one set shows. -->
+        <details class="card" id="panel-radar" data-panel="radar" open>
+          <summary class="card-head"><span class="idx">01</span>
+            <h2>Radar</h2><span class="card-hint">architecture</span>
+          </summary>
+          <div class="arch" id="arch">
+            <!-- The platform carries everything drawn inside it. Its pose is a block
+                 like the others: where the radar is, which way it faces, how fast it moves. -->
+            <button type="button" class="blk blk-pose" data-select="radar"
+              title="Platform pose: position, velocity, rotation. Click to edit, or click the radar in the scene.">
+              <span class="pose-head">
+                <i class="mk-glyph mk-radar"></i><span class="blk-name">Platform pose</span>
+                <svg class="pose-edit" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 20 H8 L19 9 L15 5 L4 16 Z M13 7 L17 11" />
+                </svg>
+              </span>
+              <span class="pose-vals">
+                <span class="pose-val"><i>pos</i><span class="blk-val" id="arch-pose-loc"></span></span>
+                <span class="pose-val"><i>rot</i><span class="blk-val" id="arch-pose-rot"></span></span>
+                <span class="pose-val"><i>speed</i><span class="blk-val" id="arch-pose-speed"></span></span>
+              </span>
+            </button>
+
+            <div class="arch-grid">
+              <!-- Transmit chain, left to right: waveform generator, power amplifier, antennas -->
+              <button type="button" class="chain chain-tx" data-select="transmitter"
+                title="The whole transmit chain">Transmitter</button>
+              <button type="button" class="blk blk-waveform" data-select="waveform"
+                title="Waveform generator: frequency sweep, pulses, repetition period">
+                <svg class="blk-ico" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 17 L10 7 V17 L17 7 V17 L21 11" />
+                </svg>
+                <span class="blk-name">Waveform</span>
+                <span class="blk-val" id="arch-waveform"></span>
+              </button>
+              <!-- The sweep splits: on to the amplifier, and down to the mixer as its local oscillator -->
+              <div class="wire" aria-hidden="true"><i></i></div>
+              <button type="button" class="blk blk-pa" data-select="pa" title="Power amplifier: transmit power">
+                <svg class="blk-ico" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 5 L19 12 L6 19 Z" />
+                </svg>
+                <span class="blk-name">PA</span>
+                <span class="blk-val" id="arch-pa"></span>
+              </button>
+              <div class="ants ants-tx">
+                <div class="ants-head">
+                  <span class="ants-name">TX</span><span class="node-count" id="tx-ch-count"></span>
+                  <button class="btn-icon" id="btn-add-tx-ch" title="Add a TX channel" aria-label="Add a TX channel">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+                </div>
+                <div class="ant-list" id="ol-tx"></div>
+              </div>
+
+              <div class="lo" aria-hidden="true"><span>LO</span></div>
+
+              <!-- Receive chain, right to left: antennas, low-noise amplifier, mixer, baseband, converter -->
+              <button type="button" class="chain chain-rx" data-select="receiver"
+                title="The whole receive chain">Receiver</button>
+              <button type="button" class="blk blk-adc" data-select="adc" title="Analog-to-digital converter: sampling rate">
+                <svg class="blk-ico" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 18 H8 V14 H12 V10 H16 V6 H20" />
+                </svg>
+                <span class="blk-name">ADC</span>
+                <span class="blk-val" id="arch-adc"></span>
+              </button>
+              <button type="button" class="blk blk-baseband" data-select="baseband"
+                title="Baseband amplifier: gain, load resistor">
+                <svg class="blk-ico" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 8 H11 C15 8 15 17 21 17" />
+                </svg>
+                <span class="blk-name">BB</span>
+                <span class="blk-val" id="arch-baseband"></span>
+              </button>
+              <button type="button" class="blk blk-mixer" data-select="mixer"
+                title="Mixer: baseband type, range gate delay">
+                <svg class="blk-ico" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="8" />
+                  <path d="M6.5 6.5 L17.5 17.5 M17.5 6.5 L6.5 17.5" />
+                </svg>
+                <span class="blk-name">Mixer</span>
+                <span class="blk-val" id="arch-mixer"></span>
+              </button>
+              <button type="button" class="blk blk-lna" data-select="lna"
+                title="Low-noise amplifier: noise figure, RF gain">
+                <svg class="blk-ico" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18 5 L5 12 L18 19 Z" />
+                </svg>
+                <span class="blk-name">LNA</span>
+                <span class="blk-val" id="arch-lna"></span>
+              </button>
+              <div class="ants ants-rx">
+                <div class="ants-head">
+                  <span class="ants-name">RX</span><span class="node-count" id="rx-ch-count"></span>
+                  <button class="btn-icon" id="btn-add-rx-ch" title="Add an RX channel" aria-label="Add an RX channel">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+                </div>
+                <div class="ant-list" id="ol-rx"></div>
+              </div>
+            </div>
           </div>
-          <p class="license-dialog-title">No Active License</p>
-          <p class="license-dialog-desc">RadarSimApp is running in free tier mode. Select a <code>.lic</code>
-            file to unlock full capabilities, or continue with free tier limitations.</p>
-          <p id="license-dialog-status" class="license-dialog-status"></p>
-        </div>
-        <div class="dialog-footer">
-          <button id="btn-license-select" class="btn-primary">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-            Select License File
-          </button>
-          <button id="btn-license-cancel" class="btn-secondary">Continue without License</button>
-        </div>
-      </div>
-    </div>
 
-    <!-- About Dialog -->
-    <div id="about-dialog-overlay" class="dialog-overlay hidden" role="dialog" aria-modal="true"
-      aria-labelledby="about-dialog-title">
-      <div class="dialog-box">
-        <div class="dialog-header">
-          <h2 id="about-dialog-title">About RadarSimApp</h2>
-          <button class="btn-icon dialog-close" id="btn-about-close" aria-label="Close">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-        <div class="dialog-body">
-          <div class="about-logo">
-            <img src="assets/logo.svg" width="64" height="64" alt="RadarSimApp" />
-          </div>
-          <p class="about-app-name">RadarSimApp</p>
-          <p id="about-version" class="about-version">Checking...</p>
-          <hr class="about-divider" />
-          <p class="about-copy">&copy; <span id="about-year"></span> RadarSimX, LLC. All rights reserved.</p>
-          <p class="about-copy">Powered by <strong>RadarSimLib</strong>.</p>
-          <p id="about-license" class="about-license"></p>
-        </div>
-      </div>
-    </div>
+          <div class="card-body insp-area">
+            <div class="insp-head">
+              <h3 id="insp-title">Waveform generator</h3><span class="insp-path" id="insp-path">Radar</span>
+            </div>
 
-    <!-- Main Content -->
-    <main id="content">
-      <!-- Transmitter Panel -->
-      <div class="panel" id="panel-transmitter">
-        <div class="panel-header">
-          <h2>Transmitter Configuration</h2>
-          <p class="panel-desc">Configure waveform, power, and TX channel parameters</p>
-        </div>
-        <div class="panel-body">
-          <!-- Waveform config + preview -->
-          <div class="panel-split panel-split--stretch">
-            <div class="panel-split-left">
-              <div class="config-grid">
-                <section class="config-section full-width">
-                  <h3>Waveform</h3>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="tx-f-start">Start Frequency (GHz)</label>
-                      <input type="number" id="tx-f-start" value="24" step="0.1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="tx-f-end">End Frequency (GHz)</label>
-                      <input type="number" id="tx-f-end" value="24.5" step="0.1" />
-                    </div>
-                  </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="tx-t-start">Sweep Start (µs)</label>
-                      <input type="number" id="tx-t-start" value="0" step="1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="tx-t-end">Sweep End (µs)</label>
-                      <input type="number" id="tx-t-end" value="80" step="1" />
-                    </div>
-                  </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="tx-pulses">Number of Pulses</label>
-                      <input type="number" id="tx-pulses" value="256" min="1" step="1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="tx-prp">Pulse Repetition Period (µs)</label>
-                      <input type="number" id="tx-prp" value="100" step="1" />
-                    </div>
+            <!-- Platform -->
+            <section class="insp" data-insp="platform">
+              <div class="group">
+                <h4 class="subsection-label">Position <span class="unit">m</span></h4>
+                <div class="form-row triple">
+                  <div class="form-group">
+                    <label for="radar-loc-x" class="ax-x">x</label>
+                    <input type="number" id="radar-loc-x" value="0" step="0.1" />
                   </div>
                   <div class="form-group">
-                    <label for="tx-power">TX Power (dBm)</label>
-                    <input type="number" id="tx-power" value="0" step="1" />
+                    <label for="radar-loc-y" class="ax-y">y</label>
+                    <input type="number" id="radar-loc-y" value="0" step="0.1" />
                   </div>
-                  <hr />
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="tx-bandwidth">Bandwidth (MHz)</label>
-                      <input type="number" id="tx-bandwidth" value="500" readonly tabindex="-1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="tx-pulse-length">Pulse Length (µs)</label>
-                      <input type="number" id="tx-pulse-length" value="80" readonly tabindex="-1" />
-                    </div>
+                  <div class="form-group">
+                    <label for="radar-loc-z" class="ax-z">z</label>
+                    <input type="number" id="radar-loc-z" value="0" step="0.1" />
                   </div>
-                </section>
-              </div>
-            </div>
-            <div class="panel-split-right">
-              <div class="sticky-sidebar">
-                <section class="config-section">
-                  <h3>Frequency vs Time</h3>
-                  <div id="tx-waveform-plot" class="plot-container-sm has-data"></div>
-                </section>
-              </div>
-            </div>
-          </div>
-          <!-- TX Channels + locations -->
-          <div class="panel-split">
-            <div class="panel-split-left">
-              <div class="config-grid">
-                <section class="config-section full-width">
-                  <div class="section-header">
-                    <h3>TX Channels</h3>
-                    <button class="btn-icon" id="btn-add-tx-ch" title="Add Channel">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                    </button>
-                  </div>
-                  <div id="tx-channels-list">
-                    <!-- Channels will be dynamically added here -->
-                  </div>
-                </section>
-              </div>
-            </div>
-            <div class="panel-split-right">
-              <div class="sticky-sidebar">
-                <section class="config-section">
-                  <h3>Channel Locations</h3>
-                  <div id="tx-locations-plot" class="plot-container-sm plot-container-sq has-data"></div>
-                </section>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Receiver Panel -->
-      <div class="panel" id="panel-receiver">
-        <div class="panel-header">
-          <h2>Receiver Configuration</h2>
-          <p class="panel-desc">Configure sampling, noise, and RX channel parameters</p>
-        </div>
-        <div class="panel-body">
-          <!-- Sampling + Noise & Gain -->
-          <div class="panel-split">
-            <div class="panel-split-left">
-              <div class="config-grid">
-                <section class="config-section full-width">
-                  <h3>Sampling & Noise</h3>
-                  <h4 class="subsection-label">Sampling</h4>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="rx-fs">Sampling Rate (MHz)</label>
-                      <input type="number" id="rx-fs" value="2" step="0.1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="rx-bb-type">Baseband Type</label>
-                      <select id="rx-bb-type">
-                        <option value="complex">Complex (I/Q)</option>
-                        <option value="real">Real</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="rx-gate-delay" title="Receive window opens this long after the chirp start, and the deramp reference is delayed by the same amount. A target at range c &times; gate delay / 2 lands at DC. 0 = zero-delay deramp.">Range Gate Delay (ns)</label>
-                      <input type="number" id="rx-gate-delay" value="0" step="1" min="0" />
-                    </div>
-                  </div>
-                  <h4 class="subsection-label">Noise & Gain</h4>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="rx-nf">Noise Figure (dB)</label>
-                      <input type="number" id="rx-nf" value="10" step="0.5" />
-                    </div>
-                    <div class="form-group">
-                      <label for="rx-rf-gain">RF Gain (dB)</label>
-                      <input type="number" id="rx-rf-gain" value="0" step="1" />
-                    </div>
-                  </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="rx-bb-gain">Baseband Gain (dB)</label>
-                      <input type="number" id="rx-bb-gain" value="0" step="1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="rx-load-r">Load Resistor (Ω)</label>
-                      <input type="number" id="rx-load-r" value="500" step="10" />
-                    </div>
-                  </div>
-                </section>
-              </div>
-            </div>
-            <div class="panel-split-right"></div>
-          </div>
-
-          <!-- RX Channels + locations -->
-          <div class="panel-split">
-            <div class="panel-split-left">
-              <div class="config-grid">
-                <section class="config-section full-width">
-                  <div class="section-header">
-                    <h3>RX Channels</h3>
-                    <button class="btn-icon" id="btn-add-rx-ch" title="Add Channel">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                    </button>
-                  </div>
-                  <div id="rx-channels-list">
-                    <!-- Channels will be dynamically added here -->
-                  </div>
-                </section>
-              </div>
-            </div>
-            <div class="panel-split-right">
-              <div class="sticky-sidebar">
-                <section class="config-section">
-                  <h3>Channel Locations</h3>
-                  <div id="rx-locations-plot" class="plot-container-sm plot-container-sq has-data"></div>
-                </section>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Radar Panel -->
-      <div class="panel active" id="panel-radar">
-        <div class="panel-header">
-          <h2>Radar Configuration</h2>
-          <p class="panel-desc">Configure radar platform motion and position</p>
-        </div>
-        <div class="panel-body">
-          <div class="panel-split">
-            <div class="panel-split-left">
-              <div class="config-grid">
-                <section class="config-section full-width">
-                  <h3>Radar Motion</h3>
-                  <h4 class="subsection-label">Position (m)</h4>
-                  <div class="form-row triple">
-                    <div class="form-group">
-                      <label for="radar-loc-x">x</label>
-                      <input type="number" id="radar-loc-x" value="0" step="0.1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-loc-y">y</label>
-                      <input type="number" id="radar-loc-y" value="0" step="0.1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-loc-z">z</label>
-                      <input type="number" id="radar-loc-z" value="0" step="0.1" />
-                    </div>
-                  </div>
-                  <h4 class="subsection-label">Velocity (m/s)</h4>
-                  <div class="form-row triple">
-                    <div class="form-group">
-                      <label for="radar-spd-x">v<sub>x</sub></label>
-                      <input type="number" id="radar-spd-x" value="0" step="0.1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-spd-y">v<sub>y</sub></label>
-                      <input type="number" id="radar-spd-y" value="0" step="0.1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-spd-z">v<sub>z</sub></label>
-                      <input type="number" id="radar-spd-z" value="0" step="0.1" />
-                    </div>
-                  </div>
-                  <h4 class="subsection-label">Rotation (°)</h4>
-                  <div class="form-row triple">
-                    <div class="form-group">
-                      <label for="radar-rot-yaw">yaw</label>
-                      <input type="number" id="radar-rot-yaw" value="0" step="1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-rot-pitch">pitch</label>
-                      <input type="number" id="radar-rot-pitch" value="0" step="1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-rot-roll">roll</label>
-                      <input type="number" id="radar-rot-roll" value="0" step="1" />
-                    </div>
-                  </div>
-                  <h4 class="subsection-label">Rotation Rate (°/s)</h4>
-                  <div class="form-row triple">
-                    <div class="form-group">
-                      <label for="radar-rr-yaw">yaw rate</label>
-                      <input type="number" id="radar-rr-yaw" value="0" step="1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-rr-pitch">pitch rate</label>
-                      <input type="number" id="radar-rr-pitch" value="0" step="1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="radar-rr-roll">roll rate</label>
-                      <input type="number" id="radar-rr-roll" value="0" step="1" />
-                    </div>
-                  </div>
-                </section>
-              </div>
-            </div>
-            <div class="panel-split-right">
-              <div class="sticky-sidebar">
-                <section class="config-section">
-                  <h3>Array Overview</h3>
-                  <div id="radar-overview-plot" class="plot-container-sm plot-container-sq has-data"></div>
-                </section>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Targets Panel -->
-      <div class="panel" id="panel-targets">
-        <div class="panel-header">
-          <h2>Target Configuration</h2>
-          <p class="panel-desc">Define point and mesh targets for the simulation</p>
-        </div>
-        <div class="panel-body">
-          <!-- Targets + Scene Overview -->
-          <div class="panel-split">
-            <div class="panel-split-left">
-              <div class="config-grid">
-                <section class="config-section full-width">
-                  <div class="section-header">
-                    <h3>Point Targets</h3>
-                    <button class="btn-icon" id="btn-add-point-target" title="Add Point Target">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                    </button>
-                  </div>
-                  <div id="point-targets-list"></div>
-                </section>
-
-                <section class="config-section full-width">
-                  <div class="section-header">
-                    <h3>Mesh Targets</h3>
-                    <button class="btn-icon" id="btn-add-mesh-target" title="Add Mesh Target">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                    </button>
-                  </div>
-                  <div id="mesh-targets-list"></div>
-                </section>
-              </div>
-            </div>
-            <div class="panel-split-right">
-              <div class="sticky-sidebar">
-                <section class="config-section">
-                  <h3>Scene Overview</h3>
-                  <div id="targets-scene-plot" class="plot-container-sm plot-container-sq has-data"></div>
-                  <p class="plot-note">
-                    Very large models are drawn at reduced detail here: past
-                    150,000 triangles only a sample is shown, and the legend
-                    says how many — <code>M1 (50000 of 900000 tri)</code>.
-                    Simulations always run against the complete mesh.
-                  </p>
-                </section>
-              </div>
-            </div>
-          </div>
-
-
-        </div>
-      </div>
-
-      <!-- Simulation Panel -->
-      <div class="panel" id="panel-simulation">
-        <div class="panel-header">
-          <h2>Simulation</h2>
-          <p class="panel-desc">Configure and run the radar simulation</p>
-        </div>
-        <div class="panel-body">
-          <div id="results-outdated-banner" class="results-outdated-banner hidden">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            Results are outdated — re-run the simulation.
-          </div>
-          <!-- Settings + Run controls -->
-          <div class="panel-split">
-            <div class="panel-split-left">
-              <div class="config-grid">
-                <section class="config-section full-width">
-                  <h3>Simulation Settings</h3>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label for="sim-density">Ray Density (rays/λ)</label>
-                      <input type="number" id="sim-density" value="1" step="0.1" min="0.1" />
-                    </div>
-                    <div class="form-group">
-                      <label for="sim-level">Fidelity Level</label>
-                      <select id="sim-level">
-                        <option value="frame">Frame Level (Default)</option>
-                        <option value="pulse">Pulse Level</option>
-                        <option value="sample">Sample Level</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div class="proc-toggle-row" style="margin-top: 14px;">
-                    <label class="toggle-switch">
-                      <input type="checkbox" id="proc-noise" checked />
-                      <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                    </label>
-                    <span class="proc-toggle-label">Add Receiver Noise</span>
-                  </div>
-                  <hr />
-                  <h4 class="subsection-label">Processing</h4>
-                  <div class="proc-toggle-row">
-                    <label class="toggle-switch">
-                      <input type="checkbox" id="proc-range-profile" />
-                      <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                    </label>
-                    <span class="proc-toggle-label">Compute Range Profile</span>
-                    <div class="proc-sub-option" id="proc-range-profile-opts">
-                      <label class="proc-sub-label">
-                        <label class="toggle-switch toggle-switch--sm">
-                          <input type="checkbox" id="proc-rd-range-fft-enable" />
-                          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                        </label>
-                        Range FFT Size
-                      </label>
-                      <div class="proc-sub-input-wrap">
-                        <input type="number" id="proc-rd-range-fft" value="128" min="1" step="1" disabled />
-                      </div>
-                    </div>
-                  </div>
-                  <div class="proc-toggle-row">
-                    <label class="toggle-switch">
-                      <input type="checkbox" id="proc-range-doppler" checked />
-                      <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                    </label>
-                    <span class="proc-toggle-label">Compute Range-Doppler Map</span>
-                    <div class="proc-sub-option" id="proc-range-doppler-opts">
-                      <label class="proc-sub-label">
-                        <label class="toggle-switch toggle-switch--sm">
-                          <input type="checkbox" id="proc-rd-doppler-fft-enable" />
-                          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                        </label>
-                        Doppler FFT Size
-                      </label>
-                      <div class="proc-sub-input-wrap">
-                        <input type="number" id="proc-rd-doppler-fft" value="256" min="1" step="1" disabled />
-                      </div>
-                    </div>
-                  </div>
-                </section>
-              </div>
-            </div>
-            <div class="panel-split-right">
-              <div class="sticky-sidebar">
-                <section class="config-section">
-                  <h3>Run</h3>
-                  <div class="run-controls">
-                    <button id="btn-run-sim" class="btn-primary btn-lg">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <polygon points="5 3 19 12 5 21 5 3" />
-                      </svg>
-                      Run Simulation
-                    </button>
-                    <button id="btn-export" class="btn-secondary" disabled>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                        <polyline points="7 10 12 15 17 10" />
-                        <line x1="12" y1="15" x2="12" y2="3" />
-                      </svg>
-                      Export
-                    </button>
-                  </div>
-                  <div id="sim-status" class="status-msg"></div>
-                </section>
-              </div>
-            </div>
-          </div>
-
-          <!-- Results -->
-          <div class="config-grid">
-            <section class="config-section full-width">
-              <h3>Results</h3>
-              <div class="result-card-controls" style="margin-bottom: 12px;">
-                <label for="bb-ch-idx">Channel</label>
-                <input type="number" id="bb-ch-idx" value="0" min="0" step="1" />
-                <label for="bb-pulse-idx">Pulse</label>
-                <input type="number" id="bb-pulse-idx" value="0" min="0" step="1" />
-              </div>
-              <div class="results-grid">
-                <div class="result-card">
-                  <h3>Baseband Signal</h3>
-                  <div id="plot-baseband" class="result-plot"></div>
                 </div>
-                <div class="result-card">
-                  <h3>Range Profile</h3>
-                  <div id="plot-range-profile" class="result-plot"></div>
+              </div>
+              <div class="group">
+                <h4 class="subsection-label">Velocity <span class="unit">m/s</span></h4>
+                <div class="form-row triple">
+                  <div class="form-group">
+                    <label for="radar-spd-x" class="ax-x">v<sub>x</sub></label>
+                    <input type="number" id="radar-spd-x" value="0" step="0.1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-spd-y" class="ax-y">v<sub>y</sub></label>
+                    <input type="number" id="radar-spd-y" value="0" step="0.1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-spd-z" class="ax-z">v<sub>z</sub></label>
+                    <input type="number" id="radar-spd-z" value="0" step="0.1" />
+                  </div>
                 </div>
-                <div class="result-card full-width">
-                  <h3>Range-Doppler Map</h3>
-                  <div id="plot-range-doppler" class="result-plot"></div>
+              </div>
+              <div class="group">
+                <h4 class="subsection-label">Rotation <span class="unit">&deg;</span></h4>
+                <div class="form-row triple">
+                  <div class="form-group">
+                    <label for="radar-rot-yaw">yaw</label>
+                    <input type="number" id="radar-rot-yaw" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-rot-pitch">pitch</label>
+                    <input type="number" id="radar-rot-pitch" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-rot-roll">roll</label>
+                    <input type="number" id="radar-rot-roll" value="0" step="1" />
+                  </div>
+                </div>
+              </div>
+              <div class="group">
+                <h4 class="subsection-label">Rotation rate <span class="unit">&deg;/s</span></h4>
+                <div class="form-row triple">
+                  <div class="form-group">
+                    <label for="radar-rr-yaw">yaw</label>
+                    <input type="number" id="radar-rr-yaw" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-rr-pitch">pitch</label>
+                    <input type="number" id="radar-rr-pitch" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="radar-rr-roll">roll</label>
+                    <input type="number" id="radar-rr-roll" value="0" step="1" />
+                  </div>
                 </div>
               </div>
             </section>
+
+            <!-- Transmitter > Waveform generator -->
+            <section class="insp" data-insp="waveform">
+              <div class="insp-plot" id="plot-waveform" aria-label="Frequency against time, for two pulses"></div>
+              <div class="group">
+                <h4 class="subsection-label">Sweep</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="tx-f-start">Start frequency <span class="unit">GHz</span></label>
+                    <input type="number" id="tx-f-start" value="24" step="0.1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="tx-f-end">End frequency <span class="unit">GHz</span></label>
+                    <input type="number" id="tx-f-end" value="24.5" step="0.1" />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="tx-t-start">Sweep start <span class="unit">&micro;s</span></label>
+                    <input type="number" id="tx-t-start" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="tx-t-end">Sweep end <span class="unit">&micro;s</span></label>
+                    <input type="number" id="tx-t-end" value="80" step="1" />
+                  </div>
+                </div>
+              </div>
+              <div class="group">
+                <h4 class="subsection-label">Frame</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="tx-pulses">Pulses</label>
+                    <input type="number" id="tx-pulses" value="256" min="1" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="tx-prp" title="Pulse repetition period">PRP <span class="unit">&micro;s</span></label>
+                    <input type="number" id="tx-prp" value="100" step="1" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Transmitter > Power amplifier -->
+            <section class="insp" data-insp="pa">
+              <div class="group">
+                <h4 class="subsection-label chain-only">Power amplifier</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="tx-power">TX power <span class="unit">dBm</span></label>
+                    <input type="number" id="tx-power" value="0" step="1" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Receiver > Low-noise amplifier -->
+            <section class="insp" data-insp="lna">
+              <div class="group">
+                <h4 class="subsection-label chain-only">Low-noise amplifier</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="rx-nf">Noise figure <span class="unit">dB</span></label>
+                    <input type="number" id="rx-nf" value="10" step="0.5" />
+                  </div>
+                  <div class="form-group">
+                    <label for="rx-rf-gain">RF gain <span class="unit">dB</span></label>
+                    <input type="number" id="rx-rf-gain" value="0" step="1" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Receiver > Mixer -->
+            <section class="insp" data-insp="mixer">
+              <div class="group">
+                <h4 class="subsection-label chain-only">Mixer</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="rx-bb-type">Baseband</label>
+                    <select id="rx-bb-type">
+                      <option value="complex">Complex (I/Q)</option>
+                      <option value="real">Real</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="rx-gate-delay" title="Receive window opens this long after the chirp start, and the deramp reference is delayed by the same amount. A target at range c &times; gate delay / 2 lands at DC. 0 = zero-delay deramp.">Range gate delay <span class="unit">ns</span></label>
+                    <input type="number" id="rx-gate-delay" value="0" step="1" min="0" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Receiver > Baseband amplifier -->
+            <section class="insp" data-insp="baseband">
+              <div class="group">
+                <h4 class="subsection-label chain-only">Baseband amplifier</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="rx-bb-gain">Baseband gain <span class="unit">dB</span></label>
+                    <input type="number" id="rx-bb-gain" value="0" step="1" />
+                  </div>
+                  <div class="form-group">
+                    <label for="rx-load-r">Load resistor <span class="unit">&Omega;</span></label>
+                    <input type="number" id="rx-load-r" value="500" step="10" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Receiver > ADC -->
+            <section class="insp" data-insp="adc">
+              <div class="group">
+                <h4 class="subsection-label chain-only">ADC</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="rx-fs">Sampling rate <span class="unit">MHz</span></label>
+                    <input type="number" id="rx-fs" value="2" step="0.1" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Transmitter > a TX channel -->
+            <section class="insp" data-insp="tx">
+              <div id="tx-channels-list" class="item-list">
+                <!-- Channels will be dynamically added here -->
+              </div>
+            </section>
+
+            <!-- Receiver > an RX channel -->
+            <section class="insp" data-insp="rx">
+              <div id="rx-channels-list" class="item-list">
+                <!-- Channels will be dynamically added here -->
+              </div>
+            </section>
           </div>
-        </div>
+        </details>
+
+        <!-- Targets: what the radar looks at, and under the list the fields of the one picked -->
+        <details class="card" id="panel-targets" data-panel="targets" open>
+          <summary class="card-head"><span class="idx">02</span>
+            <h2>Targets</h2><span class="card-hint">points &middot; meshes</span>
+          </summary>
+          <div class="outline" id="outline" role="tree" aria-label="Targets">
+            <div class="ol-node" data-node="point">
+              <div class="ol-row ol-group" role="treeitem" tabindex="0">
+                <button type="button" class="ol-fold" tabindex="-1" aria-label="Fold or unfold"></button>
+                <span class="ol-name">Point targets</span>
+                <span class="node-count" id="point-target-count"></span>
+                <button class="btn-icon" id="btn-add-point-target" title="Add a point target"
+                  aria-label="Add a point target">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+              </div>
+              <div class="ol-children" role="group" id="ol-point"></div>
+            </div>
+
+            <div class="ol-node" data-node="mesh">
+              <div class="ol-row ol-group" role="treeitem" tabindex="0">
+                <button type="button" class="ol-fold" tabindex="-1" aria-label="Fold or unfold"></button>
+                <span class="ol-name">Mesh targets</span>
+                <span class="node-count" id="mesh-target-count"></span>
+                <button class="btn-icon" id="btn-add-mesh-target" title="Add a mesh target"
+                  aria-label="Add a mesh target">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+              </div>
+              <div class="ol-children" role="group" id="ol-mesh"></div>
+            </div>
+          </div>
+
+          <div class="card-body insp-area" id="target-properties">
+            <div class="insp-head">
+              <h3 id="target-title">Point target 1</h3><span class="insp-path" id="target-path">Targets</span>
+            </div>
+
+            <!-- Targets > a point target -->
+            <section class="insp" data-insp="point">
+              <div id="point-targets-list" class="item-list"></div>
+            </section>
+
+            <!-- Targets > a mesh target -->
+            <section class="insp" data-insp="mesh">
+              <div id="mesh-targets-list" class="item-list"></div>
+              <p class="plot-note">
+                Very large models are drawn at reduced detail in the scene: past
+                1,000,000 triangles only a sample is shown, and the legend
+                says how many &mdash; <code>M1 (500000 of 2500000 tri)</code>.
+                Simulations always run against the complete mesh.
+              </p>
+            </section>
+          </div>
+        </details>
+
       </div>
 
+      <div class="hud-col hud-right">
+
+        <!-- Simulation Panel -->
+        <details class="card" id="panel-simulation" data-panel="simulation" open>
+          <summary class="card-head"><span class="idx">03</span>
+            <h2>Simulation</h2><span class="card-hint">fidelity &middot; processing</span>
+          </summary>
+          <div class="card-body">
+            <div class="group">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="sim-density">Ray density <span class="unit">rays/&lambda;</span></label>
+                  <input type="number" id="sim-density" value="1" step="0.1" min="0.1" />
+                </div>
+                <div class="form-group">
+                  <label for="sim-level">Fidelity</label>
+                  <select id="sim-level">
+                    <option value="frame">Frame (default)</option>
+                    <option value="pulse">Pulse</option>
+                    <option value="sample">Sample</option>
+                  </select>
+                </div>
+              </div>
+              <div class="proc-toggle-row">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="proc-noise" checked />
+                  <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                </label>
+                <label class="proc-toggle-label" for="proc-noise">Add receiver noise</label>
+              </div>
+            </div>
+
+            <div class="group">
+              <h4 class="subsection-label">Processing</h4>
+              <div class="proc-toggle-row">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="proc-range-profile" />
+                  <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                </label>
+                <label class="proc-toggle-label" for="proc-range-profile">Range profile</label>
+                <div class="proc-sub-option" id="proc-range-profile-opts">
+                  <label class="proc-sub-label">
+                    <label class="toggle-switch toggle-switch--sm">
+                      <input type="checkbox" id="proc-rd-range-fft-enable" />
+                      <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    </label>
+                    Range FFT size
+                  </label>
+                  <div class="proc-sub-input-wrap">
+                    <input type="number" id="proc-rd-range-fft" value="128" min="1" step="1" disabled />
+                  </div>
+                </div>
+              </div>
+              <div class="proc-toggle-row">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="proc-range-doppler" checked />
+                  <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                </label>
+                <label class="proc-toggle-label" for="proc-range-doppler">Range-Doppler map</label>
+                <div class="proc-sub-option" id="proc-range-doppler-opts">
+                  <label class="proc-sub-label">
+                    <label class="toggle-switch toggle-switch--sm">
+                      <input type="checkbox" id="proc-rd-doppler-fft-enable" />
+                      <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    </label>
+                    Doppler FFT size
+                  </label>
+                  <div class="proc-sub-input-wrap">
+                    <input type="number" id="proc-rd-doppler-fft" value="256" min="1" step="1" disabled />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="run-controls">
+              <div id="sim-status" class="status-msg"></div>
+              <button id="btn-export" class="btn-secondary btn-sm" disabled title="Export the last results">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span>Export</span>
+              </button>
+            </div>
+          </div>
+        </details>
+
+        <!-- Readout: what the waveform resolves -->
+        <details class="card" data-panel="readout" open>
+          <summary class="card-head"><span class="idx">04</span>
+            <h2>Readout</h2><span class="card-hint">derived</span>
+          </summary>
+          <div class="card-body">
+            <div class="tiles">
+              <div class="tile">
+                <label class="k" for="tx-bandwidth">Bandwidth <i>MHz</i></label>
+                <input class="v" type="number" id="tx-bandwidth" value="500" readonly tabindex="-1" />
+              </div>
+              <div class="tile">
+                <label class="k" for="tx-pulse-length">Pulse length <i>&micro;s</i></label>
+                <input class="v" type="number" id="tx-pulse-length" value="80" readonly tabindex="-1" />
+              </div>
+              <div class="tile">
+                <span class="k">Samples / pulse</span>
+                <span class="v" id="ro-samples">&mdash;</span>
+              </div>
+              <div class="tile" title="c / 2B">
+                <span class="k">Range resolution</span>
+                <span class="v" id="ro-range-res">&mdash;</span>
+              </div>
+              <div class="tile" title="Unambiguous velocity, &lambda; / (4 &middot; PRP)">
+                <span class="k">Max velocity</span>
+                <span class="v" id="ro-v-max">&mdash;</span>
+              </div>
+              <div class="tile" title="&lambda; / (2 &middot; pulses &middot; PRP)">
+                <span class="k">Velocity resolution</span>
+                <span class="v" id="ro-v-res">&mdash;</span>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
     </main>
+
+    <!-- Over the part of the stage the panels leave clear -->
+    <div class="stage-chrome">
+      <div class="stage-top">
+        <div id="results-outdated-banner" class="notice results-outdated-banner hidden">
+          Results are outdated &mdash; run the simulation again.
+        </div>
+        <div id="scene-pose-note" class="notice scene-only hidden"></div>
+      </div>
+      <div class="stage-bottom">
+        <div id="scene-legend" class="legend scene-only"></div>
+        <div class="stage-bar">
+          <div class="stage-views" role="radiogroup" aria-label="Stage view">
+            <div class="seg">
+              <button type="button" role="radio" data-view="scene" aria-checked="true"
+                title="The radar and its targets">Scene</button>
+              <button type="button" role="radio" data-view="array" aria-checked="false"
+                title="The antenna array, face-on along boresight">Array</button>
+            </div>
+            <div class="seg" title="Results of the last run">
+              <button type="button" role="radio" data-view="baseband" aria-checked="false" disabled>Baseband</button>
+              <button type="button" role="radio" data-view="range-profile" aria-checked="false" disabled>Range
+                profile</button>
+              <button type="button" role="radio" data-view="range-doppler" aria-checked="false"
+                disabled>Range-Doppler</button>
+            </div>
+          </div>
+          <div class="cams scene-only">
+            <button type="button" class="btn-secondary btn-sm" data-cam="iso">Iso</button>
+            <button type="button" class="btn-secondary btn-sm" data-cam="top">Top</button>
+            <button type="button" class="btn-secondary btn-sm" data-cam="side">Side</button>
+            <button type="button" class="btn-secondary btn-sm" id="btn-scene-fit"
+              title="Frame everything (double-click the view)">Fit</button>
+          </div>
+          <div class="result-card-controls results-only">
+            <label for="bb-ch-idx">Channel</label>
+            <input type="number" id="bb-ch-idx" value="0" min="0" step="1" />
+            <label for="bb-pulse-idx">Pulse</label>
+            <input type="number" id="bb-pulse-idx" value="0" min="0" step="1" />
+          </div>
+        </div>
+        <div class="stage-help scene-only"><span id="scene-scale"></span> &middot; Drag: orbit &middot; Right-drag:
+          pan &middot; Wheel: zoom &middot; Double-click: fit</div>
+      </div>
+    </div>
+
   </div>
+
+  <!-- Reset Confirmation Dialog -->
+  <div id="reset-dialog-overlay" class="dialog-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="reset-dialog-title">
+    <div class="dialog-box">
+      <div class="dialog-header">
+        <h2 id="reset-dialog-title">Reset configuration</h2>
+        <button class="btn-icon dialog-close" id="btn-reset-cancel-x" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <div class="dialog-body">
+        <p>Reset all configuration to factory defaults?</p>
+      </div>
+      <div class="dialog-footer">
+        <button id="btn-reset-cancel" class="btn-secondary">Cancel</button>
+        <button id="btn-reset-confirm" class="btn-danger">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- License Activation Dialog -->
+  <div id="license-dialog-overlay" class="dialog-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="license-dialog-title">
+    <div class="dialog-box license-dialog-box">
+      <div class="dialog-header">
+        <h2 id="license-dialog-title">Activate license</h2>
+        <button class="btn-icon dialog-close" id="btn-license-close" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <div class="dialog-body">
+        <div class="license-dialog-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        </div>
+        <p class="license-dialog-title">No active license</p>
+        <p class="license-dialog-desc">RadarSimApp is running in free tier mode. Select a <code>.lic</code>
+          file to unlock full capabilities, or continue with free tier limitations.</p>
+        <p id="license-dialog-status" class="license-dialog-status"></p>
+      </div>
+      <div class="dialog-footer">
+        <button id="btn-license-cancel" class="btn-secondary">Continue without license</button>
+        <button id="btn-license-select" class="btn-primary">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          Select license file
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- About Dialog -->
+  <div id="about-dialog-overlay" class="dialog-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="about-dialog-title">
+    <div class="dialog-box">
+      <div class="dialog-header">
+        <h2 id="about-dialog-title">About RadarSimApp</h2>
+        <button class="btn-icon dialog-close" id="btn-about-close" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <div class="dialog-body">
+        <div class="about-logo">
+          <img src="assets/logo.svg" width="64" height="64" alt="RadarSimApp" />
+        </div>
+        <p class="about-app-name">RadarSimApp</p>
+        <p id="about-version" class="about-version">Checking...</p>
+        <hr class="about-divider" />
+        <p class="about-copy">&copy; <span id="about-year"></span> RadarSimX, LLC. All rights reserved.</p>
+        <p class="about-copy">Powered by <strong>RadarSimLib</strong>.</p>
+        <p id="about-license" class="about-license"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Configuration save / load messages -->
+  <div id="config-status" class="config-status" role="status" aria-live="polite"></div>
 
   <!-- Simulation Loading Overlay -->
   <div id="sim-overlay" class="sim-overlay hidden">
     <div class="sim-overlay-content">
-      <div class="sim-spinner">
-        <svg width="64" height="64" viewBox="0 0 50 50">
-          <circle cx="25" cy="25" r="20" fill="none" stroke="var(--accent)" stroke-width="4" stroke-dasharray="90 60"
-            stroke-linecap="round" />
-        </svg>
-      </div>
-      <p class="sim-overlay-text">Running Simulation...</p>
+      <div class="sim-spinner"></div>
+      <p class="sim-overlay-text">Running simulation</p>
       <p class="sim-overlay-sub" id="sim-overlay-sub"></p>
     </div>
   </div>
