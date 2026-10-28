@@ -13,6 +13,8 @@
   --ax-x:#ff5f5f;--ax-y:#4fd06a;--ax-z:#4e9eff;
   /* What is what in the scene */
   --radar:#ff7b3a;--tx:#8bc34a;--rx:#4e9eff;--point:#ffd866;--mesh:#a29bfe;--boresight:#f2aa2b;
+  /* The antenna pattern cuts, in the pattern plot and as spans in the scene (plots.ts THEME agrees) */
+  --cut-az:#8bc34a;--cut-el:#2ec5d8;
   --view-bg:#0d0b12;--view-grid:#352c50;--view-ring:#8f79c4;
   --mono:ui-monospace,"SFMono-Regular","Cascadia Mono",Consolas,"Liberation Mono",Menlo,monospace;
   --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
@@ -92,10 +94,13 @@ sup{top:-.5em}
 .mk-radar>.mk-glyph,.mk-glyph.mk-radar{width:15px;height:15px;background:transparent;border:2px solid var(--mk)}
 .mk-rx>.mk-glyph,.mk-glyph.mk-rx{width:12px;height:12px;background:transparent;border:2px solid var(--mk)}
 .mk-glyph.mk-boresight{width:14px;height:2px}
+/* A pattern span in the legend: a small wedge in its cut's colour */
+.mk-glyph:is(.mk-cut-az,.mk-cut-el){width:12px;height:9px;opacity:.75;clip-path:polygon(0 50%,100% 0,100% 100%);box-shadow:none}
+.mk-cut-az{--mk:var(--cut-az)}
+.mk-cut-el{--mk:var(--cut-el)}
 .mk-tx b{translate:0 -11px}
 .mk-rx b{translate:0 11px}
 .mk-note{font:10.5px/1 var(--mono);color:var(--ink-3);white-space:nowrap;text-shadow:0 0 3px #000,0 0 3px #000}
-.mk-boresight-note{color:var(--boresight)}
 .mk-ring-note{color:var(--view-ring)}
 /* The array is a speck: its channels keep their glyphs and drop their names */
 .s3-far :is(.mk-tx,.mk-rx) b{display:none}
@@ -448,27 +453,15 @@ select option{color:var(--ink);background:var(--solid)}
 /* The gap between the panels is narrow: what is not a control goes */
 @container (max-width:560px){.stage-help,.legend{display:none}}
 
-/* ── Secondary plot ────────────────────────────────────── */
-/* What is being edited, over the scene: placed from the edge of the left
-   panels, so it keeps clear of them as they fold */
-.side-plot{position:absolute;left:calc(var(--inset-l,0px) + var(--side-x,12px));top:var(--side-y,58%);display:flex;
-  flex-direction:column;width:400px;height:270px;min-width:290px;min-height:170px;
-  max-width:max(290px,calc(100% - var(--inset-l,0px) - var(--inset-r,0px) - 24px));
-  max-height:calc(100% - var(--bar-h) - 12px);overflow:hidden;resize:both;background:var(--panel);
-  border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);backdrop-filter:blur(10px)}
-.side-plot.collapsed{height:auto!important;min-height:0;resize:none}
-.side-plot.collapsed .side-plot-body{display:none}
-.side-plot-head{display:flex;align-items:center;gap:8px;padding:5px;border-bottom:1px solid var(--line);cursor:grab;
-  touch-action:none}
-.side-plot-head:active{cursor:grabbing}
-.side-plot.collapsed .side-plot-head{border-bottom:0}
-.side-plot .seg{background:transparent;backdrop-filter:none}
-.side-plot-title{flex:1;min-width:0;overflow:hidden;font-size:11.5px;text-align:right;color:var(--ink-3);
-  white-space:nowrap;text-overflow:ellipsis}
-#btn-side-plot-fold svg{transition:transform .15s}
-.side-plot.collapsed #btn-side-plot-fold svg{transform:rotate(-90deg)}
-.side-plot-body{flex:1;min-height:0;padding:4px 6px 6px}
-#side-plot-view{width:100%;height:100%}
+/* ── Inspector plots ───────────────────────────────────── */
+/* Drawn clear onto the card, beside the fields they show */
+.insp-plot{height:140px;min-width:0;margin:0 -4px}
+.pattern-plot{height:200px}
+/* The pattern's fields carry its colour key, in the plot's colours */
+.cut-key::before{content:"";display:inline-block;width:10px;height:2px;margin:0 6px 3px 0;vertical-align:middle;
+  border-radius:1px;background:var(--cut)}
+.cut-az{--cut:var(--cut-az)}
+.cut-el{--cut:var(--cut-el)}
 
 /* ── Dialogs ───────────────────────────────────────────── */
 .dialog-overlay,.confirm-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;

@@ -3,7 +3,8 @@
 import { debounce, parseNumber, parseCSV } from './utils.js';
 import { txChannels, rxChannels } from './shared.js';
 import { updateReadout } from './readout.js';
-import { stageView, isResultView, setResultViewsAvailable, setPref, type StageView } from './stage.js';
+import { updateScene } from './scene.js';
+import { stageView, setResultViewsAvailable, type StageView } from './stage.js';
 
 // --- TX Bandwidth / Sweep Info ---
 export function updateTxInfo(): void {
@@ -22,11 +23,11 @@ const THEME = {
   grid: "rgba(184,163,230,0.14)",
   zero: "rgba(184,163,230,0.3)",
   accent: "#b8a3e6",
-  signal: "#8bc34a",
+  signal: "#8bc34a",  // also --cut-az: the azimuth cut, here and in the scene
   signalSoft: "rgba(139,195,74,0.08)",
   tx: "#8bc34a",
   rx: "#4e9eff",
-  second: "#2ec5d8",
+  second: "#2ec5d8",  // also --cut-el: the elevation cut
   secondSoft: "rgba(46,197,216,0.08)",
   imag: "#ff7b3a",
   panel: "#17131f",
@@ -80,120 +81,145 @@ export const plotlyConfig: any = {
 
 const smallPlotConfig: any = { responsive: true, displayModeBar: "hover", displaylogo: false };
 
-// --- Antenna Pattern Plots ---
-const patternPlotLayout: any = {
-  ...baseLayout(10),
-  margin: { l: 40, r: 10, t: 8, b: 32 },
-  xaxis: axis("Angle (°)", 10),
-  yaxis: axis("dB", 10),
-  showlegend: false,
-};
-
-const patternPlotConfig: any = { responsive: true, displayModeBar: false };
-
-// --- Secondary Plot ---
-// One small plot rides over the stage, beside the panels, and shows what is
-// being edited: the waveform, a channel's antenna pattern, or where the
-// channels sit on the platform.
-export type SidePlot = "waveform" | "pattern" | "layout";
-
-export interface PatternChannel {
-  pfx: "tx" | "rx";
-  index: number;
+// --- Inspector Plots ---
+// Each plot sits in the inspector beside the fields it shows: the waveform in
+// the waveform generator's, a channel's antenna pattern in that channel's.
+// Only the fields picked are laid out, and a plot is drawn only while it is:
+// Plotly cannot size a hidden element.
+function _visible(id: string): HTMLElement | null {
+  const elem = document.getElementById(id);
+  if (!elem || elem.offsetParent === null) return null;
+  _fitToBox(elem);
+  return elem;
 }
 
-let _sidePlot: SidePlot = "waveform";
-let _patternChannel: PatternChannel = { pfx: "tx", index: 0 };
-/** What the plot's element holds now; a different kind is drawn from scratch. */
-let _sideDrawn: SidePlot | null = null;
-
-/** The element to draw a kind of plot into, or null while it is not the one showing. */
-function _sideContainer(kind: SidePlot): HTMLElement | null {
-  if (kind !== _sidePlot || isResultView(stageView())) return null;
-  if (document.getElementById("side-plot")?.classList.contains("collapsed")) return null;
-  const container = document.getElementById("side-plot-view");
-  if (container && _sideDrawn !== kind) {
-    Plotly.purge(container);
-    _sideDrawn = kind;
+// A plot keeps the width it was drawn at, and Plotly's own "responsive" only
+// follows the window. The panel can change width under it (as it settles at
+// start-up, or as the column does), so each plot follows its own box.
+const _resized = typeof ResizeObserver === "undefined" ? null : new ResizeObserver((entries) => {
+  for (const { target, contentRect } of entries) {
+    if (contentRect.width > 0 && (target as any)._fullLayout) Plotly.Plots.resize(target as HTMLElement);
   }
-  return container;
+});
+const _fitted = new WeakSet<Element>();
+
+function _fitToBox(elem: HTMLElement): void {
+  if (!_resized || _fitted.has(elem)) return;
+  _fitted.add(elem);
+  _resized.observe(elem);
 }
 
-/** Bring a plot up; for a pattern, of the channel given or the one last shown. */
-export function showSidePlot(kind: SidePlot, channel?: PatternChannel): void {
-  _sidePlot = kind;
-  if (channel) _patternChannel = channel;
-  setPref("sidePlot", kind);
-  document.querySelectorAll<HTMLElement>("button[data-side]").forEach((b) => {
-    b.setAttribute("aria-checked", String(b.dataset.side === kind));
-  });
-  redrawSidePlot();
-}
-
-export function redrawSidePlot(): void {
-  if (_sidePlot === "waveform") updateTxWaveformPlot();
-  else if (_sidePlot === "pattern") _drawPattern();
-  else updateLayoutPlot();
-
-  const title = document.getElementById("side-plot-title");
-  if (title) {
-    title.textContent = _sidePlot === "waveform" ? "Frequency vs time"
-      : _sidePlot === "layout" ? "Array face, along boresight"
-      : `${_patternChannel.pfx.toUpperCase()} ${_patternChannel.index + 1} antenna pattern`;
-  }
+/** Draw whichever inspector plots are in view, after the selection or the panel changes. */
+export function redrawInspectorPlots(): void {
+  updateTxWaveformPlot();
+  txChannels.forEach((_, i) => updateChannelPatternPlot("tx", i));
+  rxChannels.forEach((_, i) => updateChannelPatternPlot("rx", i));
 }
 
 // --- Antenna Pattern Plot ---
-function _drawPattern(): void {
-  // The channel last shown may have been removed since
-  const channels = _patternChannel.pfx === "tx" ? txChannels : rxChannels;
-  if (_patternChannel.index >= channels.length) {
-    _patternChannel = { ..._patternChannel, index: Math.max(0, channels.length - 1) };
+// Polar, the way antenna patterns are read: boresight up, gain outward.
+const PATTERN_DEPTH_DB = 40;
+const PATTERN_MIN_DEPTH_DB = 20;
+const patternPlotConfig: any = { responsive: true, displayModeBar: false };
+
+/**
+ * A cut at every degree, linear in dB between the points given. Plotly joins
+ * polar points with straight lines, so a pattern given at a few angles would
+ * otherwise cut across the disc instead of following it round.
+ */
+function _resampleCut(angles: number[], gains: number[]): { angles: number[]; gains: number[] } {
+  const pts = angles.map((a, i) => [a, gains[i]]).sort((p, q) => p[0] - q[0]);
+  if (pts.length < 2) return { angles: pts.map((p) => p[0]), gains: pts.map((p) => p[1]) };
+  const out = { angles: [] as number[], gains: [] as number[] };
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [a0, g0] = pts[i], [a1, g1] = pts[i + 1];
+    const steps = Math.min(360, Math.max(1, Math.ceil(a1 - a0)));
+    for (let k = 0; k < steps; k++) {
+      out.angles.push(a0 + (a1 - a0) * k / steps);
+      out.gains.push(g0 + (g1 - g0) * k / steps);
+    }
   }
-  const plotDiv = _sideContainer("pattern");
+  const last = pts[pts.length - 1];
+  out.angles.push(last[0]);
+  out.gains.push(last[1]);
+  return out;
+}
+
+/** Redraw a channel's pattern, if its card is the one showing. */
+export function updateChannelPatternPlot(pfx: string, index: number): void {
+  const plotDiv = _visible(`${pfx}-ch-${index}-pattern-plot`);
   if (!plotDiv) return;
 
-  const { pfx, index } = _patternChannel;
   const field = (name: string): number[] =>
     parseCSV((document.getElementById(`${pfx}-ch-${index}-${name}`) as HTMLTextAreaElement | null)?.value ?? "");
-  const azAngles = field("az-angles"), azPattern = field("az-pattern");
-  const elAngles = field("el-angles"), elPattern = field("el-pattern");
+  const cuts = [
+    { name: "Azimuth", angles: field("az-angles"), gains: field("az-pattern"), color: THEME.signal, fill: THEME.signalSoft },
+    { name: "Elevation", angles: field("el-angles"), gains: field("el-pattern"), color: THEME.second, fill: THEME.secondSoft },
+  ].filter((c) => c.angles.length > 0 && c.angles.length === c.gains.length);
 
-  const traces: any[] = [];
-  if (azAngles.length > 0 && azPattern.length > 0) {
-    traces.push({
-      x: azAngles, y: azPattern,
-      type: "scatter", mode: "lines+markers", name: "Azimuth",
-      line: { color: THEME.signal, width: 2 },
-      marker: { size: 4, color: THEME.signal },
-      fill: "tozeroy", fillcolor: THEME.signalSoft,
-    });
+  const gains = cuts.flatMap((c) => c.gains);
+  const angles = cuts.flatMap((c) => c.angles);
+  const peak = gains.length ? Math.max(...gains) : 0;
+  // At least 20 dB deep, so a flat pattern reads as a full arc and not a dot
+  const floor = Math.min(
+    Math.max(gains.length ? Math.min(...gains) : peak, peak - PATTERN_DEPTH_DB),
+    peak - PATTERN_MIN_DEPTH_DB);
+  const range = [floor, peak];
+
+  const traces = cuts.map((c) => {
+    const { angles: theta, gains: dB } = _resampleCut(c.angles, c.gains);
+    return {
+      type: "scatterpolar", mode: "lines", name: c.name,
+      theta,
+      // Below the floor is drawn at the floor, not folded through the centre
+      r: dB.map((g) => Math.max(g, floor)),
+      customdata: dB,
+      hovertemplate: `${c.name} %{theta:.0f}°: %{customdata:.1f} dB<extra></extra>`,
+      line: { color: c.color, width: 2 },
+      fill: "toself", fillcolor: c.fill,
+    };
+  });
+
+  // A pattern over less than the full circle is drawn as that much of a disc
+  let sector = [0, 360];
+  if (angles.length) {
+    const lo = Math.min(...angles), hi = Math.max(...angles);
+    if (hi - lo < 360) sector = [lo + 90, hi + 90];
   }
-  if (elAngles.length > 0 && elPattern.length > 0) {
-    traces.push({
-      x: elAngles, y: elPattern,
-      type: "scatter", mode: "lines+markers", name: "Elevation",
-      line: { color: THEME.second, width: 2 },
-      marker: { size: 4, color: THEME.second },
-      fill: "tozeroy", fillcolor: THEME.secondSoft,
-    });
-  }
+  const full = sector[1] - sector[0] >= 360;
+  // Signed angles, as the fields are written: −30° rather than 330°
+  const ticks: number[] = [];
+  for (let a = full ? -150 : -180; a <= 180; a += 30) ticks.push(a);
 
   const layout = {
-    ...patternPlotLayout,
-    showlegend: true,
-    legend: overlayLegend,
+    ...baseLayout(10),
+    // A whole disc has labels at the top and bottom too
+    margin: full ? { l: 28, r: 28, t: 24, b: 24 } : { l: 28, r: 28, t: 12, b: 12 },
+    // The fields under the plot carry the colour key: no legend over the disc
+    showlegend: false,
+    polar: {
+      bgcolor: THEME.clear,
+      sector,
+      angularaxis: {
+        rotation: 90, direction: "counterclockwise", thetaunit: "degrees",
+        gridcolor: THEME.grid, linecolor: THEME.grid, color: THEME.inkDim,
+        tickmode: "array", tickvals: ticks.map((a) => (a + 360) % 360), ticktext: ticks.map((a) => `${a}°`),
+      },
+      radialaxis: {
+        range, gridcolor: THEME.grid, linecolor: THEME.grid, color: THEME.inkFaint,
+        ticksuffix: " dB", angle: sector[0], tickangle: sector[0], nticks: 3,
+      },
+    },
   };
   Plotly.react(plotDiv, traces, layout, patternPlotConfig);
 }
 
-/** Redraw a channel's pattern, if that channel's is the one showing. */
-export function updateChannelPatternPlot(pfx: string, index: number): void {
-  if (pfx === _patternChannel.pfx && index === _patternChannel.index) _drawPattern();
-}
-
 export function attachPatternListeners(pfx: string, index: number): void {
-  const debouncedUpdate = debounce(() => updateChannelPatternPlot(pfx, index));
+  const debouncedUpdate = debounce(() => {
+    updateChannelPatternPlot(pfx, index);
+    // The patterns' angles set the spans drawn in the scene
+    updateScene();
+  });
   ["az-angles", "az-pattern", "el-angles", "el-pattern"].forEach((field) => {
     const elem = document.getElementById(`${pfx}-ch-${index}-${field}`);
     if (elem) {
@@ -204,7 +230,7 @@ export function attachPatternListeners(pfx: string, index: number): void {
 
 // --- TX Waveform Preview Plot ---
 export function updateTxWaveformPlot(): void {
-  const container = _sideContainer("waveform");
+  const container = _visible("plot-waveform");
   if (!container) return;
 
   const fStart = parseNumber((document.getElementById("tx-f-start") as HTMLInputElement).value);
@@ -254,53 +280,6 @@ export function updateTxWaveformPlot(): void {
   };
 
   Plotly.react(container, traces, layout, smallPlotConfig);
-}
-
-// --- Channel Layout Plot ---
-// Where the channels sit on the platform, in its own frame: what the location
-// fields say, before the platform's position and rotation are applied. Drawn
-// as the face of the array, seen from behind it looking along the boresight
-// (+x), so +y is to the left and +z is up. The 3D scene has the rest.
-function _channelTrace(pfx: string, count: number, color: string, symbol: string): any {
-  const ys: number[] = [], zs: number[] = [], labels: string[] = [], hover: string[] = [];
-  const field = (i: number, axis: string): number =>
-    parseNumber((document.getElementById(`${pfx}-ch-${i}-loc-${axis}`) as HTMLInputElement | null)?.value);
-  for (let i = 0; i < count; i++) {
-    const x = field(i, "x"), y = field(i, "y"), z = field(i, "z");
-    ys.push(y); zs.push(z);
-    labels.push(`${pfx.toUpperCase()}${i + 1}`);
-    hover.push(`${pfx.toUpperCase()} ${i + 1}<br>x ${x} mm<br>y ${y} mm<br>z ${z} mm`);
-  }
-  return {
-    x: ys, y: zs,
-    text: labels,
-    hovertext: hover, hoverinfo: "text",
-    type: "scatter",
-    mode: "markers+text",
-    name: pfx.toUpperCase(),
-    marker: { size: 10, color, symbol, line: { width: 1, color: THEME.panel } },
-    textposition: pfx === "tx" ? "top center" : "bottom center",
-    textfont: { size: 10, color },
-  };
-}
-
-export function updateLayoutPlot(): void {
-  const container = _sideContainer("layout");
-  if (!container) return;
-
-  const layout = {
-    ...baseLayout(10),
-    margin: { l: 46, r: 10, t: 10, b: 36 },
-    xaxis: { ...axis("Y (mm)", 10), autorange: "reversed" },
-    // One scale on both axes: the array keeps its shape
-    yaxis: { ...axis("Z (mm)", 10), scaleanchor: "x" },
-    showlegend: true,
-    legend: overlayLegend,
-  };
-  Plotly.react(container, [
-    _channelTrace("tx", txChannels.length, THEME.tx, "diamond"),
-    _channelTrace("rx", rxChannels.length, THEME.rx, "circle-open"),
-  ], layout, smallPlotConfig);
 }
 
 // --- Plot Simulation Results ---

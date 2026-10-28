@@ -7,7 +7,8 @@
 import { el } from './utils.js';
 import { txChannels, rxChannels, pointTargets, meshTargets } from './shared.js';
 import { pref, setPref } from './stage.js';
-import { showSidePlot } from './plots.js';
+import { redrawInspectorPlots } from './plots.js';
+import { setCoverageFocus } from './scene.js';
 
 /** What can be picked on the radar: the platform, a whole chain, one block of a chain, a channel. */
 export type RadarKind =
@@ -104,7 +105,7 @@ export function targetSelection(): Selection<TargetKind> | null {
   return _target;
 }
 
-/** Pick a node: its fields come up in its panel, and the plot that goes with them. */
+/** Pick a node: its fields come up in its panel, with the plot that goes with them. */
 export function select(next: Selection): void {
   if (_isTarget(next.kind)) _target = next as Selection<TargetKind>;
   else _radar = next as Selection<RadarKind>;
@@ -113,8 +114,8 @@ export function select(next: Selection): void {
   setPref("selection.target", _target);
   document.querySelector<HTMLElement>(`.hud-left [data-select="${next.kind}"].sel`)?.scrollIntoView?.({ block: "nearest" });
 
-  if (next.kind === "waveform" || next.kind === "transmitter") showSidePlot("waveform");
-  else if (next.kind === "tx" || next.kind === "rx") showSidePlot("pattern", { pfx: next.kind, index: next.index ?? 0 });
+  // The fields just shown may carry a plot, which could not be drawn while hidden
+  redrawInspectorPlots();
 }
 
 /** Rebuild the entries of the things there can be several of, after one is added or removed. */
@@ -216,6 +217,11 @@ function _apply(): void {
     const cards = document.getElementById(ITEMS[kind].listId)?.children ?? [];
     Array.from(cards).forEach((card, i) => card.classList.toggle("collapsed", !(sel?.kind === kind && sel.index === i)));
   });
+
+  // The scene shows the coverage of the channel, or the chain, picked here
+  const k = _radar.kind;
+  setCoverageFocus(k === "tx" || k === "rx" ? { kind: k, index: _radar.index ?? 0 }
+    : k === "transmitter" || k === "receiver" ? { kind: k } : null);
 
   _show("insp-title", radar.title);
   _show("insp-path", radar.path);

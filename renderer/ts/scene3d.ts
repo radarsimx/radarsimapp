@@ -36,6 +36,14 @@ const GRID_MAJOR_EVERY = 5;
 const MAX_RINGS = 8;
 /** Below this many pixels across, the array's channel names are dropped. */
 const ARRAY_LABEL_MIN_PX = 90;
+/** The shade of one channel's fan for each cut, picked on its own (outlined too). */
+const FAN_FILL = { az: 0.07, el: 0.045 };
+/**
+ * A whole chain's fans are shaded only. Where all of them overlap they add up
+ * to about this; one alone never falls below the least, so it still shows.
+ */
+const CHAIN_FILL = { az: 0.14, el: 0.09 };
+const CHAIN_FILL_MIN = { az: 0.035, el: 0.025 };
 
 function niceStep(x: number): number {
   const decade = 10 ** Math.floor(Math.log10(x));
@@ -75,16 +83,38 @@ function gridGeometry(colorAt: (r: number, major: boolean) => THREE.Color): THRE
 }
 
 /** A unit arrow along +x, to be scaled to length and turned to its direction. */
-function arrowObject(color: THREE.ColorRepresentation): THREE.Group {
-  const material = new THREE.MeshBasicMaterial({ color });
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.88, 8), material);
-  shaft.rotation.z = -Math.PI / 2;
-  shaft.position.x = 0.44;
-  const head = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.14, 14), material);
-  head.rotation.z = -Math.PI / 2;
-  head.position.x = 0.93;
+/**
+ * The platform's own axes in the world: x along the boresight, y to its left,
+ * z up, turned by the roll about the boresight. The library gives the
+ * boresight; the roll is the one turn it leaves out.
+ */
+function beamFrame(boresight: Vec3, rollDeg: number): THREE.Quaternion {
+  const x = new THREE.Vector3(...boresight).normalize();
+  // Before the roll, y is level: yaw and pitch never tip it
+  const y = new THREE.Vector3(0, 0, 1).cross(x);
+  if (y.lengthSq() < 1e-6) y.set(0, 1, 0);  // looking straight up or down
+  y.normalize();
+  const z = new THREE.Vector3().crossVectors(x, y);
+  const roll = THREE.MathUtils.degToRad(rollDeg);
+  y.applyAxisAngle(x, roll);
+  z.applyAxisAngle(x, roll);
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+}
+
+/** A fan from the origin, between two angles (deg) off +x toward +y; its rim and edges outlined if given an edge. */
+function fanObject(lo: number, hi: number, fill: THREE.Material, edge: THREE.LineBasicMaterial | null): THREE.Group {
+  const a0 = THREE.MathUtils.degToRad(lo), span = THREE.MathUtils.degToRad(hi - lo);
+  const steps = Math.max(2, Math.ceil(Math.abs(hi - lo) / 3));
   const g = new THREE.Group();
-  g.add(shaft, head);
+  g.add(new THREE.Mesh(new THREE.CircleGeometry(1, steps, a0, span), fill));
+  if (!edge) return g;
+  const outline: THREE.Vector3[] = [new THREE.Vector3()];
+  for (let i = 0; i <= steps; i++) {
+    const a = a0 + span * i / steps;
+    outline.push(new THREE.Vector3(Math.cos(a), Math.sin(a), 0));
+  }
+  outline.push(new THREE.Vector3());
+  g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(outline), edge));
   return g;
 }
 
@@ -141,12 +171,21 @@ export class SceneView {
   private markers = new THREE.Group();
   private meshGroup = new THREE.Group();
   private meshObjects = new Map<SceneMesh, THREE.Mesh>();
-  private boresight: THREE.Group;
-  private boresightLabel = labelObject("mk-note mk-boresight-note", "Boresight");
+  /** The boresight and the pattern spans around it, in the platform's axes; scaled to its reach. */
+  private beam = new THREE.Group();
+  private beamAxis: THREE.Line;
+  private beamTip: THREE.Mesh;
+  private beamFans = new THREE.Group();
+  /** Fill and outline for each cut's fan, in the antenna pattern plot's colours. */
+  private fanStyle: Record<"az" | "el", { fill: THREE.MeshBasicMaterial; edge: THREE.LineBasicMaterial }>;
+  /** How far the beam is drawn (m): out to the last range ring, or 0 to follow the view. */
+  private beamReach = 0;
 
   private model: SceneModel | null = null;
   private framing: SceneFraming = "scene";
   private direction = new THREE.Vector3(...VIEW_DIRECTIONS.iso).normalize();
+  /** The scene's view angle, kept while the array is looked at face-on. */
+  private sceneDirection: THREE.Vector3 | null = null;
   private insets: StageInsets = { left: 0, right: 0, top: 0, bottom: 0 };
   /** The camera is the user's once they have moved it; until then it follows the scene. */
   private userMoved = false;
@@ -209,11 +248,35 @@ export class SceneView {
     });
 
     this.axes.setColors(this.css("--ax-x"), this.css("--ax-y"), this.css("--ax-z"));
-    this.boresight = arrowObject(this.css("--boresight"));
-    this.boresight.visible = false;
+    // The boresight: a dashed centre line out to the last ring, ending in a
+    // small chevron. Round it, the coverage of the channel or chain picked: a
+    // faint fan for each cut, from where each channel sits, over the angles
+    // its pattern spans.
+    const fan = (token: string, fillOpacity: number) => ({
+      fill: new THREE.MeshBasicMaterial({
+        color: this.css(token), transparent: true, opacity: fillOpacity, side: THREE.DoubleSide, depthWrite: false,
+      }),
+      edge: new THREE.LineBasicMaterial({ color: this.css(token), transparent: true, opacity: 0.4, depthWrite: false }),
+    });
+    // The elevation fan stands up out of the ground, the louder of the two,
+    // so it is the fainter
+    this.fanStyle = { az: fan("--cut-az", FAN_FILL.az), el: fan("--cut-el", FAN_FILL.el) };
+    const color = this.css("--boresight");
+    this.beamAxis = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(1, 0, 0)]),
+      new THREE.LineDashedMaterial({ color, dashSize: 0.025, gapSize: 0.018, transparent: true, opacity: 0.95 }));
+    this.beamAxis.computeLineDistances();
+    // A flat chevron, drawn in the beam's level plane and seen from above
+    const chevron = new THREE.Shape();
+    chevron.moveTo(0, 0); chevron.lineTo(-1, 0.6); chevron.lineTo(-0.7, 0); chevron.lineTo(-1, -0.6);
+    chevron.closePath();
+    this.beamTip = new THREE.Mesh(new THREE.ShapeGeometry(chevron),
+      new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+    this.beam.add(this.beamFans, this.beamAxis, this.beamTip);
+    this.beam.visible = false;
 
     this.world.scale.setScalar(UNITS_PER_METRE);
-    this.world.add(this.grid, this.axes, this.rings, this.meshGroup, this.boresight, this.markers);
+    this.world.add(this.grid, this.axes, this.rings, this.meshGroup, this.beam, this.markers);
     this.scene.add(this.world);
 
     host.addEventListener("dblclick", () => this.fit());
@@ -241,16 +304,71 @@ export class SceneView {
     this.arrayBounds = this.bounds("array");
     this.sceneBounds = this.bounds("scene");
 
-    this.boresight.visible = !!model.boresight;
-    if (model.boresight) {
-      this.boresight.position.set(...model.radar);
-      this.boresight.quaternion.setFromUnitVectors(
-        new THREE.Vector3(1, 0, 0), new THREE.Vector3(...model.boresight).normalize());
-      this.markers.add(this.boresightLabel);
+    this.buildBeam(model);
+
+    if (this.userMoved) {
+      this.invalidate();
+      return;
+    }
+    // Face-on to the array follows the boresight as the platform turns
+    if (this.framing === "array" && model.boresight) {
+      const face = this.faceOn(model.boresight);
+      if (!face.equals(this.direction)) {
+        this.direction.copy(face);
+        this.fitted = null;
+      }
+    }
+    this.fit(false);
+  }
+
+  /**
+   * The boresight, and the fans of each channel in focus: from the channel's
+   * own place (the library's), over its own pattern's angles, in the
+   * platform's axes.
+   */
+  private buildBeam(model: SceneModel): void {
+    this.beam.visible = !!model.boresight;
+    this.beamFans.traverse((o) => { if (o instanceof THREE.Mesh || o instanceof THREE.Line) o.geometry.dispose(); });
+    this.beamFans.clear();
+    if (!model.boresight) return;
+    const frame = beamFrame(model.boresight, model.roll);
+    this.beam.position.set(...model.radar);
+    this.beam.quaternion.copy(frame);
+
+    const channels = [...model.tx, ...model.rx].filter((c) => c.coverage);
+    // A chain's fans share its shade, so where only some of its channels
+    // reach shows lighter than where they all do
+    for (const cut of ["az", "el"] as const) {
+      const count = channels.filter((c) => c.coverage![cut]).length;
+      this.fanStyle[cut].fill.opacity = model.fanEdges ? FAN_FILL[cut]
+        : Math.max(CHAIN_FILL_MIN[cut], CHAIN_FILL[cut] / Math.max(1, count));
     }
 
-    if (this.userMoved) this.invalidate();
-    else this.fit(false);
+    const toPlatform = frame.clone().invert();
+    const radar = new THREE.Vector3(...model.radar);
+    for (const c of channels) {
+      const { az, el } = c.coverage!;
+      // A fan's place is set here, in the platform's axes; its size, each frame
+      const fans = new THREE.Group();
+      fans.position.set(...c.position).sub(radar).applyQuaternion(toPlatform);
+      const edge = (cut: "az" | "el") => model.fanEdges ? this.fanStyle[cut].edge : null;
+      if (az) fans.add(fanObject(az.lo, az.hi, this.fanStyle.az.fill, edge("az")));
+      if (el) {
+        // Elevation is the same turn off +x, toward +z instead of +y
+        const elFan = fanObject(el.lo, el.hi, this.fanStyle.el.fill, edge("el"));
+        elFan.rotation.x = Math.PI / 2;
+        fans.add(elFan);
+      }
+      this.beamFans.add(fans);
+    }
+  }
+
+  /** From behind the array, looking out along the boresight. */
+  private faceOn(boresight: Vec3): THREE.Vector3 {
+    const d = new THREE.Vector3(...boresight).normalize().negate();
+    // Straight up or down the view would have no "up" left: tip it a hair
+    if (Math.abs(d.z) > 0.999) d.x -= 0.001;
+    return d.normalize();
   }
 
   /** Geometry is kept for as long as the library's mesh object is the same one. */
@@ -304,10 +422,12 @@ export class SceneView {
       consider([m.bounds[0], m.bounds[1], m.bounds[2]]);
       consider([m.bounds[3], m.bounds[4], m.bounds[5]]);
     });
+    this.beamReach = 0;
     if (reach <= 0) return;
 
     const step = niceStep(reach / 3);
     const count = Math.min(MAX_RINGS, Math.ceil(reach / step));
+    this.beamReach = count * step;
     // Named abeam of the boresight, clear of its arrow and of what lies ahead
     const ahead = new THREE.Vector3(...(model.boresight ?? [1, 0, 0])).setZ(0);
     if (ahead.lengthSq() < 1e-6) ahead.set(1, 0, 0);
@@ -352,7 +472,22 @@ export class SceneView {
   }
 
   setFraming(framing: SceneFraming): void {
+    if (framing === this.framing) {
+      this.fit();
+      return;
+    }
+    if (framing === "array") {
+      // The array face-on: from behind it, looking out along the boresight,
+      // so +y is to the left and +z up. The scene's angle comes back after.
+      if (this.userMoved) this.direction.copy(this.camera.position).sub(this.orbit.target).normalize();
+      this.sceneDirection = this.direction.clone();
+      if (this.model?.boresight) this.direction.copy(this.faceOn(this.model.boresight));
+    } else if (this.sceneDirection) {
+      this.direction.copy(this.sceneDirection);
+      this.sceneDirection = null;
+    }
     this.framing = framing;
+    this.userMoved = false;
     this.fit();
   }
 
@@ -484,12 +619,14 @@ export class SceneView {
       this.framing === "array" ? this.model?.radar[2] ?? 0 : 0);
 
     this.axes.scale.setScalar(metres * 0.07);
-    if (this.model?.boresight) {
-      const length = metres * 0.2;
-      this.boresight.scale.setScalar(length);
-      this.boresightLabel.position.set(...this.model.boresight).normalize()
-        .multiplyScalar(length * 1.12).add(this.boresight.position);
-    }
+    // Out to the last range ring; with nothing to range, a share of the view
+    const reach = this.beamReach > 0 ? this.beamReach : metres * 0.3;
+    // Each channel's fans grow about the channel, which stays where it is
+    for (const fans of this.beamFans.children) fans.scale.setScalar(reach);
+    this.beamAxis.scale.setScalar(reach);
+    // The chevron stays a readable size on screen wherever the beam ends
+    this.beamTip.position.set(reach, 0, 0);
+    this.beamTip.scale.setScalar(metres * 0.022);
 
     // A ring is named only while it is a sensible size on screen: not when the
     // view is down among the antennas, nor when the rings have shrunk to a dot

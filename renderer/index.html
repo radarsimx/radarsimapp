@@ -306,6 +306,7 @@
 
             <!-- Transmitter > Waveform generator -->
             <section class="insp" data-insp="waveform">
+              <div class="insp-plot" id="plot-waveform" aria-label="Frequency against time, for two pulses"></div>
               <div class="group">
                 <h4 class="subsection-label">Sweep</h4>
                 <div class="form-row">
@@ -647,7 +648,7 @@
               <button type="button" role="radio" data-view="scene" aria-checked="true"
                 title="The radar and its targets">Scene</button>
               <button type="button" role="radio" data-view="array" aria-checked="false"
-                title="Close in on the antenna array">Array</button>
+                title="The antenna array, face-on along boresight">Array</button>
             </div>
             <div class="seg" title="Results of the last run">
               <button type="button" role="radio" data-view="baseband" aria-checked="false" disabled>Baseband</button>
@@ -676,29 +677,6 @@
       </div>
     </div>
 
-    <!-- Secondary plot: what is being edited, over the scene. Dragged by its bar, resized by its corner. -->
-    <section class="side-plot scene-only" id="side-plot" aria-label="Preview plot">
-      <header class="side-plot-head" id="side-plot-head">
-        <div class="seg" role="radiogroup" aria-label="Preview">
-          <button type="button" role="radio" data-side="waveform" aria-checked="true"
-            title="Frequency against time, for two pulses">Waveform</button>
-          <button type="button" role="radio" data-side="pattern" aria-checked="false"
-            title="Antenna pattern of the channel being edited">Pattern</button>
-          <button type="button" role="radio" data-side="layout" aria-checked="false"
-            title="Where the channels sit on the platform">Layout</button>
-        </div>
-        <span class="side-plot-title" id="side-plot-title"></span>
-        <button type="button" class="btn-icon" id="btn-side-plot-fold" title="Fold or unfold" aria-label="Fold the preview plot"
-          aria-expanded="true">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </button>
-      </header>
-      <div class="side-plot-body">
-        <div id="side-plot-view"></div>
-      </div>
-    </section>
   </div>
 
   <!-- Reset Confirmation Dialog -->

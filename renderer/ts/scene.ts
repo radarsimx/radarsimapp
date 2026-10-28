@@ -2,8 +2,9 @@
 // What the 3D view shows: the radar platform, its channels, the boresight and
 // the targets. This module gathers it; scene3d.ts draws it.
 
-import { debounce, parseNumber, el } from './utils.js';
+import { debounce, parseNumber, parseCSV, el } from './utils.js';
 import { pointTargets, meshTargets } from './shared.js';
+import { channelCoverage, type Coverage } from './beam.js';
 import { collectConfig } from './config.js';
 
 export type Vec3 = [number, number, number];
@@ -11,7 +12,21 @@ export type Vec3 = [number, number, number];
 export interface SceneMarker {
   label: string;
   position: Vec3;
+  /**
+   * For a channel in focus (see setCoverageFocus): the angles its antenna
+   * pattern spans (deg off boresight). Null for the rest, which draw no fans.
+   */
+  coverage?: Coverage | null;
 }
+
+/**
+ * Whose coverage the scene shows, from what is picked on the radar: one
+ * channel, a whole chain's channels, or (null) none.
+ */
+export type CoverageFocus =
+  | { kind: "tx" | "rx"; index: number }
+  | { kind: "transmitter" | "receiver" }
+  | null;
 
 export interface SceneModel {
   /** Platform origin, as configured (see _radarOrigin). */
@@ -21,6 +36,13 @@ export interface SceneModel {
   rx: SceneMarker[];
   /** Unit vector from the library, or null when it could not supply one. */
   boresight: Vec3 | null;
+  /** One channel's fans are outlined; a chain's are only shaded, so many of them stay quiet. */
+  fanEdges: boolean;
+  /**
+   * Platform roll (deg), as configured: the library reports the boresight but
+   * not the turn about it, which sets how the azimuth plane lies.
+   */
+  roll: number;
   pointTargets: SceneMarker[];
   /** Mesh geometry from the library, already placed in the scene. */
   meshes: SceneMesh[];
@@ -119,14 +141,35 @@ const _refreshSceneState = debounce(async () => {
   _publish();
 }, 400);
 
+// --- Coverage focus ---
+let _focus: CoverageFocus = null;
+
+/** Show the coverage of what is picked on the radar, and only that. */
+export function setCoverageFocus(focus: CoverageFocus): void {
+  if (JSON.stringify(focus) === JSON.stringify(_focus)) return;
+  _focus = focus;
+  _publish();
+}
+
+function _inFocus(pfx: "tx" | "rx", index: number): boolean {
+  if (!_focus) return false;
+  if (_focus.kind === "transmitter") return pfx === "tx";
+  if (_focus.kind === "receiver") return pfx === "rx";
+  return _focus.kind === pfx && _focus.index === index;
+}
+
 /** Split the library's flat [n][3] global channel positions into markers. */
-function _channelMarkers(locations: Float32Array | null | undefined, prefix: string): SceneMarker[] {
+function _channelMarkers(locations: Float32Array | null | undefined, prefix: "TX" | "RX"): SceneMarker[] {
+  const pfx = prefix.toLowerCase() as "tx" | "rx";
+  const csv = (i: number, name: string): number[] =>
+    parseCSV((document.getElementById(`${pfx}-ch-${i}-${name}`) as HTMLInputElement | null)?.value ?? "");
   const markers: SceneMarker[] = [];
   const n = locations ? Math.floor(locations.length / 3) : 0;
   for (let i = 0; i < n; i++) {
     markers.push({
       label: `${prefix}${i + 1}`,
       position: [locations![i * 3], locations![i * 3 + 1], locations![i * 3 + 2]],
+      coverage: _inFocus(pfx, i) ? channelCoverage(csv(i, "az-angles"), csv(i, "el-angles")) : null,
     });
   }
   return markers;
@@ -147,6 +190,8 @@ function _radarOrigin(): Vec3 {
   return _fieldVec("radar");
 }
 
+
+
 export function buildSceneModel(): SceneModel {
   const meshes = _sceneState?.meshes ?? [];
   // Mesh targets: real geometry from the library when available, otherwise a
@@ -165,6 +210,8 @@ export function buildSceneModel(): SceneModel {
     tx: _channelMarkers(_sceneState?.txLocations, "TX"),
     rx: _channelMarkers(_sceneState?.rxLocations, "RX"),
     boresight: boresight ? [boresight[0], boresight[1], boresight[2]] : null,
+    fanEdges: _focus?.kind === "tx" || _focus?.kind === "rx",
+    roll: parseNumber((document.getElementById("radar-rot-roll") as HTMLInputElement | null)?.value),
     pointTargets: pointTargets.map((_: PointTargetData, i: number) => ({
       label: `T${i + 1}`,
       position: _fieldVec(`pt-${i}`, 10),
@@ -196,7 +243,13 @@ function _renderLegend(model: SceneModel): void {
   const items: HTMLElement[] = [_legendEntry("radar", "Radar")];
   if (model.tx.length > 0) items.push(_legendEntry("tx", "TX"));
   if (model.rx.length > 0) items.push(_legendEntry("rx", "RX"));
-  if (model.boresight) items.push(_legendEntry("boresight", "Boresight"));
+  if (model.boresight) {
+    items.push(_legendEntry("boresight", "Boresight"));
+    // The fans around it, in the antenna pattern plot's colours
+    const channels = [...model.tx, ...model.rx];
+    if (channels.some((c) => c.coverage?.az)) items.push(_legendEntry("cut-az", "Azimuth span"));
+    if (channels.some((c) => c.coverage?.el)) items.push(_legendEntry("cut-el", "Elevation span"));
+  }
   if (model.pointTargets.length > 0) items.push(_legendEntry("point", "Point target"));
   model.meshes.forEach((m) => items.push(_legendEntry("mesh", meshLabel(m), meshColor(m.index))));
   if (model.meshMarkers.length > 0) items.push(_legendEntry("mesh", "Mesh target"));

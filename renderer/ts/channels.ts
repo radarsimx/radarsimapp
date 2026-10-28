@@ -1,7 +1,7 @@
 // ===== RadarSimApp - Channel Functions =====
 
 import { el, createInput, createTextInput, createSVG, debounce, formatComplex, isValidComplex, parseNumber, parseCSV, confirmAsync, setCount } from './utils.js';
-import { attachPatternListeners, updateLayoutPlot, redrawSidePlot, markResultsOutdated } from './plots.js';
+import { attachPatternListeners, redrawInspectorPlots, markResultsOutdated } from './plots.js';
 import { renderOutline } from './outline.js';
 import { updateScene } from './scene.js';
 import { txChannels, rxChannels } from './shared.js';
@@ -63,17 +63,18 @@ function createChannelCard(prefix: string, index: number, data: ChannelData, isT
     );
   }
 
-  // Antenna Pattern (azimuth)
+  // Antenna pattern: the plot of both cuts, then the azimuth and elevation fields
   fields.append(
+    el("div", { className: "insp-plot pattern-plot", id: `${pfx}-ch-${index}-pattern-plot` }),
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "Azimuth Angles (°)" }),
+      el("label", { className: "cut-key cut-az", textContent: "Azimuth Angles (°)" }),
       createTextInput(
         `${pfx}-ch-${index}-az-angles`,
         data.azimuth_angle?.join(", ") ?? "-90, 90"
       ),
     ]),
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "Azimuth Pattern (dB)" }),
+      el("label", { className: "cut-key cut-az", textContent: "Azimuth Pattern (dB)" }),
       createTextInput(
         `${pfx}-ch-${index}-az-pattern`,
         data.azimuth_pattern?.join(", ") ?? "0, 0"
@@ -82,14 +83,14 @@ function createChannelCard(prefix: string, index: number, data: ChannelData, isT
 
     // Antenna Pattern (elevation)
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "Elevation Angles (°)" }),
+      el("label", { className: "cut-key cut-el", textContent: "Elevation Angles (°)" }),
       createTextInput(
         `${pfx}-ch-${index}-el-angles`,
         data.elevation_angle?.join(", ") ?? "-90, 90"
       ),
     ]),
     el("div", { className: "form-group" }, [
-      el("label", { textContent: "Elevation Pattern (dB)" }),
+      el("label", { className: "cut-key cut-el", textContent: "Elevation Pattern (dB)" }),
       createTextInput(
         `${pfx}-ch-${index}-el-pattern`,
         data.elevation_pattern?.join(", ") ?? "0, 0"
@@ -124,7 +125,7 @@ export function renderTxChannels(): void {
 
   requestAnimationFrame(() => {
     txChannels.forEach((_, i) => attachPatternListeners("tx", i));
-    redrawSidePlot();
+    redrawInspectorPlots();
     attachLocationListeners();
     updateScene();
   });
@@ -141,7 +142,7 @@ export function renderRxChannels(): void {
 
   requestAnimationFrame(() => {
     rxChannels.forEach((_, i) => attachPatternListeners("rx", i));
-    redrawSidePlot();
+    redrawInspectorPlots();
     attachRxLocationListeners();
     updateScene();
   });
@@ -205,7 +206,7 @@ async function removeChannel(prefix: string, index: number): Promise<void> {
 
 function attachLocationListeners(): void {
   txChannels.forEach((_, i) => {
-    const debouncedUpdate = debounce(() => { updateLayoutPlot(); updateScene(); });
+    const debouncedUpdate = debounce(updateScene);
     ["loc-x", "loc-y", "loc-z"].forEach((field) => {
       const elem = document.getElementById(`tx-ch-${i}-${field}`);
       if (elem) {
@@ -217,7 +218,7 @@ function attachLocationListeners(): void {
 
 function attachRxLocationListeners(): void {
   rxChannels.forEach((_, i) => {
-    const debouncedUpdate = debounce(() => { updateLayoutPlot(); updateScene(); });
+    const debouncedUpdate = debounce(updateScene);
     ["loc-x", "loc-y", "loc-z"].forEach((field) => {
       const elem = document.getElementById(`rx-ch-${i}-${field}`);
       if (elem) {

@@ -1,4 +1,4 @@
-import { test, describe, before, after, beforeEach } from "node:test";
+import { test, describe, before, after, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 
 import { installAppDom, type DomHandle } from "../helpers/dom.mts";
@@ -83,6 +83,57 @@ describe("radar pose", () => {
 
     assert.equal(model.rx.length, 2, "one marker per reported RX channel");
     assert.deepEqual(model.rx[1].position, [9, 10, 11]);
+  });
+
+  describe("coverage", () => {
+    // The pattern fields as the channel cards would hold them
+    let fields: HTMLElement[] = [];
+    beforeEach(() => {
+      const field = (id: string, value: string): void => {
+        const input = document.createElement("input");
+        input.id = id;
+        input.value = value;
+        document.body.append(input);
+        fields.push(input);
+      };
+      field("tx-ch-0-az-angles", "-20, 0, 20");
+      field("tx-ch-0-el-angles", "-10, 10");
+      field("rx-ch-0-az-angles", "-45, 45");
+      field("rx-ch-1-az-angles", "30, -60, 0");
+    });
+    afterEach(() => {
+      fields.forEach((f) => f.remove());
+      fields = [];
+      scene.setCoverageFocus(null);
+    });
+
+    async function withFocus(focus: any): Promise<void> {
+      scene.setCoverageFocus(focus);
+      scene.updateScene();
+      await settleSceneState();
+    }
+
+    test("one channel picked: only it has coverage, its own span, outlined", async () => {
+      await withFocus({ kind: "rx", index: 1 });
+      assert.deepEqual(model.rx[1].coverage, { az: { lo: -60, hi: 30 }, el: null });
+      assert.equal(model.rx[0].coverage, null, "a channel not picked draws no fans");
+      assert.equal(model.tx[0].coverage, null);
+      assert.equal(model.fanEdges, true);
+    });
+
+    test("a chain picked: each of its channels with its own span, shaded only", async () => {
+      await withFocus({ kind: "receiver" });
+      assert.deepEqual(model.rx[0].coverage, { az: { lo: -45, hi: 45 }, el: null });
+      assert.deepEqual(model.rx[1].coverage, { az: { lo: -60, hi: 30 }, el: null },
+        "each channel keeps its own span, not one shared by all");
+      assert.equal(model.tx[0].coverage, null, "the other chain draws no fans");
+      assert.equal(model.fanEdges, false);
+    });
+
+    test("anything else picked: no fans at all", async () => {
+      await withFocus(null);
+      assert.ok([...model.tx, ...model.rx].every((c: any) => c.coverage === null));
+    });
   });
 
   test("takes its boresight from the library, not from the rotation inputs", async () => {
