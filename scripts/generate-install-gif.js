@@ -1,362 +1,350 @@
 ﻿/**
- * Generates renderer/assets/install.gif — the Squirrel installer loading animation.
- * Run with: node scripts/generate-install-gif.js
- * Requires:  npm install --save-dev @napi-rs/canvas gif-encoder-2
+ * Generates renderer/assets/install.gif, the animation the Squirrel installer
+ * shows while it installs.
+ * Run with: npm run generate-gif
  *
- * Renders at 2× then downsamples to output size for crisp edges.
- * Output: 628 × 368 px GIF, dark-theme radar HUD, 60 frames @ 40 ms/frame.
+ * Frames are drawn at 2x and scaled down, so edges stay smooth. All frames share
+ * one palette and use ordered dithering, so gradients neither band nor flicker
+ * from frame to frame.
  */
 
 "use strict";
 
 const { createCanvas } = require("@napi-rs/canvas");
-const GIFEncoder = require("gif-encoder-2");
+const { GIFEncoder, quantize } = require("gifenc");
 const fs = require("fs");
 const path = require("path");
 
-// ── Config ─────────────────────────────────────────────────────────────────────────────────────────────
+const pkg = require("../package.json");
+
+// ── Output ───────────────────────────────────────────────────────────────────
 const W = 628, H = 368;
 const SCALE = 2;
 const RW = W * SCALE, RH = H * SCALE;
-const FRAMES = 60;
-const DELAY = 40;
+const FRAMES = 96;          // one full turn of the beam
+const DELAY = 30;           // ms per frame (GIF stores hundredths of a second)
 
-const C_BG       = "#0f0f14";
-const C_RINGS    = "rgba(104,159,56,0.18)";
-const C_SWEEP    = "#689f38";
-const C_DOT      = "#8bc34a";
-const C_TEXT_PRI = "#e8e8f0";
+// ── Colours (match renderer/css/styles.css) ──────────────────────────────────
+const BG = "#0d0b12";
+const PRIMARY = [78, 58, 114];     // --primary  #4e3a72
+const ACCENT = [184, 163, 230];    // --accent   #b8a3e6
+const INK = "#e7e4ef";             // --ink
+const INK_2 = "#aca7ba";           // --ink-2
+const INK_3 = "#7b768a";           // --ink-3
+const rgba = ([r, g, b], a) => `rgba(${r},${g},${b},${a})`;
 
-// Pre-computed accent RGB
-function hexToRgb(hex) {
-  return {
-    r: parseInt(hex.slice(1, 3), 16),
-    g: parseInt(hex.slice(3, 5), 16),
-    b: parseInt(hex.slice(5, 7), 16),
-  };
-}
-const { r: SR, g: SG, b: SB } = hexToRgb(C_SWEEP);
-const { r: DR, g: DG, b: DB } = hexToRgb(C_DOT);
+// ── Layout (output pixels; multiplied by SCALE when drawn) ───────────────────
+const CX = 196, CY = H / 2, R = 132;   // radar scope
+const TX = 372;                        // left edge of the text column
+const BAR_W = 200, BAR_H = 4;
 
-// Radar geometry (render-space)
-const CX = RW / 2, CY = RH / 2 - 8 * SCALE;
-const R  = Math.min(RW, RH) * 0.38;
-
+// Targets: bearing in degrees clockwise from north, range as a fraction of R
 const BLIPS = [
-  { a: 0.45, r: 0.55, s: 7 },
-  { a: 1.20, r: 0.72, s: 5 },
-  { a: 2.80, r: 0.40, s: 8 },
-  { a: 4.10, r: 0.65, s: 6 },
-  { a: 5.50, r: 0.50, s: 5 },
+  { brg: 38, rng: 0.62, s: 1.0 },
+  { brg: 112, rng: 0.38, s: 0.8 },
+  { brg: 205, rng: 0.74, s: 1.1 },
+  { brg: 262, rng: 0.5, s: 0.8 },
+  { brg: 318, rng: 0.82, s: 0.9 },
 ];
+const TRAIL = 0.42;          // the trail covers this fraction of a full turn
+const BLIP_FADE = 0.7;       // a target fades out over this fraction of a turn
 
-// ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────
-function trailAlpha(sweepAngle, blipAngle) {
-  const TRAIL = Math.PI * 0.9;
-  const diff = ((sweepAngle - blipAngle) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
-  if (diff > TRAIL) return 0;
-  return 1 - diff / TRAIL;
+// ── Drawing ──────────────────────────────────────────────────────────────────
+const hi = createCanvas(RW, RH);
+const ctx = hi.getContext("2d");
+const out = createCanvas(W, H);
+const octx = out.getContext("2d");
+octx.imageSmoothingEnabled = true;
+octx.imageSmoothingQuality = "high";
+
+const deg = (d) => (d * Math.PI) / 180;
+// Canvas angles start at 3 o'clock; bearings start at 12 o'clock
+const brgToAngle = (b) => deg(b - 90);
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
 }
 
-function fillRoundRect(ctx, x, y, w, h, r) {
+function drawBackground() {
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, W, H);
+  // A soft brand glow behind the scope
+  const g = ctx.createRadialGradient(CX, CY, 0, CX, CY, R * 1.9);
+  g.addColorStop(0, rgba(PRIMARY, 0.42));
+  g.addColorStop(0.55, rgba(PRIMARY, 0.12));
+  g.addColorStop(1, rgba(PRIMARY, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawScopeFace() {
+  // Face
+  const face = ctx.createRadialGradient(CX, CY, 0, CX, CY, R);
+  face.addColorStop(0, rgba(PRIMARY, 0.38));
+  face.addColorStop(1, "rgba(13,11,18,0.75)");
+  ctx.fillStyle = face;
   ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.arcTo(x + w, y,     x + w, y + r,     r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h);
-  ctx.arcTo(x,     y + h, x,     y + h - r, r);
-  ctx.lineTo(x,     y + r);
-  ctx.arcTo(x,     y,     x + r, y,         r);
+  ctx.arc(CX, CY, R, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Range rings
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = rgba(ACCENT, 0.13);
+  for (const f of [0.25, 0.5, 0.75]) {
+    ctx.beginPath();
+    ctx.arc(CX, CY, R * f, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Crosshair
+  ctx.beginPath();
+  ctx.moveTo(CX, CY - R); ctx.lineTo(CX, CY + R);
+  ctx.moveTo(CX - R, CY); ctx.lineTo(CX + R, CY);
+  ctx.stroke();
+
+  // Bearing ticks round the rim: long every 30°, short every 10°
+  for (let b = 0; b < 360; b += 10) {
+    const a = brgToAngle(b);
+    const len = b % 30 === 0 ? 7 : 3.5;
+    ctx.strokeStyle = rgba(ACCENT, b % 30 === 0 ? 0.4 : 0.2);
+    ctx.beginPath();
+    ctx.moveTo(CX + Math.cos(a) * R, CY + Math.sin(a) * R);
+    ctx.lineTo(CX + Math.cos(a) * (R - len), CY + Math.sin(a) * (R - len));
+    ctx.stroke();
+  }
+
+  // Rim
+  ctx.strokeStyle = rgba(ACCENT, 0.3);
+  ctx.beginPath();
+  ctx.arc(CX, CY, R - 0.5, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function drawSweep(beam) {
+  const a = brgToAngle(beam);
+
+  // Trail: a conic gradient that fades in towards the beam
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(CX, CY, R - 1, 0, Math.PI * 2);
+  ctx.clip();
+  const start = a - TRAIL * Math.PI * 2;
+  const trail = ctx.createConicGradient(start, CX, CY);
+  trail.addColorStop(0, rgba(ACCENT, 0));
+  trail.addColorStop(TRAIL * 0.4, rgba(ACCENT, 0.05));
+  trail.addColorStop(TRAIL * 0.8, rgba(ACCENT, 0.17));
+  trail.addColorStop(TRAIL, rgba(ACCENT, 0.4));
+  trail.addColorStop(Math.min(TRAIL + 0.0001, 1), rgba(ACCENT, 0));
+  trail.addColorStop(1, rgba(ACCENT, 0));
+  ctx.fillStyle = trail;
+  ctx.beginPath();
+  ctx.moveTo(CX, CY);
+  ctx.arc(CX, CY, R, start, a);
   ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Beam line with a glow
+  const ex = CX + Math.cos(a) * (R - 1), ey = CY + Math.sin(a) * (R - 1);
+  const line = ctx.createLinearGradient(CX, CY, ex, ey);
+  line.addColorStop(0, rgba(ACCENT, 0.15));
+  line.addColorStop(1, rgba(ACCENT, 1));
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.shadowColor = rgba(ACCENT, 0.7);
+  ctx.shadowBlur = 8 * SCALE;
+  ctx.strokeStyle = line;
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(CX, CY);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+  ctx.restore();
+
+  // Hub
+  ctx.fillStyle = rgba(ACCENT, 0.9);
+  ctx.beginPath();
+  ctx.arc(CX, CY, 2.5, 0, Math.PI * 2);
   ctx.fill();
 }
 
-function clipRoundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.arcTo(x + w, y,     x + w, y + r,     r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h);
-  ctx.arcTo(x,     y + h, x,     y + h - r, r);
-  ctx.lineTo(x,     y + r);
-  ctx.arcTo(x,     y,     x + r, y,         r);
-  ctx.closePath();
+function drawBlips(beam) {
+  for (const b of BLIPS) {
+    // How far (as a fraction of a turn) the beam has passed this target
+    const since = (((beam - b.brg) % 360) + 360) % 360 / 360;
+    if (since > BLIP_FADE) continue;
+    const life = since / BLIP_FADE;
+    const alpha = Math.pow(1 - life, 1.6);
+    const a = brgToAngle(b.brg);
+    const x = CX + Math.cos(a) * R * b.rng;
+    const y = CY + Math.sin(a) * R * b.rng;
+
+    // Glow
+    const gr = 9 * b.s;
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, gr);
+    glow.addColorStop(0, rgba(ACCENT, 0.55 * alpha));
+    glow.addColorStop(1, rgba(ACCENT, 0));
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, gr, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Echo ring that spreads out just after the beam passes
+    if (life < 0.35) {
+      const k = life / 0.35;
+      ctx.strokeStyle = rgba(ACCENT, 0.5 * (1 - k));
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x, y, (3 + k * 10) * b.s, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Core
+    ctx.fillStyle = `rgba(240,234,255,${alpha})`;
+    ctx.beginPath();
+    ctx.arc(x, y, 2.2 * b.s, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawText(t, f) {
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+
+  ctx.font = "600 32px 'Segoe UI', Arial, sans-serif";
+  ctx.fillStyle = INK;
+  ctx.fillText("RadarSimApp", TX, CY - 14);
+
+  const dots = ".".repeat(Math.floor(f / (FRAMES / 4)) % 4);
+  ctx.font = "15px 'Segoe UI', Arial, sans-serif";
+  ctx.fillStyle = INK_2;
+  ctx.fillText(`Installing${dots}`, TX, CY + 14);
+
+  // Indeterminate progress bar: a soft highlight that travels the track
+  const by = CY + 34;
+  ctx.fillStyle = rgba(ACCENT, 0.12);
+  roundRect(TX, by, BAR_W, BAR_H, BAR_H / 2);
+  ctx.fill();
+
+  const sw = BAR_W * 0.45;
+  const sx = TX - sw + t * (BAR_W + sw);
+  const shine = ctx.createLinearGradient(sx, 0, sx + sw, 0);
+  shine.addColorStop(0, rgba(ACCENT, 0));
+  shine.addColorStop(0.5, rgba(ACCENT, 1));
+  shine.addColorStop(1, rgba(ACCENT, 0));
+  ctx.save();
+  roundRect(TX, by, BAR_W, BAR_H, BAR_H / 2);
   ctx.clip();
+  ctx.fillStyle = shine;
+  ctx.fillRect(sx, by, sw, BAR_H);
+  ctx.restore();
+
+  ctx.font = "12px 'Segoe UI', Arial, sans-serif";
+  ctx.fillStyle = INK_3;
+  ctx.fillText(`Version ${pkg.version}`, TX, by + 30);
 }
 
-// Animated telemetry rows â€” values vary per frame
-function makeLeftRows(f) {
+function renderFrame(f) {
   const t = f / FRAMES;
-  return [
-    ["FREQ", `${(24.0 + Math.sin(t * Math.PI * 2) * 0.25).toFixed(2)}G`],
-    ["PRF",  `${1000 + Math.round(Math.sin(t * Math.PI * 4) * 200)}Hz`],
-    ["RNG",  `${(150 + Math.cos(t * Math.PI * 2) * 30).toFixed(0)}m`],
-    ["SNR",  `${(18.4 + Math.sin(t * Math.PI * 6) * 3).toFixed(1)}dB`],
-    ["TX",   "04 CH"],
-  ];
-}
-function makeRightRows(f) {
-  const t = f / FRAMES;
-  const hdg = Math.round(((t * 360) % 360 + 360) % 360);
-  const tgt = 2 + Math.floor(Math.abs(Math.sin(t * Math.PI * 3)) * 3);
-  return [
-    ["TGT",  String(tgt).padStart(2, "0")],
-    ["BRG",  `${String(hdg).padStart(3, "0")}\u00b0`],
-    ["ELV",  `${(5 + Math.sin(t * Math.PI * 5) * 5).toFixed(1)}\u00b0`],
-    ["VEL",  `${(12.3 + Math.cos(t * Math.PI * 4) * 5).toFixed(1)}m/s`],
-    ["MODE", f % 20 < 10 ? "ACTIVE" : "SCAN.."],
-  ];
+  const beam = t * 360;
+  ctx.save();
+  ctx.scale(SCALE, SCALE);
+  drawBackground();
+  drawScopeFace();
+  drawBlips(beam);
+  drawSweep(beam);
+  drawText(t, f);
+  ctx.restore();
+
+  octx.clearRect(0, 0, W, H);
+  octx.drawImage(hi, 0, 0, W, H);
+  return octx.getImageData(0, 0, W, H).data;
 }
 
-// ── Encoder ─────────────────────────────────────────────────────────────────────────────────────────────
-const encoder = new GIFEncoder(W, H, "neuquant", true, FRAMES);
-encoder.setDelay(DELAY);
-encoder.setRepeat(0);
-encoder.setQuality(6);
-encoder.start();
+// ── Render all frames ────────────────────────────────────────────────────────
+const frames = [];
+for (let f = 0; f < FRAMES; f++) frames.push(Uint8ClampedArray.from(renderFrame(f)));
 
-const hiCanvas  = createCanvas(RW, RH);
-const hiCtx     = hiCanvas.getContext("2d");
-const outCanvas = createCanvas(W, H);
-const outCtx    = outCanvas.getContext("2d");
-
-// ── Main loop ─────────────────────────────────────────────────────────────────────────────────────────────
-for (let f = 0; f < FRAMES; f++) {
-  const sweepAngle = (f / FRAMES) * Math.PI * 2 - Math.PI / 2;
-  const t = f / FRAMES;
-
-  // ── Background ─────────────────────────────────────────────────────────────────────────────────────────────
-  hiCtx.fillStyle = C_BG;
-  hiCtx.fillRect(0, 0, RW, RH);
-
-  // Subtle scan lines (CRT feel)
-  hiCtx.fillStyle = "rgba(0,0,0,0.10)";
-  for (let y = 0; y < RH; y += 4 * SCALE) hiCtx.fillRect(0, y, RW, SCALE);
-
-  // ── Header bar ─────────────────────────────────────────────────────────────────────────────────────────────
-  const HDR_Y = 16 * SCALE;
-  hiCtx.font = `${9 * SCALE}px 'Courier New', monospace`;
-  hiCtx.fillStyle = `rgba(${SR},${SG},${SB},0.6)`;
-  hiCtx.textAlign = "left";
-  hiCtx.fillText("RADARSIMX", 14 * SCALE, HDR_Y);
-  hiCtx.textAlign = "right";
-  hiCtx.fillText("v1.0.0", RW - 14 * SCALE, HDR_Y);
-  hiCtx.strokeStyle = `rgba(${SR},${SG},${SB},0.18)`;
-  hiCtx.lineWidth = SCALE;
-  hiCtx.setLineDash([]);
-  hiCtx.beginPath();
-  hiCtx.moveTo(14 * SCALE, 22 * SCALE);
-  hiCtx.lineTo(RW - 14 * SCALE, 22 * SCALE);
-  hiCtx.stroke();
-
-  // ── Corner HUD brackets ───────────────────────────────────────────────────────────────────────────────
-  const BRKT = 18 * SCALE, BM = 10 * SCALE;
-  hiCtx.strokeStyle = `rgba(${SR},${SG},${SB},0.55)`;
-  hiCtx.lineWidth = 1.5 * SCALE;
-  for (const [bx, by, dx, dy] of [
-    [BM, BM, 1, 1], [RW - BM, BM, -1, 1],
-    [BM, RH - BM, 1, -1], [RW - BM, RH - BM, -1, -1],
-  ]) {
-    hiCtx.beginPath();
-    hiCtx.moveTo(bx + dx * BRKT, by);
-    hiCtx.lineTo(bx, by);
-    hiCtx.lineTo(bx, by + dy * BRKT);
-    hiCtx.stroke();
+// ── One palette for every frame ──────────────────────────────────────────────
+// Sample every 4th pixel of every 3rd frame; that sees every colour the
+// animation uses without making the quantiser slow.
+const SAMPLE_STEP = 4;
+const sampleFrames = frames.filter((_, i) => i % 3 === 0);
+const pxPerFrame = Math.ceil((W * H) / SAMPLE_STEP);
+const sample = new Uint8ClampedArray(sampleFrames.length * pxPerFrame * 4);
+let o = 0;
+for (const fr of sampleFrames) {
+  for (let p = 0; p < W * H; p += SAMPLE_STEP) {
+    sample[o++] = fr[p * 4];
+    sample[o++] = fr[p * 4 + 1];
+    sample[o++] = fr[p * 4 + 2];
+    sample[o++] = 255;
   }
+}
+// 255 colours, plus one slot that marks a pixel as unchanged from the last frame
+const palette = quantize(sample.subarray(0, o), 255, { format: "rgb565" });
+const KEEP = palette.length;
+palette.push([0, 0, 0]);
 
-  // ── Left data panel ─────────────────────────────────────────────────────────────────────────────────────────────
-  const leftRows  = makeLeftRows(f);
-  const rightRows = makeRightRows(f);
-  const LP_X   = 14 * SCALE;
-  const LP_W   = 136 * SCALE;
-  const RP_X2  = RW - 14 * SCALE;
-  const RP_X1  = RP_X2 - LP_W;
-  const ROW_H  = 26 * SCALE;
-  const ROWS_Y = 38 * SCALE;
+// Nearest palette entry, cached on 6 bits per channel
+const cache = new Int16Array(1 << 18).fill(-1);
+function nearest(r, g, b) {
+  const key = ((r >> 2) << 12) | ((g >> 2) << 6) | (b >> 2);
+  let idx = cache[key];
+  if (idx >= 0) return idx;
+  let best = Infinity;
+  for (let i = 0; i < palette.length; i++) {
+    const p = palette[i];
+    const dr = p[0] - r, dg = p[1] - g, db = p[2] - b;
+    const d = dr * dr * 0.3 + dg * dg * 0.59 + db * db * 0.11;
+    if (d < best) { best = d; idx = i; }
+  }
+  cache[key] = idx;
+  return idx;
+}
 
-  hiCtx.font = `${9 * SCALE}px 'Courier New', monospace`;
-
-  for (let i = 0; i < leftRows.length; i++) {
-    const ry = ROWS_Y + i * ROW_H;
-    // Separator line between rows
-    if (i > 0) {
-      hiCtx.strokeStyle = `rgba(${SR},${SG},${SB},0.08)`;
-      hiCtx.lineWidth = SCALE * 0.5;
-      hiCtx.beginPath();
-      hiCtx.moveTo(LP_X, ry - ROW_H * 0.25);
-      hiCtx.lineTo(LP_X + LP_W, ry - ROW_H * 0.25);
-      hiCtx.stroke();
+// Ordered (Bayer) dithering: the pattern is fixed in place, so unlike error
+// diffusion it does not crawl from frame to frame
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const DITHER = 6;
+function toIndexed(rgba) {
+  const idx = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const p = y * W + x;
+      const d = (BAYER[((y & 3) << 2) | (x & 3)] / 16 - 0.47) * DITHER;
+      const r = Math.max(0, Math.min(255, rgba[p * 4] + d));
+      const g = Math.max(0, Math.min(255, rgba[p * 4 + 1] + d));
+      const b = Math.max(0, Math.min(255, rgba[p * 4 + 2] + d));
+      idx[p] = nearest(r | 0, g | 0, b | 0);
     }
-    hiCtx.textAlign = "left";
-    hiCtx.fillStyle = `rgba(${SR},${SG},${SB},0.50)`;
-    hiCtx.fillText(leftRows[i][0], LP_X, ry);
-    hiCtx.textAlign = "right";
-    hiCtx.fillStyle = `rgba(${SR},${SG},${SB},0.95)`;
-    hiCtx.fillText(leftRows[i][1], LP_X + LP_W, ry);
   }
-
-  // ── Right data panel
-  for (let i = 0; i < rightRows.length; i++) {
-    const ry = ROWS_Y + i * ROW_H;
-    if (i > 0) {
-      hiCtx.strokeStyle = `rgba(${SR},${SG},${SB},0.08)`;
-      hiCtx.lineWidth = SCALE * 0.5;
-      hiCtx.beginPath();
-      hiCtx.moveTo(RP_X1, ry - ROW_H * 0.25);
-      hiCtx.lineTo(RP_X2, ry - ROW_H * 0.25);
-      hiCtx.stroke();
-    }
-    hiCtx.textAlign = "left";
-    hiCtx.fillStyle = `rgba(${SR},${SG},${SB},0.50)`;
-    hiCtx.fillText(rightRows[i][0], RP_X1, ry);
-    hiCtx.textAlign = "right";
-    // Pulse "MODE" row when ACTIVE
-    const isActive = rightRows[i][0] === "MODE" && rightRows[i][1] === "ACTIVE";
-    hiCtx.fillStyle = isActive
-      ? `rgba(${DR},${DG},${DB},${0.7 + Math.sin(t * Math.PI * 8) * 0.3})`
-      : `rgba(${SR},${SG},${SB},0.95)`;
-    hiCtx.fillText(rightRows[i][1], RP_X2, ry);
-  }
-
-  // ── Vertical panel dividers ─────────────────────────────────────────────────────────────────────────────────────
-  const DIVX_L = LP_X + LP_W + 10 * SCALE;
-  const DIVX_R = RP_X1 - 10 * SCALE;
-  const DIV_Y1 = 28 * SCALE, DIV_Y2 = RH - 30 * SCALE;
-  for (const dx of [DIVX_L, DIVX_R]) {
-    hiCtx.strokeStyle = `rgba(${SR},${SG},${SB},0.12)`;
-    hiCtx.lineWidth = SCALE;
-    hiCtx.setLineDash([6 * SCALE, 8 * SCALE]);
-    hiCtx.beginPath();
-    hiCtx.moveTo(dx, DIV_Y1);
-    hiCtx.lineTo(dx, DIV_Y2);
-    hiCtx.stroke();
-    hiCtx.setLineDash([]);
-  }
-
-  // ── Concentric range rings ─────────────────────────────────────────────────────────────────────────────────────
-  hiCtx.strokeStyle = C_RINGS;
-  hiCtx.lineWidth = SCALE;
-  for (let i = 1; i <= 4; i++) {
-    hiCtx.beginPath();
-    hiCtx.arc(CX, CY, R * (i / 4), 0, Math.PI * 2);
-    hiCtx.stroke();
-  }
-
-  // Range ring distance labels (at 3 o'clock)
-  hiCtx.font = `${7 * SCALE}px 'Courier New', monospace`;
-  hiCtx.fillStyle = `rgba(${SR},${SG},${SB},0.40)`;
-  hiCtx.textAlign = "left";
-  for (let i = 1; i <= 4; i++) {
-    const lx = CX + R * (i / 4) + 4 * SCALE;
-    const ly = CY + 8 * SCALE;
-    hiCtx.fillText(`${i * 50}m`, lx, ly);
-  }
-
-  // ── Cross-hair lines ─────────────────────────────────────────────────────────────────────────────────────────────
-  hiCtx.strokeStyle = C_RINGS;
-  hiCtx.lineWidth = SCALE * 0.8;
-  hiCtx.setLineDash([8, 12]);
-  hiCtx.beginPath(); hiCtx.moveTo(CX, CY - R); hiCtx.lineTo(CX, CY + R); hiCtx.stroke();
-  hiCtx.beginPath(); hiCtx.moveTo(CX - R, CY); hiCtx.lineTo(CX + R, CY); hiCtx.stroke();
-  hiCtx.setLineDash([]);
-
-  // ── Sweep arc (trailing fade) ─────────────────────────────────────────────────────────────────────────
-  const TRAIL_ARC = Math.PI * 0.9;
-  const SLICES = 60;
-  for (let s = 0; s < SLICES; s++) {
-    const a0    = sweepAngle - TRAIL_ARC * ((s + 1) / SLICES);
-    const a1    = sweepAngle - TRAIL_ARC * (s / SLICES);
-    const alpha = (1 - s / SLICES) * 0.55;
-    hiCtx.beginPath();
-    hiCtx.moveTo(CX, CY);
-    hiCtx.arc(CX, CY, R, a0, a1);
-    hiCtx.closePath();
-    hiCtx.fillStyle = `rgba(${SR},${SG},${SB},${alpha.toFixed(3)})`;
-    hiCtx.fill();
-  }
-
-  // ── Sweep leading line ────────────────────────────────────────────────────────────────────────────────
-  const lx = CX + Math.cos(sweepAngle) * R;
-  const ly = CY + Math.sin(sweepAngle) * R;
-  const sweepGrad = hiCtx.createLinearGradient(CX, CY, lx, ly);
-  sweepGrad.addColorStop(0,   `rgba(${SR},${SG},${SB},0)`);
-  sweepGrad.addColorStop(0.5, `rgba(${SR},${SG},${SB},0.6)`);
-  sweepGrad.addColorStop(1,    C_SWEEP);
-  hiCtx.strokeStyle = sweepGrad;
-  hiCtx.lineWidth = 3 * SCALE;
-  hiCtx.beginPath();
-  hiCtx.moveTo(CX, CY);
-  hiCtx.lineTo(lx, ly);
-  hiCtx.stroke();
-
-  // ── Blips ────────────────────────────────────────────────────────────────────────────────────────────
-  for (const blip of BLIPS) {
-    const alpha = trailAlpha(sweepAngle + Math.PI / 2, blip.a);
-    if (alpha <= 0) continue;
-    const bx = CX + Math.cos(blip.a - Math.PI / 2) * R * blip.r;
-    const by = CY + Math.sin(blip.a - Math.PI / 2) * R * blip.r;
-    const glow = hiCtx.createRadialGradient(bx, by, 0, bx, by, blip.s * 3.5);
-    glow.addColorStop(0, `rgba(${DR},${DG},${DB},${(alpha * 0.9).toFixed(3)})`);
-    glow.addColorStop(1, `rgba(${DR},${DG},${DB},0)`);
-    hiCtx.beginPath();
-    hiCtx.arc(bx, by, blip.s * 3.5, 0, Math.PI * 2);
-    hiCtx.fillStyle = glow;
-    hiCtx.fill();
-    hiCtx.beginPath();
-    hiCtx.arc(bx, by, blip.s * 0.85, 0, Math.PI * 2);
-    hiCtx.fillStyle = `rgba(${DR},${DG},${DB},${Math.min(alpha * 1.2, 1).toFixed(3)})`;
-    hiCtx.fill();
-  }
-
-  // ── Centre dot ───────────────────────────────────────────────────────────────────────────────────────
-  hiCtx.beginPath();
-  hiCtx.arc(CX, CY, 5 * SCALE, 0, Math.PI * 2);
-  hiCtx.fillStyle = C_SWEEP;
-  hiCtx.fill();
-
-  // ── Title ─────────────────────────────────────────────────────────────────────────────────────────────
-  const titleY = RH - 54 * SCALE;
-  hiCtx.textAlign = "center";
-  hiCtx.font = `bold ${17 * SCALE}px 'Segoe UI', Arial, sans-serif`;
-  hiCtx.fillStyle = C_TEXT_PRI;
-  hiCtx.fillText("RadarSimApp", CX, titleY);
-
-  // ── Progress bar with shimmer ─────────────────────────────────────────────────────────────────────────
-  const BAR_W = R * 1.6;
-  const BAR_H = 5 * SCALE;
-  const BAR_R = BAR_H / 2;
-  const BAR_X = CX - BAR_W / 2;
-  const BAR_Y = RH - 28 * SCALE;
-
-  hiCtx.fillStyle = `rgba(${SR},${SG},${SB},0.15)`;
-  fillRoundRect(hiCtx, BAR_X, BAR_Y, BAR_W, BAR_H, BAR_R);
-
-  const shimmerW  = BAR_W * 0.32;
-  const shimmerCX = BAR_X + BAR_W * (-0.15 + t * 1.30);
-  const shimGrad  = hiCtx.createLinearGradient(shimmerCX, 0, shimmerCX + shimmerW, 0);
-  shimGrad.addColorStop(0,    `rgba(${SR},${SG},${SB},0)`);
-  shimGrad.addColorStop(0.35, `rgba(${SR},${SG},${SB},0.6)`);
-  shimGrad.addColorStop(0.5,  `rgba(${SR},${SG},${SB},1)`);
-  shimGrad.addColorStop(0.65, `rgba(${SR},${SG},${SB},0.6)`);
-  shimGrad.addColorStop(1,    `rgba(${SR},${SG},${SB},0)`);
-  hiCtx.save();
-  clipRoundRect(hiCtx, BAR_X, BAR_Y, BAR_W, BAR_H, BAR_R);
-  hiCtx.fillStyle = shimGrad;
-  hiCtx.fillRect(shimmerCX, BAR_Y, shimmerW, BAR_H);
-  hiCtx.restore();
-
-  // ── Downsample ─────────────────────────────────────────────────────────────────────────────────────────────
-  outCtx.clearRect(0, 0, W, H);
-  outCtx.drawImage(hiCanvas, 0, 0, W, H);
-  encoder.addFrame(outCtx);
+  return idx;
 }
 
-encoder.finish();
+// ── Encode ───────────────────────────────────────────────────────────────────
+// Each frame after the first stores only the pixels that changed; the rest
+// are transparent and show the previous frame through. Only the beam, the
+// targets and the progress bar move, so this keeps the file small.
+const gif = GIFEncoder();
+let prev = null;
+frames.forEach((fr, i) => {
+  const idx = toIndexed(fr);
+  const delta = prev ? idx.slice() : idx;
+  if (prev) for (let p = 0; p < delta.length; p++) if (idx[p] === prev[p]) delta[p] = KEEP;
+  gif.writeFrame(delta, W, H, {
+    palette: i === 0 ? palette : undefined,
+    delay: DELAY,
+    repeat: 0,
+    transparent: i > 0,
+    transparentIndex: KEEP,
+    dispose: 1,
+  });
+  prev = idx;
+});
+gif.finish();
+
 const outPath = path.join(__dirname, "..", "renderer", "assets", "install.gif");
-fs.writeFileSync(outPath, encoder.out.getData());
-console.log("Generated:", outPath);
-
+fs.writeFileSync(outPath, gif.bytes());
+console.log(`Generated: ${outPath} (${(fs.statSync(outPath).size / 1024).toFixed(0)} KB)`);
