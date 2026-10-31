@@ -221,7 +221,7 @@ describe("targets", () => {
 
     scene.updateScene();
 
-    assert.deepEqual(model.pointTargets, [{ label: "T1", position: [25, -3, 1.5] }]);
+    assert.deepEqual(model.pointTargets, [{ label: "T1", index: 0, position: [25, -3, 1.5] }]);
     document.querySelectorAll("body > input").forEach((n) => n.remove());
   });
 

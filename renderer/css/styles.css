@@ -479,6 +479,19 @@ select option{color:var(--ink);background:var(--solid)}
 .result-card-controls .number-input-wrapper{width:64px;margin-right:4px}
 .result-card-controls .number-input-wrapper:last-child{margin-right:0}
 .result-card-controls input{height:24px}
+/* What is being moved or turned in the scene, and how */
+.scene-edit{display:flex;align-items:center;gap:10px;padding:4px 4px 4px 12px;font-size:12px;color:var(--ink-2);
+  background:var(--panel);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow);
+  backdrop-filter:blur(10px);pointer-events:auto}
+.scene-edit.hidden{display:none}
+.scene-edit-name{display:flex;align-items:center;gap:7px;font:600 12px var(--mono);color:var(--ink)}
+.scene-edit[data-kind=radar] .mk-glyph{--mk:var(--radar);width:11px;height:11px;background:transparent;border:2px solid var(--mk)}
+.scene-edit[data-kind=point] .mk-glyph{--mk:var(--point);border-radius:50%}
+.scene-edit[data-kind=mesh] .mk-glyph{--mk:var(--mesh);transform:rotate(45deg) scale(.85)}
+.scene-edit .mk-glyph{box-shadow:none}
+.scene-edit-hint{color:var(--ink-3)}
+.scene-edit .btn-icon{width:26px;height:26px}
+@container (max-width:560px){.scene-edit-hint{display:none}}
 .stage-help{font-size:11px;color:var(--ink-3);text-align:center;text-shadow:0 0 3px #000}
 /* The gap between the panels is narrow: what is not a control goes */
 @container (max-width:560px){.stage-help,.legend{display:none}}

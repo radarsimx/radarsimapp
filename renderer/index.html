@@ -650,6 +650,21 @@
           Results are outdated &mdash; run the simulation again.
         </div>
         <div id="scene-pose-note" class="notice scene-only hidden"></div>
+        <!-- What is being moved or turned in the scene -->
+        <div id="scene-edit" class="scene-edit scene-only hidden" role="toolbar" aria-label="Edit in scene">
+          <span class="scene-edit-name"><i class="mk-glyph"></i><b id="scene-edit-name"></b></span>
+          <div class="seg" role="radiogroup" aria-label="Handle">
+            <button type="button" role="radio" data-edit-mode="translate" aria-checked="true"
+              title="Move along x, y, z (W)">Move</button>
+            <button type="button" role="radio" data-edit-mode="rotate" aria-checked="false"
+              title="Turn: yaw, pitch, roll (E)">Rotate</button>
+          </div>
+          <span class="scene-edit-hint">Shift: snap</span>
+          <button type="button" class="btn-icon" id="btn-scene-edit-done" title="Done (Esc)" aria-label="Done">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </div>
       </div>
       <div class="stage-bottom">
         <div id="scene-legend" class="legend scene-only"></div>
@@ -683,8 +698,8 @@
             <input type="number" id="bb-pulse-idx" value="0" min="0" step="1" />
           </div>
         </div>
-        <div class="stage-help scene-only"><span id="scene-scale"></span> &middot; Drag: orbit &middot; Right-drag:
-          pan &middot; Wheel: zoom &middot; Double-click: fit</div>
+        <div class="stage-help scene-only"><span id="scene-scale"></span> &middot; Click: edit &middot; Drag: orbit
+          &middot; Right-drag: pan &middot; Wheel: zoom &middot; Double-click: fit</div>
       </div>
     </div>
 

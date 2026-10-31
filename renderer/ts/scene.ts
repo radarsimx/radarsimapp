@@ -9,9 +9,20 @@ import { collectConfig } from './config.js';
 
 export type Vec3 = [number, number, number];
 
+/**
+ * Where something is and how it is turned: location (m) and yaw, pitch, roll
+ * (deg), as the fields hold them and as the library takes them.
+ */
+export interface Pose {
+  location: Vec3;
+  rotation: Vec3;
+}
+
 export interface SceneMarker {
   label: string;
   position: Vec3;
+  /** Which target it is, for the kinds there can be several of. */
+  index?: number;
   /**
    * For a channel in focus (see setCoverageFocus): the angles its antenna
    * pattern spans (deg off boresight). Null for the rest, which draw no fans.
@@ -50,6 +61,18 @@ export interface SceneModel {
   meshMarkers: SceneMarker[];
   /** Why the library could not report the radar pose; null while it can. */
   poseError: string | null;
+  /** The platform's pose in the fields now. */
+  radarPose: Pose;
+  /**
+   * The platform's pose the library's answer (channels, boresight) was worked
+   * out for; null with no answer. Until the next answer the view moves what
+   * came back by the difference, so it keeps up with the fields.
+   */
+  radarLibPose: Pose | null;
+  /** Each mesh target's pose in the fields now, by mesh target. */
+  meshPoses: Pose[];
+  /** The pose each mesh's geometry was placed at, by SceneMesh.index. */
+  meshLibPoses: Map<number, Pose>;
 }
 
 export const MESH_COLORS = ["#a29bfe", "#00cec9", "#fab1a0", "#74b9ff", "#ffeaa7"];
@@ -75,6 +98,9 @@ let _sceneState: SceneState | null = null;
 let _sceneStateKey: string | null = null;
 let _sceneStateInFlight = false;
 let _poseError: string | null = null;
+/** The poses the cached state was asked for (see Pose). */
+let _libRadarPose: Pose | null = null;
+let _libMeshPoses = new Map<number, Pose>();
 
 /** Scene time the view is drawn at (s). Poses are queried at this instant. */
 const SCENE_TIMESTAMP = 0;
@@ -110,13 +136,22 @@ const _refreshSceneState = debounce(async () => {
 
   const key = _sceneStateKeyOf(cfg);
   if (key === _sceneStateKey) return;
+  // Which mesh targets went in, as collectConfig skips those with no model
+  const withModel: number[] = meshTargets.map((_: MeshTargetData, i: number) => i).filter((i: number) =>
+    (document.getElementById(`mesh-${i}-model`) as HTMLInputElement | null)?.value);
 
   _sceneStateInFlight = true;
   try {
     const res = await window.api.getSceneState({ ...cfg, timestamp: SCENE_TIMESTAMP });
     _sceneStateKey = key;
     if (res.success && res.data) {
+      // The bridge numbers meshes among the targets that have a model file;
+      // renumber them as mesh targets, which is how the rest of the app counts
+      res.data.meshes.forEach((m: SceneMesh) => { m.index = withModel[m.index] ?? m.index; });
       _sceneState = res.data;
+      _libRadarPose = _cfgPose(cfg.radar);
+      _libMeshPoses = new Map((cfg.targets || []).filter((t: any) => t && t.model)
+        .map((t: any, n: number) => [withModel[n] ?? n, _cfgPose(t)] as [number, Pose]));
       if (res.data.warnings.length > 0) {
         console.warn("[scene] " + res.data.warnings.join("; "));
       }
@@ -180,6 +215,24 @@ function _channelMarkers(locations: Float32Array | null | undefined, prefix: "TX
   return markers;
 }
 
+function _vec(v: any): Vec3 {
+  return [0, 1, 2].map((k) => Number(v?.[k]) || 0) as Vec3;
+}
+
+function _cfgPose(c: any): Pose {
+  return { location: _vec(c?.location), rotation: _vec(c?.rotation) };
+}
+
+/** A pose from its fields: `${prefix}-loc-x` and so on, and `${prefix}-rot-yaw` and so on. */
+function _fieldPose(prefix: string, fallbackX: number = 0): Pose {
+  const g = (name: string): string | undefined =>
+    (document.getElementById(`${prefix}-rot-${name}`) as HTMLInputElement | null)?.value;
+  return {
+    location: _fieldVec(prefix, fallbackX),
+    rotation: [parseNumber(g("yaw")), parseNumber(g("pitch")), parseNumber(g("roll"))],
+  };
+}
+
 function _fieldVec(prefix: string, fallbackX: number = 0): Vec3 {
   const g = (axis: string): string | undefined =>
     (document.getElementById(`${prefix}-loc-${axis}`) as HTMLInputElement | null)?.value;
@@ -204,7 +257,7 @@ export function buildSceneModel(): SceneModel {
   const drawn = new Set<number>(meshes.map((m: SceneMesh) => m.index));
   const meshMarkers: SceneMarker[] = [];
   meshTargets.forEach((_: MeshTargetData, i: number) => {
-    if (!drawn.has(i)) meshMarkers.push({ label: `M${i + 1}`, position: _fieldVec(`mesh-${i}`) });
+    if (!drawn.has(i)) meshMarkers.push({ label: `M${i + 1}`, index: i, position: _fieldVec(`mesh-${i}`) });
   });
 
   // A scene missing its native pose is drawn without channels or boresight
@@ -219,11 +272,16 @@ export function buildSceneModel(): SceneModel {
     roll: parseNumber((document.getElementById("radar-rot-roll") as HTMLInputElement | null)?.value),
     pointTargets: pointTargets.map((_: PointTargetData, i: number) => ({
       label: `T${i + 1}`,
+      index: i,
       position: _fieldVec(`pt-${i}`, 10),
     })),
     meshes,
     meshMarkers,
     poseError: _poseError,
+    radarPose: _fieldPose("radar"),
+    radarLibPose: _sceneState ? _libRadarPose : null,
+    meshPoses: meshTargets.map((_: MeshTargetData, i: number) => _fieldPose(`mesh-${i}`)),
+    meshLibPoses: _sceneState ? _libMeshPoses : new Map(),
   };
 }
 

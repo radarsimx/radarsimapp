@@ -116,6 +116,7 @@ export function select(next: Selection): void {
 
   // The fields just shown may carry a plot, which could not be drawn while hidden
   redrawInspectorPlots();
+  document.dispatchEvent(new CustomEvent<Selection>("outlineselect", { detail: next }));
 }
 
 /** Rebuild the entries of the things there can be several of, after one is added or removed. */

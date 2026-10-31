@@ -8,9 +8,10 @@ import { savePointTargetStates, saveMeshTargetStates, renderPointTargets, render
 import { collectConfig } from './config.js';
 import { debouncedAutoSave, resetToDefault, initApp } from './state.js';
 import { updateScene, setSceneSink } from './scene.js';
-import { SceneView, type SceneFraming, type CameraPreset } from './scene3d.js';
+import { SceneView, canRotate, type SceneFraming, type CameraPreset, type EditTarget, type EditMode } from './scene3d.js';
+import type { Pose } from './scene.js';
 import { updateReadout, formatLength } from './readout.js';
-import { initOutline, select, syncCoverageFocus } from './outline.js';
+import { initOutline, select, syncCoverageFocus, type Selection } from './outline.js';
 import { initColumnResize, place as placeColumnGrips } from './colresize.js';
 import { pref, setPref, setStageView, setResultViewsAvailable, isResultView, layoutStage, type StageView } from './stage.js';
 
@@ -26,22 +27,100 @@ let lastSimResult: any = null;
 // --- 3D Scene ---
 // The view needs WebGL. Without it the panels and the result plots still work.
 let sceneView: SceneView | null = null;
+/** The grid's cell (m): positions moved in the scene are kept to a hundredth of it. */
+let sceneCell = 1;
 try {
   sceneView = new SceneView(document.getElementById("scene-host")!);
   sceneView.onScale = (cell) => {
+    sceneCell = cell;
     document.getElementById("scene-scale")!.textContent = `Grid ${formatLength(cell)}`;
   };
   setSceneSink((model) => sceneView!.setModel(model));
-  // The radar in the scene opens the platform's pose, its panel unfolded if need be
-  sceneView.onPickRadar = () => {
-    const panel = document.getElementById("panel-radar") as HTMLDetailsElement | null;
+  // What is clicked in the scene opens its fields, its panel unfolded if need
+  // be, and takes the handle to be moved or turned right there
+  sceneView.onPick = (target) => {
+    const panel = document.getElementById(_editPanel(target)) as HTMLDetailsElement | null;
     if (panel && !panel.open) panel.open = true;
-    select({ kind: "radar" });
+    select({ kind: target.kind, index: target.index });
+    sceneView!.setEditTarget(target);
   };
+  sceneView.onEdit = _writePose;
+  sceneView.onEditChange = _showEditBar;
 } catch (err) {
   console.warn("[scene] 3D view unavailable:", err);
   document.getElementById("scene-host")!.textContent = "3D view unavailable";
 }
+
+// --- Editing in the scene ---
+function _editPanel(t: EditTarget): string {
+  return t.kind === "radar" ? "panel-radar" : "panel-targets";
+}
+
+/** The fields a pose is kept in: `${prefix}-loc-x` and so on, `${prefix}-rot-yaw` and so on. */
+function _fieldPrefix(t: EditTarget): string {
+  return t.kind === "radar" ? "radar" : t.kind === "point" ? `pt-${t.index ?? 0}` : `mesh-${t.index ?? 0}`;
+}
+
+/** Fields the handle has changed in the drag under way, told once it is let go. */
+const _dragged = new Set<HTMLInputElement>();
+
+/**
+ * The handle moved something: the fields follow as it goes, and the scene
+ * with them. Letting go tells everything else that watches the fields --
+ * saving, the outdated results, the diagram -- once.
+ */
+function _writePose(target: EditTarget, pose: Pose, done: boolean): void {
+  const prefix = _fieldPrefix(target);
+  const places = Math.min(6, Math.max(0, Math.ceil(-Math.log10(sceneCell / 100))));
+  const set = (id: string, value: number, digits: number): void => {
+    const input = document.getElementById(id) as HTMLInputElement | null;
+    if (!input) return;
+    const text = String(Number(value.toFixed(digits)) || 0);  // no "-0"
+    if (Number(input.value) === Number(text)) return;
+    input.value = text;
+    _dragged.add(input);
+  };
+  ["x", "y", "z"].forEach((a, k) => set(`${prefix}-loc-${a}`, pose.location[k], places));
+  if (canRotate(target)) {
+    ["yaw", "pitch", "roll"].forEach((a, k) => set(`${prefix}-rot-${a}`, pose.rotation[k], 1));
+  }
+  updateScene();
+  if (!done) return;
+  _dragged.forEach((input) => input.dispatchEvent(new Event("input", { bubbles: true })));
+  _dragged.clear();
+}
+
+// Called as the scene is first drawn, so it finds its elements itself
+function _showEditBar(target: EditTarget | null, mode: EditMode): void {
+  const bar = document.getElementById("scene-edit")!;
+  bar.classList.toggle("hidden", !target);
+  if (!target) return;
+  bar.dataset.kind = target.kind;
+  const i = target.index ?? 0;
+  document.getElementById("scene-edit-name")!.textContent =
+    target.kind === "radar" ? "Radar" : target.kind === "point" ? `T${i + 1}` : `M${i + 1}`;
+  bar.querySelectorAll<HTMLButtonElement>("[data-edit-mode]").forEach((btn) => {
+    btn.setAttribute("aria-checked", String(btn.dataset.editMode === mode));
+    btn.disabled = btn.dataset.editMode === "rotate" && !canRotate(target);
+  });
+}
+
+document.querySelectorAll<HTMLButtonElement>("#scene-edit [data-edit-mode]").forEach((btn) => {
+  btn.addEventListener("click", () => sceneView?.setEditMode(btn.dataset.editMode as EditMode));
+});
+document.getElementById("btn-scene-edit-done")!.addEventListener("click", () => sceneView?.setEditTarget(null));
+
+// The handle follows what is picked in the panel it belongs to: onto another
+// target or the platform, and away when something it cannot move is picked
+document.addEventListener("outlineselect", (e) => {
+  const current = sceneView?.getEditTarget();
+  if (!current) return;
+  const next = (e as CustomEvent<Selection>).detail;
+  const onTargets = (k: string): boolean => k === "point" || k === "mesh";
+  if (onTargets(next.kind) !== onTargets(current.kind)) return;
+  sceneView!.setEditTarget(next.kind === "radar" || onTargets(next.kind)
+    ? { kind: next.kind as EditTarget["kind"], index: next.index } : null);
+});
 
 // --- Stage Views ---
 function _resizePlots(root: ParentNode): void {
@@ -90,6 +169,9 @@ document.querySelectorAll<HTMLDetailsElement>("details[data-panel]").forEach((pa
     placeColumnGrips();
     // The coverage fans show only while the Radar panel is open
     if (panel.id === "panel-radar") syncCoverageFocus();
+    // Nor does the handle stay on something whose fields have been folded away
+    const editing = sceneView?.getEditTarget();
+    if (!panel.open && editing && _editPanel(editing) === panel.id) sceneView!.setEditTarget(null);
   });
 });
 // Saved from before there was an accordion, two may start open: keep the first

@@ -6,14 +6,56 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { meshColor, type SceneModel, type SceneMarker, type Vec3 } from './scene.js';
+import { meshColor, type SceneModel, type SceneMarker, type Vec3, type Pose } from './scene.js';
 import { formatLength } from './readout.js';
 import type { StageInsets } from './stage.js';
 
 /** What the camera frames: everything, or just the antenna array. */
 export type SceneFraming = "scene" | "array";
 export type CameraPreset = "iso" | "top" | "side";
+
+/** What can be picked in the scene, and moved there with the handle. */
+export interface EditTarget {
+  kind: "radar" | "point" | "mesh";
+  index?: number;
+}
+export type EditMode = "translate" | "rotate";
+
+/** Only what has a rotation can be turned: the platform and the meshes. */
+export function canRotate(t: EditTarget): boolean {
+  return t.kind !== "point";
+}
+
+function sameTarget(a: EditTarget | null, b: EditTarget | null): boolean {
+  return a?.kind === b?.kind && (a?.index ?? 0) === (b?.index ?? 0);
+}
+
+// Yaw, pitch and roll as radarsimlib turns things: about z, then the new y,
+// then the new x, with a positive pitch raising the nose (so it turns about -y)
+function rotationQuaternion([yaw, pitch, roll]: Vec3): THREE.Quaternion {
+  const rad = THREE.MathUtils.degToRad;
+  return new THREE.Quaternion().setFromEuler(new THREE.Euler(rad(roll), -rad(pitch), rad(yaw), "ZYX"));
+}
+
+/** Back to yaw, pitch and roll, each kept within a half turn of where it was. */
+function quaternionRotation(q: THREE.Quaternion, near: Vec3): Vec3 {
+  const e = new THREE.Euler().setFromQuaternion(q, "ZYX");
+  const deg = THREE.MathUtils.radToDeg;
+  return ([deg(e.z), -deg(e.y), deg(e.x)] as Vec3)
+    .map((a, k) => a + 360 * Math.round((near[k] - a) / 360)) as Vec3;
+}
+
+function poseMatrix(p: Pose): THREE.Matrix4 {
+  return new THREE.Matrix4().compose(
+    new THREE.Vector3(...p.location), rotationQuaternion(p.rotation), new THREE.Vector3(1, 1, 1));
+}
+
+/** What takes something placed at one pose to the same place at another. */
+function poseChange(from: Pose | null | undefined, to: Pose): THREE.Matrix4 {
+  return from ? poseMatrix(to).multiply(poseMatrix(from).invert()) : new THREE.Matrix4();
+}
 
 // The model is in metres, but an antenna array is millimetres across and the
 // orbit controls only notice camera moves above a fixed size. Drawing the
@@ -155,8 +197,12 @@ const TWEEN_MS = 320;
 export class SceneView {
   /** Told the grid's cell size (m) whenever it changes. */
   onScale: ((cell: number) => void) | null = null;
-  /** Told when the radar's marker is clicked (not dragged across). */
-  onPickRadar: (() => void) | null = null;
+  /** Told when the radar, a target or a mesh is clicked (not dragged across). */
+  onPick: ((target: EditTarget) => void) | null = null;
+  /** Told as the handle moves what it holds, and once more (done) when it is let go. */
+  onEdit: ((target: EditTarget, pose: Pose, done: boolean) => void) | null = null;
+  /** Told whenever the handle is put on something, taken off, or switches mode. */
+  onEditChange: ((target: EditTarget | null, mode: EditMode) => void) | null = null;
 
   private renderer: THREE.WebGLRenderer;
   private labels = new CSS2DRenderer();
@@ -171,6 +217,13 @@ export class SceneView {
   private rings = new THREE.Group();
   private ringNames: { radius: number; name: CSS2DObject }[] = [];
   private markers = new THREE.Group();
+  /**
+   * What the library placed for the platform: its channels and its beam. It
+   * moves by however far the platform has moved in the fields since, until
+   * the library has caught up.
+   */
+  private radarLib = new THREE.Group();
+  private channelMarkers = new THREE.Group();
   private meshGroup = new THREE.Group();
   private meshObjects = new Map<SceneMesh, THREE.Mesh>();
   /** The boresight and the pattern spans around it, in the platform's axes; scaled to its reach. */
@@ -202,6 +255,20 @@ export class SceneView {
   private raf = 0;
   private gridCell = 0;
   private reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+  // --- Editing in the scene ---
+  /** The handle, and what it holds: a stand-in at the pose of what is being edited. */
+  private gizmo: TransformControls;
+  private proxy = new THREE.Object3D();
+  private editTarget: EditTarget | null = null;
+  private editMode: EditMode = "translate";
+  /** The pose when the drag began: what the drag does not change is kept exactly. */
+  private dragStart: Pose | null = null;
+  private raycaster = new THREE.Raycaster();
+  /** Where the press that may make a click began, on what, and whether on the handle. */
+  private press: { x: number; y: number; on: EventTarget | null; onGizmo: boolean } | null = null;
+  /** What each pickable marker stands for. */
+  private pickTargets = new WeakMap<Element, EditTarget>();
 
   constructor(private host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -277,13 +344,168 @@ export class SceneView {
     this.beam.add(this.beamFans, this.beamAxis, this.beamTip);
     this.beam.visible = false;
 
+    this.radarLib.matrixAutoUpdate = false;
+    this.radarLib.add(this.beam, this.channelMarkers);
     this.world.scale.setScalar(UNITS_PER_METRE);
-    this.world.add(this.grid, this.axes, this.rings, this.meshGroup, this.beam, this.markers);
+    this.world.add(this.grid, this.axes, this.rings, this.meshGroup, this.radarLib, this.markers, this.proxy);
     this.scene.add(this.world);
+
+    this.gizmo = this.buildGizmo();
 
     host.addEventListener("dblclick", () => this.fit());
     new ResizeObserver(() => this.resize()).observe(host);
     this.resize();
+  }
+
+  // --- Editing ---
+  /**
+   * The move and turn handle. On the canvas, which the orbit controls sit
+   * above, so a press on the handle is its own and does not orbit the view.
+   */
+  private buildGizmo(): TransformControls {
+    const gizmo = new TransformControls(this.camera, this.renderer.domElement);
+    gizmo.setSize(0.9);
+    gizmo.addEventListener("change", () => this.invalidate());
+    gizmo.addEventListener("dragging-changed", (e) => {
+      const dragging = !!(e as unknown as { value: boolean }).value;
+      this.orbit.enabled = !dragging;
+      if (dragging) {
+        this.dragStart = this.editTarget ? this.poseOf(this.editTarget) : null;
+        // The camera stays put while things move, rather than re-framing round them
+        this.userMoved = true;
+        this.tween = null;
+      } else {
+        this.emitEdit(true);
+        this.dragStart = null;
+      }
+    });
+    gizmo.addEventListener("objectChange", () => this.emitEdit(false));
+    this.scene.add(gizmo.getHelper());
+
+    // A click picks the marker or the mesh under it; a click on nothing lets go
+    // of what was picked. The orbit controls capture the pointer on the host,
+    // so the click itself lands there whatever was pressed: watch the press and
+    // the release instead, ahead of the controls. Only a press and release in
+    // about the same place counts; a drag orbits the view.
+    const canvas = this.renderer.domElement;
+    this.host.addEventListener("pointerdown", (e) => {
+      this.press = e.button === 0
+        ? { x: e.clientX, y: e.clientY, on: e.target, onGizmo: gizmo.axis !== null } : null;
+    }, { capture: true });
+    this.host.addEventListener("pointerup", (e) => {
+      const press = this.press;
+      this.press = null;
+      if (!press || press.onGizmo || Math.hypot(e.clientX - press.x, e.clientY - press.y) >= 5) return;
+      // A marker may lie under another (the channels sit on the platform):
+      // the first one under the press that can be picked is the one
+      const marker = (press.on as Element | null)?.closest?.(".mk")
+        ? document.elementsFromPoint(press.x, press.y).map((el) => el.closest(".mk-pick")).find((el) => el)
+        : null;
+      const picked = marker ? this.pickTargets.get(marker) : undefined;
+      if (picked) {
+        this.onPick?.(picked);
+      } else if (press.on === canvas) {
+        const mesh = this.meshAt(e.clientX, e.clientY);
+        if (mesh !== null) this.onPick?.({ kind: "mesh", index: mesh });
+        else this.setEditTarget(null);
+      }
+    }, { capture: true });
+
+    // Shift snaps: to the grid's cells when moving, to 15 degrees when turning.
+    // Read off the pointer as well as the keys, so it holds however Shift went down.
+    const snap = (e: KeyboardEvent | PointerEvent): void => {
+      gizmo.setTranslationSnap(e.shiftKey ? this.gridCell : null);
+      gizmo.setRotationSnap(e.shiftKey ? THREE.MathUtils.degToRad(15) : null);
+    };
+    window.addEventListener("keydown", snap);
+    window.addEventListener("keyup", snap);
+    this.host.addEventListener("pointerdown", snap, { capture: true });
+    this.host.addEventListener("pointermove", snap, { capture: true });
+    window.addEventListener("keydown", (e) => {
+      if (!this.editTarget || e.ctrlKey || e.metaKey || e.altKey) return;
+      if ((e.target as HTMLElement).closest?.("input, select, textarea, [contenteditable]")) return;
+      if (document.querySelector(".dialog-overlay:not(.hidden)")) return;
+      if (e.key === "Escape") this.setEditTarget(null);
+      else if (e.key === "w" || e.key === "W") this.setEditMode("translate");
+      else if (e.key === "e" || e.key === "E") this.setEditMode("rotate");
+    });
+    return gizmo;
+  }
+
+  /** The mesh target under a point on the screen, if any. */
+  private meshAt(clientX: number, clientY: number): number | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    this.raycaster.setFromCamera(ndc, this.camera);
+    const hit = this.raycaster.intersectObjects(this.meshGroup.children, false)[0];
+    if (!hit) return null;
+    for (const [source, object] of this.meshObjects) if (object === hit.object) return source.index;
+    return null;
+  }
+
+  /** Put the handle on something, or (null) take it off. */
+  setEditTarget(target: EditTarget | null): void {
+    if (target && !this.poseOf(target)) target = null;  // not in the scene (any more)
+    if (sameTarget(target, this.editTarget)) return;
+    this.editTarget = target;
+    if (target && !canRotate(target)) this.editMode = "translate";
+    this.placeGizmo();
+  }
+
+  /** Move, or turn. What cannot turn is only ever moved. */
+  setEditMode(mode: EditMode): void {
+    if (this.editTarget && !canRotate(this.editTarget)) mode = "translate";
+    if (mode === this.editMode) return;
+    this.editMode = mode;
+    this.placeGizmo();
+  }
+
+  getEditTarget(): EditTarget | null {
+    return this.editTarget;
+  }
+
+  /** The pose of something in the scene, as its fields have it; null if it is not there. */
+  private poseOf(t: EditTarget): Pose | null {
+    const model = this.model;
+    if (!model) return null;
+    const i = t.index ?? 0;
+    if (t.kind === "radar") return model.radarPose;
+    if (t.kind === "point") {
+      const p = model.pointTargets[i];
+      return p ? { location: p.position, rotation: [0, 0, 0] } : null;
+    }
+    return model.meshPoses[i] ?? null;
+  }
+
+  /** Bring the handle in line with what it holds, unless the user is dragging it. */
+  private placeGizmo(): void {
+    if (this.gizmo.dragging) return;
+    const pose = this.editTarget ? this.poseOf(this.editTarget) : null;
+    if (!pose) {
+      this.editTarget = null;
+      if (this.gizmo.object) this.gizmo.detach();
+    } else {
+      this.proxy.position.set(...pose.location);
+      this.proxy.quaternion.copy(rotationQuaternion(pose.rotation));
+      this.proxy.updateMatrixWorld();
+      this.gizmo.setMode(this.editMode);
+      // Moved along the world's axes, turned about its own
+      this.gizmo.setSpace(this.editMode === "rotate" ? "local" : "world");
+      if (this.gizmo.object !== this.proxy) this.gizmo.attach(this.proxy);
+    }
+    this.onEditChange?.(this.editTarget, this.editMode);
+    this.invalidate();
+  }
+
+  private emitEdit(done: boolean): void {
+    const target = this.editTarget, start = this.dragStart;
+    if (!target || !start) return;
+    // Only what the handle is for changes; the rest stays exactly as it was
+    const pose: Pose = this.editMode === "rotate"
+      ? { location: start.location, rotation: quaternionRotation(this.proxy.quaternion, start.rotation) }
+      : { location: this.proxy.position.toArray() as Vec3, rotation: start.rotation };
+    this.onEdit?.(target, pose, done);
   }
 
   private css(name: string): string {
@@ -295,19 +517,27 @@ export class SceneView {
     this.model = model;
 
     this.markers.clear();  // a removed marker takes its element with it
+    this.channelMarkers.clear();
     this.markers.add(this.pickable(markerObject("radar", { label: "Radar", position: model.radar }),
-      () => this.onPickRadar?.(), "Platform: click to edit its pose"));
-    model.tx.forEach((m) => this.markers.add(markerObject("tx", m)));
-    model.rx.forEach((m) => this.markers.add(markerObject("rx", m)));
-    model.pointTargets.forEach((m) => this.markers.add(markerObject("point", m)));
-    model.meshMarkers.forEach((m) => this.markers.add(markerObject("mesh", m)));
+      { kind: "radar" }, "Platform: click to move or turn it"));
+    model.tx.forEach((m) => this.channelMarkers.add(markerObject("tx", m)));
+    model.rx.forEach((m) => this.channelMarkers.add(markerObject("rx", m)));
+    model.pointTargets.forEach((m, i) => this.markers.add(this.pickable(markerObject("point", m),
+      { kind: "point", index: i }, `${m.label}: click to move it`)));
+    model.meshMarkers.forEach((m) => this.markers.add(this.pickable(markerObject("mesh", m),
+      { kind: "mesh", index: m.index ?? 0 }, `${m.label}: click to move or turn it`)));
+    // Until the library answers for where the platform is now, what it placed
+    // moves by however far the platform has moved since
+    this.radarLib.matrix.copy(poseChange(model.radarLibPose, model.radarPose));
+    this.radarLib.matrixWorldNeedsUpdate = true;
 
-    this.syncMeshes(model.meshes);
+    this.syncMeshes(model);
     this.buildRings(model);
     this.arrayBounds = this.bounds("array");
     this.sceneBounds = this.bounds("scene");
 
     this.buildBeam(model);
+    this.placeGizmo();
 
     if (this.userMoved) {
       this.invalidate();
@@ -334,8 +564,10 @@ export class SceneView {
     this.beamFans.traverse((o) => { if (o instanceof THREE.Mesh || o instanceof THREE.Line) o.geometry.dispose(); });
     this.beamFans.clear();
     if (!model.boresight) return;
-    const frame = beamFrame(model.boresight, model.roll);
-    this.beam.position.set(...model.radar);
+    // Where the library had the platform; radarLib moves it on to where it is now
+    const at = model.radarLibPose ?? model.radarPose;
+    const frame = beamFrame(model.boresight, at.rotation[2]);
+    this.beam.position.set(...at.location);
     this.beam.quaternion.copy(frame);
 
     const channels = [...model.tx, ...model.rx].filter((c) => c.coverage);
@@ -348,7 +580,7 @@ export class SceneView {
     }
 
     const toPlatform = frame.clone().invert();
-    const radar = new THREE.Vector3(...model.radar);
+    const radar = new THREE.Vector3(...at.location);
     for (const c of channels) {
       const { az, el } = c.coverage!;
       // A fan's place is set here, in the platform's axes; its size, each frame
@@ -366,20 +598,12 @@ export class SceneView {
     }
   }
 
-  /**
-   * Make a marker a click target. A drag that starts on it still orbits the
-   * view, so only a press and release in about the same place counts.
-   */
-  private pickable(marker: CSS2DObject, onPick: () => void, title: string): CSS2DObject {
+  /** Make a marker a click target (see buildGizmo for what counts as a click). */
+  private pickable(marker: CSS2DObject, target: EditTarget, title: string): CSS2DObject {
     const elem = marker.element;
     elem.classList.add("mk-pick");
     elem.title = title;
-    let down: [number, number] | null = null;
-    elem.addEventListener("pointerdown", (e) => { down = [e.clientX, e.clientY]; });
-    elem.addEventListener("click", (e) => {
-      if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 5) onPick();
-      down = null;
-    });
+    this.pickTargets.set(elem, target);
     return marker;
   }
 
@@ -392,7 +616,8 @@ export class SceneView {
   }
 
   /** Geometry is kept for as long as the library's mesh object is the same one. */
-  private syncMeshes(meshes: SceneMesh[]): void {
+  private syncMeshes(model: SceneModel): void {
+    const meshes = model.meshes;
     const current = new Set(meshes);
     for (const [source, object] of this.meshObjects) {
       if (current.has(source)) continue;
@@ -415,14 +640,23 @@ export class SceneView {
           color: meshColor(m.index), flatShading: true, roughness: 0.65, metalness: 0.05,
           side: THREE.DoubleSide,
         }));
+        object.matrixAutoUpdate = false;
         this.meshGroup.add(object);
         this.meshObjects.set(m, object);
       }
+      // The geometry is where the library placed it; until it places it again,
+      // it moves by however far the mesh has moved in the fields since
+      const object = this.meshObjects.get(m)!;
+      const pose = model.meshPoses[m.index];
+      const change = pose ? poseChange(model.meshLibPoses.get(m.index), pose) : new THREE.Matrix4();
+      object.matrix.copy(change);
+      object.matrixWorldNeedsUpdate = true;
       if (m.bounds.every(isFinite)) {
-        const [x0, y0, z0, x1, y1, z1] = m.bounds;
-        this.markers.add(markerObject("mesh", {
-          label: `M${m.index + 1}`, position: [(x0 + x1) / 2, (y0 + y1) / 2, z1],
-        }, meshColor(m.index)));
+        const [x0, y0, , x1, y1, z1] = m.bounds;
+        const top = new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, z1).applyMatrix4(change);
+        const label = `M${m.index + 1}`;
+        this.markers.add(this.pickable(markerObject("mesh", { label, position: top.toArray() as Vec3 },
+          meshColor(m.index)), { kind: "mesh", index: m.index }, `${label}: click to move or turn it`));
       }
     }
   }
