@@ -542,21 +542,29 @@ select option{color:var(--ink);background:var(--solid)}
 .sim-overlay-content{display:flex;flex-direction:column;align-items:center;gap:16px}
 /* A scope: the rings and crosshair stay put while the beam sweeps round,
    and each target lights up as the beam passes it, then fades */
-.sim-scope{--sweep:2.4s;position:relative;width:120px;height:120px;border:1px solid var(--line-2);border-radius:50%;
-  overflow:hidden;box-shadow:0 0 32px rgba(184,163,230,.12),inset 0 0 24px rgba(184,163,230,.06);
-  background:
-    radial-gradient(circle,transparent 0 32.5%,var(--line) 32.5% 33.5%,transparent 33.5% 66%,var(--line) 66% 67%,transparent 67%),
-    linear-gradient(transparent calc(50% - .5px),var(--line) calc(50% - .5px) calc(50% + .5px),transparent calc(50% + .5px)),
-    linear-gradient(90deg,transparent calc(50% - .5px),var(--line) calc(50% - .5px) calc(50% + .5px),transparent calc(50% + .5px)),
-    radial-gradient(circle,rgba(78,58,114,.35),rgba(13,11,18,.6) 70%)}
+.sim-scope{--sweep:2.4s;position:relative;width:132px;height:132px;border-radius:50%;
+  box-shadow:0 0 40px rgba(184,163,230,.14),inset 0 0 28px rgba(184,163,230,.08);
+  background:radial-gradient(circle,rgba(78,58,114,.4),rgba(13,11,18,.65) 72%)}
+/* Rings, crosshair and ticks as vector strokes, so they stay sharp at any zoom */
+.sim-grid{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke:var(--line);stroke-width:1;
+  shape-rendering:geometricPrecision}
+.sim-grid .sim-grid-edge{stroke:var(--line-2)}
+.sim-grid .sim-grid-ticks{stroke:var(--line-2);stroke-linecap:round}
+/* The trail fades in smoothly; its one sharp edge sits under the beam line */
 .sim-sweep{position:absolute;inset:0;border-radius:50%;will-change:transform;
-  background:conic-gradient(transparent 0 70%,rgba(184,163,230,.05) 75%,rgba(184,163,230,.38) 99.4%,var(--accent) 99.4% 100%);
+  background:conic-gradient(rgba(184,163,230,0) 0 62%,rgba(184,163,230,.03) 72%,rgba(184,163,230,.12) 88%,
+    rgba(184,163,230,.34) 100%);
   animation:sim-spin var(--sweep) linear infinite}
-.sim-blip{position:absolute;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;border-radius:50%;background:var(--accent);
-  box-shadow:0 0 6px 1px var(--accent);opacity:0;
-  animation:sim-blip var(--sweep) ease-out calc(var(--t) * var(--sweep)) infinite}
+.sim-beam{position:absolute;left:50%;top:0;width:2px;height:50%;margin-left:-1px;border-radius:1px;
+  background:linear-gradient(to top,rgba(184,163,230,.2),var(--accent));
+  box-shadow:0 0 6px 1px rgba(184,163,230,.55)}
+.sim-blip{position:absolute;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;
+  background:radial-gradient(circle,#fff 0 20%,var(--accent) 55%,rgba(184,163,230,0) 100%);
+  box-shadow:0 0 8px 2px rgba(184,163,230,.6);opacity:0;will-change:opacity,transform;
+  animation:sim-blip var(--sweep) cubic-bezier(.2,.7,.3,1) calc(var(--t) * var(--sweep)) infinite}
 @keyframes sim-spin{to{transform:rotate(360deg)}}
-@keyframes sim-blip{0%{opacity:1;transform:scale(1.3)}12%{transform:scale(1)}75%,100%{opacity:0}}
+@keyframes sim-blip{0%{opacity:0;transform:scale(.6)}4%{opacity:1;transform:scale(1.5)}18%{transform:scale(1)}
+  80%,100%{opacity:0;transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){.sim-blip{opacity:.6}}
 .sim-overlay-text{font-size:15px;font-weight:600;letter-spacing:.02em}
 .sim-overlay-sub{font-size:12px;color:var(--ink-2)}
