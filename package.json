@@ -23,11 +23,11 @@
   "author": "RadarSimX",
   "license": "SEE LICENSE IN LICENSE.txt",
   "devDependencies": {
-    "@napi-rs/canvas": "^1.1.0",
+    "@napi-rs/canvas": "^1.1.1",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^26.6.6",
     "@types/three": "^0.187.0",
-    "electron": "^45.2.3",
+    "electron": "^45.3.1",
     "electron-builder": "^26.8.1",
     "gifenc": "^1.0.3",
     "jsdom": "^31.0.0",
@@ -36,8 +36,8 @@
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",
     "h5wasm": "^0.10.3",
-    "koffi": "^3.3.7",
-    "plotly.js-dist": "^4.2.0",
+    "koffi": "^3.3.8",
+    "plotly.js-dist": "^4.3.0",
     "three": "^0.187.0"
   },
   "build": {
