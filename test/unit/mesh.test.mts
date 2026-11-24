@@ -4,7 +4,16 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { after, before, describe, test } from "node:test";
 
-import { loadAsciiStl, loadStl, packSceneMesh, SCENE_MAX_CELLS, UNIT_SCALE } from "../../dist/mesh.js";
+import {
+  loadAsciiStl,
+  loadMesh,
+  loadObj,
+  loadPly,
+  loadStl,
+  packSceneMesh,
+  SCENE_MAX_CELLS,
+  UNIT_SCALE,
+} from "../../dist/mesh.js";
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 let tmp: string;
@@ -147,6 +156,157 @@ describe("loadAsciiStl", () => {
     assert.ok(m.points instanceof Float32Array);
     assert.notEqual(m.points[0], 0.1, "0.1 is not representable in float32");
     assert.ok(Math.abs(m.points[0] - 0.1) < 1e-7);
+  });
+});
+
+// ── OBJ ──────────────────────────────────────────────────────────────────────
+/** A unit square in z = 0 as one quad, written with every corner style OBJ allows. */
+const OBJ_QUAD = `# a unit square
+o square
+v 0 0 0
+v 1000 0 0
+v 1000 1000 0
+v 0 1000 0
+vt 0 0
+vn 0 0 1
+f 1/1/1 2//1 3/1 4
+`;
+
+describe("loadObj", () => {
+  test("reads vertices and splits a quad into two triangles", () => {
+    const m = loadObj(OBJ_QUAD, 1);
+    assert.equal(m.points.length, 4 * 3);
+    assert.equal(m.cellSize, 2);
+    assert.deepEqual(Array.from(m.cells), [0, 1, 2, 0, 2, 3]);
+  });
+
+  test("applies the unit scale", () => {
+    const m = loadObj(OBJ_QUAD, UNIT_SCALE.mm);
+    assert.ok(Math.abs(m.points[3] - 1) < 1e-6, "1000 mm should become 1 m");
+  });
+
+  test("negative indices count back from the latest vertex", () => {
+    const m = loadObj("v 0 0 0\nv 1 0 0\nv 0 1 0\nf -3 -2 -1\n", 1);
+    assert.deepEqual(Array.from(m.cells), [0, 1, 2]);
+  });
+
+  test("shares vertices between faces", () => {
+    const m = loadObj("v 0 0 0\nv 1 0 0\nv 0 1 0\nv 1 1 0\nf 1 2 3\nf 2 4 3\n", 1);
+    assert.equal(m.points.length, 4 * 3);
+    assert.deepEqual(Array.from(m.cells), [0, 1, 2, 1, 3, 2]);
+  });
+
+  test("a face that refers to a missing vertex throws", () => {
+    assert.throws(() => loadObj("v 0 0 0\nf 1 2 3\n", 1), /vertex 2/);
+  });
+
+  test("handles CRLF line endings", () => {
+    const m = loadObj(OBJ_QUAD.replace(/\n/g, "\r\n"), 1);
+    assert.equal(m.cellSize, 2);
+  });
+});
+
+// ── PLY ──────────────────────────────────────────────────────────────────────
+/** A unit square as one quad face, with extra properties the loader must read past. */
+const PLY_HEADER = (format: string) => `ply
+format ${format} 1.0
+comment a unit square
+element vertex 4
+property float x
+property float y
+property float z
+property uchar red
+element face 1
+property list uchar int vertex_indices
+property uchar flags
+end_header
+`;
+const PLY_VERTICES = [
+  [0, 0, 0],
+  [1000, 0, 0],
+  [1000, 1000, 0],
+  [0, 1000, 0],
+];
+
+function binaryPly(littleEndian: boolean): Buffer {
+  const header = Buffer.from(PLY_HEADER(littleEndian ? "binary_little_endian" : "binary_big_endian"), "ascii");
+  const body = Buffer.alloc(4 * (12 + 1) + (1 + 4 * 4 + 1));
+  let off = 0;
+  for (const v of PLY_VERTICES) {
+    for (const c of v) {
+      if (littleEndian) body.writeFloatLE(c, off);
+      else body.writeFloatBE(c, off);
+      off += 4;
+    }
+    body.writeUInt8(200, off++); // red
+  }
+  body.writeUInt8(4, off++);
+  for (const i of [0, 1, 2, 3]) {
+    if (littleEndian) body.writeInt32LE(i, off);
+    else body.writeInt32BE(i, off);
+    off += 4;
+  }
+  body.writeUInt8(7, off++); // flags
+  return Buffer.concat([header, body]);
+}
+
+describe("loadPly", () => {
+  const asciiPly = Buffer.from(
+    `${PLY_HEADER("ascii")}${PLY_VERTICES.map((v) => `${v.join(" ")} 200`).join("\n")}\n4 0 1 2 3 7\n`,
+    "ascii",
+  );
+
+  for (const [name, buf] of [
+    ["ASCII", asciiPly],
+    ["binary little-endian", binaryPly(true)],
+    ["binary big-endian", binaryPly(false)],
+  ] as const) {
+    test(`${name}: reads the vertices and fans the quad into two triangles`, () => {
+      const m = loadPly(buf, 1);
+      assert.deepEqual(Array.from(m.points), PLY_VERTICES.flat());
+      assert.equal(m.cellSize, 2);
+      assert.deepEqual(Array.from(m.cells), [0, 1, 2, 0, 2, 3]);
+    });
+  }
+
+  test("applies the unit scale", () => {
+    const m = loadPly(binaryPly(true), UNIT_SCALE.mm);
+    assert.ok(Math.abs(m.points[3] - 1) < 1e-6, "1000 mm should become 1 m");
+  });
+
+  test("handles a CRLF header", () => {
+    const crlf = Buffer.from(asciiPly.toString("ascii").replace(/\n/g, "\r\n"), "ascii");
+    assert.equal(loadPly(crlf, 1).cellSize, 2);
+  });
+
+  test("rejects a file that is not PLY", () => {
+    assert.throws(() => loadPly(Buffer.from("solid nope\n"), 1), /Not a PLY file/);
+  });
+
+  test("a truncated body throws rather than reading garbage", () => {
+    const buf = binaryPly(true);
+    assert.throws(() => loadPly(buf.subarray(0, buf.length - 5), 1), /ends early/);
+  });
+});
+
+// ── loadMesh ─────────────────────────────────────────────────────────────────
+describe("loadMesh", () => {
+  test("picks the loader by extension, in any case", () => {
+    fs.writeFileSync(path.join(tmp, "square.OBJ"), OBJ_QUAD);
+    fs.writeFileSync(path.join(tmp, "square.ply"), binaryPly(true));
+    assert.equal(loadMesh(path.join(tmp, "square.OBJ")).cellSize, 2);
+    assert.equal(loadMesh(path.join(tmp, "square.ply")).cellSize, 2);
+    assert.equal(loadMesh(path.join(tmp, "binary.stl")).cellSize, 2);
+  });
+
+  test("passes the unit on", () => {
+    const m = loadMesh(path.join(tmp, "square.OBJ"), "mm");
+    assert.ok(Math.abs(m.points[3] - 1) < 1e-6);
+  });
+
+  test("an unsupported extension throws, naming the ones that work", () => {
+    fs.writeFileSync(path.join(tmp, "model.fbx"), "");
+    assert.throws(() => loadMesh(path.join(tmp, "model.fbx")), /\.stl, \.obj, \.ply/);
   });
 });
 

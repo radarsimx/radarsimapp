@@ -27,7 +27,7 @@ RadarSimApp puts RadarSimLib behind a graphical interface. You lay out an FMCW r
 - :satellite: **Radar as a block diagram.** The transmit and receive chains (waveform generator, PA, TX/RX antennas, LNA, mixer, baseband amplifier, ADC) are drawn as blocks. Click a block to edit it; the inspector shows only that block's fields.
 - :globe_with_meridians: **Live 3D scene.** The radar, its channels, boresight and targets sit on a ground grid with range rings. Orbit, pan and zoom, or jump to Iso / Top / Side views. The **Array** view shows the antenna layout face-on along boresight.
 - :chart_with_upwards_trend: **Instant previews.** Editing the waveform plots frequency against time; editing a channel plots its antenna pattern. The **Readout** panel updates bandwidth, range resolution, maximum velocity and velocity resolution as you type.
-- :dart: **Point and mesh targets.** Point targets take location, speed, RCS and phase. Mesh targets load STL models with a unit, location, speed, rotation, rotation rate and permittivity.
+- :dart: **Point and mesh targets.** Point targets take location, speed, RCS and phase. Mesh targets load STL, OBJ or PLY models with a unit, location, speed, rotation, rotation rate and permittivity.
 - :zap: **Simulation and processing.** Choose frame, pulse or sample fidelity, set ray density, and add receiver noise if you want it. Range profile and Range-Doppler map are computed with configurable FFT sizes.
 - :bar_chart: **Results in place.** Baseband, range profile and Range-Doppler plots open in the middle of the window, with channel and pulse selectors. A banner warns you when results are older than the current settings.
 - :floppy_disk: **Save, load, export.** Settings are kept between sessions automatically. Save or load whole configurations as JSON, and export results to HDF5 (`.h5`) or JSON.
@@ -115,7 +115,7 @@ Output goes to `dist/`. The native library and `koffi` are unpacked from the `.a
 |---|---|
 | `main.ts`, `preload.ts` | Electron main process, IPC and window handling |
 | `bridge.ts`, `convert.ts` | FFI bindings to RadarSimLib (via `koffi`) and data conversion |
-| `dsp.ts`, `mesh.ts` | FFT-based range/Doppler processing and STL loading |
+| `dsp.ts`, `mesh.ts` | FFT-based range/Doppler processing and mesh loading (STL, OBJ, PLY) |
 | `renderer/` | The UI: HTML, CSS and TypeScript for the panels, 3D scene (`three`) and plots (`plotly.js`) |
 | `test/` | Unit and integration tests (Node's built-in test runner) |
 
