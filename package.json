@@ -11,6 +11,7 @@
     "dist:mac": "npm run build && electron-builder --mac --publish never",
     "dist:linux": "npm run build && electron-builder --linux --publish never",
     "generate-gif": "node scripts/generate-install-gif.js",
+    "generate-icons": "node scripts/generate-icons.js",
     "test": "npm run build && node --test \"test/**/*.test.mts\"",
     "test:unit": "npm run build && node --test \"test/unit/**/*.test.mts\"",
     "test:integration": "npm run build && node --test \"test/integration/**/*.test.mts\"",
@@ -51,7 +52,7 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "renderer/assets/logo.png",
+      "icon": "renderer/assets/logo-macos.png",
       "hardenedRuntime": true
     },
     "linux": {

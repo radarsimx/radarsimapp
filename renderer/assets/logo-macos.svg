@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- RadarSimApp macOS icon: Apple 1024 grid (824 px tile, ~185 px corner radius), drawn at 512 units. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 512 512">
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="6"/>
+      <feOffset dy="5" result="blur"/>
+      <feFlood flood-color="#000000" flood-opacity="0.22"/>
+      <feComposite in2="blur" operator="in"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="50" y="50" width="412" height="412" rx="92.5" fill="#eef5e6" filter="url(#shadow)"/>
+  <g transform="translate(256 256) scale(0.8) translate(-256 -256)">
+    <g transform="translate(-22.608341,-57.680367)">
+      <g transform="matrix(3.3032258,0,0,3.3032258,-93.844154,-174.62296)"> <path fill="none" stroke="#689f38" stroke-width="8.81944" stroke-linecap="round" stroke-opacity="0.3" d="m 146.58075,174.75435 a 43.236115,43.236115 0 0 1 -0.0242,0.0304" /> <path fill="none" stroke="#689f38" stroke-width="8.81944" stroke-linecap="round" stroke-opacity="0.3" d="m 138.43077,159.57316 a 28.236115,28.236115 0 0 1 -0.0392,0.0854" /> <path fill="none" stroke="#689f38" stroke-width="8.81944" stroke-linecap="round" d="m 112.75417,147.8262 33.8787,-34.94778" /> <path fill="none" stroke="#689f38" stroke-width="8.81944" stroke-linecap="round" stroke-opacity="0.5" d="m 135.5961,184.53599 a 43.236118,43.236118 0 0 1 -42.683862,1.70452" /> <path fill="none" stroke="#689f38" stroke-width="8.81944" stroke-linecap="round" stroke-opacity="0.8" d="M 81.078391,177.25419 A 43.236118,43.236118 0 0 1 70.16347,140.38354" /> <path fill="none" stroke="#689f38" stroke-width="8.81944" stroke-linecap="round" stroke-opacity="0.8" d="M 74.767788,127.17685 A 43.236118,43.236118 0 0 1 90.926834,110.50424" /> <path fill="none" stroke="#689f38" stroke-width="8.819" stroke-linecap="round" stroke-opacity="0.956522" d="m 103.77339,105.53309 a 43.236118,43.236118 0 0 1 29.45707,4.21314" /> <path fill="none" stroke="#689f38" stroke-width="8.81944" stroke-linecap="round" stroke-opacity="0.5" d="m 129.46204,170.58858 a 28.236116,28.236116 0 0 1 -24.0298,4.50789" /> <path fill="none" stroke="#689f38" stroke-width="8.81944" stroke-linecap="round" stroke-opacity="0.7" d="M 94.138712,169.0569 A 28.236116,28.236116 0 0 1 88.195079,133.89319 28.236116,28.236116 0 0 1 121.42797,120.95533" /> <path fill="none" stroke="#689f38" stroke-width="8.81944" stroke-linecap="round" stroke-opacity="0.5" d="m 116.24372,160.59405 a 13.236115,13.236115 0 0 1 -0.0375,0.0102" /> <path fill="none" stroke="#689f38" stroke-width="8.81944" stroke-linecap="round" stroke-opacity="0.7" d="m 103.98089,157.73701 a 13.236115,13.236115 0 0 1 -4.240004,-12.32926 13.236115,13.236115 0 0 1 8.386554,-9.98268" /> <circle fill="none" stroke="#456925" stroke-width="4" cx="112.75417" cy="147.8262" r="52.711033" /> </g>
+    </g>
+    <rect x="232" y="276" width="212" height="140" rx="34" fill="#eef5e6"/>
+    <rect x="240" y="284" width="196" height="124" rx="28" fill="#4e3a72"/>
+    <g transform="translate(338 346) scale(0.84) translate(-338 -346) translate(-22.608341,-57.680367)">
+      <g transform="translate(-1.5570745,6.4051369e-5)"> <path fill="#ffffff" d="m 279.59067,451.09033 25.9635,-94.54618 h 24.38197 l 26.0953,94.54618 h -19.11019 l -15.02457,-62.37146 q -0.65897,-3.03287 -1.44974,-5.93387 -0.65897,-2.901 -1.31795,-5.802 -0.65896,-3.03285 -1.31794,-5.93385 -0.65897,2.901 -1.31794,5.93385 -0.65897,2.901 -1.31795,5.802 -0.65897,2.901 -1.44974,5.93387 l -15.55174,62.37146 z m 20.82352,-23.33985 3.95384,-15.82363 h 27.14965 l 1.84511,15.82363 z" aria-label="A" /> <path d="m 354.9731,449.59033 v -70.68885 h 23.46395 q 12.17749,0 18.11773,5.74223 5.94024,5.64323 5.94024,16.23666 0,7.02928 -2.57411,12.37549 -2.4751,5.24722 -8.01932,8.21734 -5.44522,2.97012 -14.35558,2.97012 h -8.71235 v 25.14701 z m 21.08785,-37.32451 q 4.15817,0 6.83128,-1.18804 2.6731,-1.28706 3.96016,-3.66315 1.38605,-2.4751 1.38605,-5.94024 0,-5.24721 -2.4751,-7.82132 -2.4751,-2.5741 -7.82131,-2.5741 h -9.10837 v 21.18685 z m 21.81388,37.32451 v -70.68885 h 23.46395 q 12.17749,0 18.11773,5.74223 5.94024,5.64323 5.94024,16.23666 0,7.02928 -2.5741,12.37549 -2.4751,5.24722 -8.01933,8.21734 -5.44522,2.97012 -14.35558,2.97012 h -8.71235 v 25.14701 z m 21.08785,-37.32451 q 4.15817,0 6.83128,-1.18804 2.67311,-1.28706 3.96016,-3.66315 1.38605,-2.4751 1.38605,-5.94024 0,-5.24721 -2.4751,-7.82132 -2.4751,-2.5741 -7.82131,-2.5741 h -9.10837 v 21.18685 z" fill="#ffffff" aria-label="PP" /> </g>
+    </g>
+  </g>
+</svg>
