@@ -824,6 +824,14 @@
   <script src="../node_modules/plotly.js-dist/plotly.js"></script>
   <script type="module" src="../dist/renderer/js/app.js"></script>
   <script>
+    // macOS: the native traffic lights replace the custom window buttons
+    if (window.api.platform === 'darwin') {
+      document.documentElement.classList.add('platform-darwin');
+      const kbd = document.querySelector('#btn-run-sim kbd');
+      if (kbd) kbd.innerHTML = '&#8984; &crarr;';
+      document.getElementById('btn-run-sim').title = 'Run the simulation (\u2318\u21B5)';
+      window.api.onFullscreenChanged((isFs) => document.documentElement.classList.toggle('is-fullscreen', isFs));
+    }
     // Titlebar window controls
     document.getElementById('btn-win-minimize').addEventListener('click', () => window.api.windowMinimize());
     document.getElementById('btn-win-close').addEventListener('click', () => window.api.windowClose());

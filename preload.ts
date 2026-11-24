@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("api", {
+  platform: process.platform,
   runSimulation: (config: unknown) => ipcRenderer.invoke("run-simulation", config),
   getSceneState: (config: unknown) => ipcRenderer.invoke("get-scene-state", config),
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),
@@ -15,4 +16,6 @@ contextBridge.exposeInMainWorld("api", {
   windowMaximize: () => ipcRenderer.send("window-maximize"),
   windowClose: () => ipcRenderer.send("window-close"),
   windowIsMaximized: () => ipcRenderer.invoke("window-is-maximized"),
+  onFullscreenChanged: (callback: (isFullscreen: boolean) => void) =>
+    ipcRenderer.on("fullscreen-changed", (_event, isFullscreen: boolean) => callback(isFullscreen)),
 });

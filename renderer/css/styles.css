@@ -132,6 +132,11 @@ sup{top:-.5em}
   color:var(--ink-2);background:transparent;border:0;outline:none;transition:background .12s,color .12s}
 #window-controls button:hover{color:var(--ink);background:var(--panel-2)}
 #window-controls #btn-win-close:hover{color:#fff;background:#e81123}
+/* macOS: native traffic lights sit at the left of the bar, so the brand moves
+   over to clear them and the custom window buttons go */
+.platform-darwin #window-controls{display:none}
+.platform-darwin #titlebar{padding-left:88px;padding-right:12px}
+.platform-darwin.is-fullscreen #titlebar{padding-left:12px}
 /* The bar sheds what it can as the window narrows */
 @container (max-width:1180px){.brand-sub{display:none}}
 @container (max-width:1080px){.plate .btn-sm>span,.btn-run kbd{display:none}}

@@ -57,6 +57,9 @@ interface ElectronAPI {
   windowMaximize(): void;
   windowClose(): void;
   windowIsMaximized(): Promise<boolean>;
+  onFullscreenChanged(callback: (isFullscreen: boolean) => void): void;
+  /** Node's process.platform: "darwin", "win32", "linux", ... */
+  platform: string;
 }
 
 interface Window {

@@ -10,7 +10,7 @@ if (squirrelStartup) {
   require("electron").app.quit();
 }
 
-import { app, BrowserWindow, ipcMain, dialog, shell, Menu } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeTheme } from "electron";
 import * as path from "path";
 import * as fs from "fs";
 import { RadarSimBridge } from "./bridge";
@@ -19,6 +19,7 @@ let mainWindow: BrowserWindow | undefined;
 let bridge: RadarSimBridge | undefined;
 
 const isDev: boolean = process.argv.includes("--dev");
+const isMac: boolean = process.platform === "darwin";
 
 /**
  * Creates and configures the main application window.
@@ -30,7 +31,13 @@ function createWindow(): void {
     minWidth: 1024,
     minHeight: 640,
     title: "RadarSimApp",
-    frame: isDev,
+    // macOS keeps its native traffic lights over the custom title bar; the
+    // other platforms draw their own window buttons in the renderer.
+    ...(isDev
+      ? {}
+      : isMac
+        ? { titleBarStyle: "hidden" as const, trafficLightPosition: { x: 18, y: 23 } }
+        : { frame: false }),
     show: false,
     backgroundColor: "#0d0b12",
     icon: path.join(
@@ -52,6 +59,10 @@ function createWindow(): void {
   mainWindow.once("ready-to-show", () => {
     mainWindow!.show();
   });
+
+  // In full screen macOS hides the traffic lights, so the bar can take back their room
+  mainWindow.on("enter-full-screen", () => mainWindow!.webContents.send("fullscreen-changed", true));
+  mainWindow.on("leave-full-screen", () => mainWindow!.webContents.send("fullscreen-changed", false));
 }
 
 // Pin the App User Model ID so Windows uses the embedded icon.
@@ -60,6 +71,8 @@ if (process.platform === "win32") {
 }
 
 app.whenReady().then(() => {
+  // The UI is dark only: keep native chrome (traffic lights, dialogs, dev frame) dark too
+  nativeTheme.themeSource = "dark";
   if (!isDev) Menu.setApplicationMenu(null);
   bridge = new RadarSimBridge();
 
