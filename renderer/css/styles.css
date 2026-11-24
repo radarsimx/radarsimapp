@@ -176,16 +176,17 @@ body:has(.col-grip.dragging){cursor:col-resize;user-select:none}
 .card-head{display:flex;align-items:center;gap:8px;min-height:36px;padding:0 12px;list-style:none;cursor:pointer;
   border-radius:var(--r-lg)}
 .card-head::-webkit-details-marker{display:none}
-/* A chevron: down while the panel is open, sideways while it is folded */
+/* A chevron while the panel is open; folded, the panel is a chip of icon and name */
 .card-head::after{content:"";flex-shrink:0;width:6px;height:6px;margin:-3px 2px 0 4px;
   border:solid var(--ink-3);border-width:0 1.5px 1.5px 0;transform:rotate(45deg);transition:transform .15s}
-.card:not([open])>.card-head::after{margin-top:0;transform:rotate(-45deg)}
+.card:not([open])>.card-head::after{display:none}
 .card[open]>.card-head{border-bottom:1px solid var(--line);border-radius:var(--r-lg) var(--r-lg) 0 0}
 .card-head:hover{background:var(--panel-2)}
 .card-head h2{font-size:13px;font-weight:600;white-space:nowrap}
 .card-hint{margin-left:auto;overflow:hidden;font-size:11px;color:var(--ink-3);white-space:nowrap;text-overflow:ellipsis}
 .card:not([open]) .card-hint{display:none}
-.idx{font:600 11px/1 var(--mono);color:var(--accent)}
+.card-ico{flex-shrink:0;width:16px;height:16px;fill:none;stroke:var(--accent);stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
 .card-body{display:flex;flex-direction:column;gap:12px;padding:12px}
 /* ── Radar architecture ────────────────────────────────── */
 /* The radar as a block diagram, every block a button. The dashed frame is the
