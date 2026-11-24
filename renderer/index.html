@@ -507,10 +507,9 @@
             <section class="insp" data-insp="mesh">
               <div id="mesh-targets-list" class="item-list"></div>
               <p class="plot-note">
-                Very large models are drawn at reduced detail in the scene: past
-                1,000,000 triangles only a sample is shown, and the legend
-                says how many &mdash; <code>M1 (500000 of 2500000 tri)</code>.
-                Simulations always run against the complete mesh.
+                Models over 1,000,000 triangles are partially displayed, e.g.
+                <code>M1 (500000 of 2500000 tri)</code>. Simulations always use
+                the full mesh.
               </p>
             </section>
           </div>
@@ -791,6 +790,9 @@
         <p class="about-copy">&copy; <span id="about-year"></span> RadarSimX, LLC. All rights reserved.</p>
         <p class="about-copy">Powered by <strong>RadarSimLib</strong>.</p>
         <p id="about-license" class="about-license"></p>
+        <button id="btn-license-details" class="about-license-toggle hidden" type="button"
+          aria-expanded="false" aria-controls="about-license-details">Show details</button>
+        <dl id="about-license-details" class="about-license-details hidden"></dl>
       </div>
     </div>
   </div>

@@ -499,6 +499,63 @@ document.getElementById("btn-export")!.addEventListener("click", async () => {
 });
 
 // --- About ---
+// Fields from radarsimc's Get_License_Info, in display order, with our labels.
+// "License Status" and "Current Platform" are left out: the status line above
+// already says the first, and the second is just this machine.
+const LICENSE_FIELDS: [key: string, label: string][] = [
+  ["Licensed to", "Licensed to"],
+  ["Organization", "Organization"],
+  ["Email", "Email"],
+  ["Product", "Product"],
+  ["License Type", "Type"],
+  ["License Platform", "Platform"],
+];
+
+function renderLicenseStatus(licensed: boolean, info: Record<string, string> = {}): void {
+  const licenseEl = document.getElementById("about-license") as HTMLElement;
+  const detailsEl = document.getElementById("about-license-details") as HTMLElement;
+  licenseEl.textContent = licensed ? "License: Active" : "License: Unlicensed";
+  licenseEl.style.color = licensed ? "var(--ok)" : "var(--danger)";
+
+  detailsEl.replaceChildren();
+  const rows: [string, string][] = [];
+  for (const [key, label] of LICENSE_FIELDS) {
+    const v = info[key];
+    if (!v) continue;
+    rows.push([label, key === "License Type" ? v.charAt(0).toUpperCase() + v.slice(1) : v]);
+  }
+  const days = Number(info["Days Remaining"]);
+  // radarsimc gives whole days left, not a date; a date rebuilt from that
+  // could be a day early, so show the count as given.
+  if (info["Days Remaining"] && Number.isFinite(days)) {
+    rows.push(["Expires", `in ${days} day${days === 1 ? "" : "s"}`]);
+  }
+  for (const [label, value] of rows) {
+    const dt = document.createElement("dt");
+    dt.textContent = label;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    detailsEl.append(dt, dd);
+  }
+  // Details start collapsed behind a toggle; it only appears when there is
+  // something to show.
+  const toggleEl = document.getElementById("btn-license-details") as HTMLElement;
+  toggleEl.classList.toggle("hidden", !licensed || rows.length === 0);
+  setLicenseDetailsExpanded(false);
+}
+
+function setLicenseDetailsExpanded(expanded: boolean): void {
+  const toggleEl = document.getElementById("btn-license-details")!;
+  toggleEl.setAttribute("aria-expanded", String(expanded));
+  toggleEl.textContent = expanded ? "Hide details" : "Show details";
+  document.getElementById("about-license-details")!.classList.toggle("hidden", !expanded);
+}
+
+document.getElementById("btn-license-details")!.addEventListener("click", (e) => {
+  const expanded = (e.currentTarget as HTMLElement).getAttribute("aria-expanded") === "true";
+  setLicenseDetailsExpanded(!expanded);
+});
+
 document.getElementById("btn-check-env")!.addEventListener("click", async () => {
   const overlay = document.getElementById("about-dialog-overlay")!;
   const versionEl = document.getElementById("about-version")!;
@@ -507,6 +564,8 @@ document.getElementById("btn-check-env")!.addEventListener("click", async () => 
   yearEl.textContent = String(new Date().getFullYear());
   versionEl.textContent = "Checking...";
   licenseEl.textContent = "";
+  document.getElementById("btn-license-details")!.classList.add("hidden");
+  setLicenseDetailsExpanded(false);
   overlay.classList.remove("hidden");
 
   try {
@@ -518,8 +577,7 @@ document.getElementById("btn-check-env")!.addEventListener("click", async () => 
       const d = result.data;
       if (d.radarsimlib_available) {
         versionEl.textContent = `RadarSimApp v${appVersion} — RadarSimLib v${d.radarsimlib_version}`;
-        licenseEl.textContent = d.licensed ? "License: Active" : "License: Unlicensed";
-        (licenseEl as HTMLElement).style.color = d.licensed ? "var(--ok)" : "var(--danger)";
+        renderLicenseStatus(d.licensed, d.license_info);
         document.getElementById("btn-activate")!.classList.toggle("hidden", d.licensed);
       } else {
         versionEl.textContent = `RadarSimApp v${appVersion} — RadarSimLib not found`;
@@ -581,8 +639,8 @@ async function _doLicenseActivation(): Promise<void> {
     if (result.success && result.data?.licensed) {
       document.getElementById("license-dialog-overlay")!.classList.add("hidden");
       document.getElementById("btn-activate")!.classList.add("hidden");
-      const licenseEl = document.getElementById("about-license");
-      if (licenseEl) { licenseEl.textContent = "License: Active"; (licenseEl as HTMLElement).style.color = "var(--ok)"; }
+      const info = await window.api.checkLibrary().catch(() => null);
+      renderLicenseStatus(true, info?.success ? info.data?.license_info : undefined);
     } else {
       statusEl.textContent = result.error || "Activation failed. Please check the license file.";
       (statusEl as HTMLElement).style.color = "var(--danger)";

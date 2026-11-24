@@ -261,6 +261,24 @@ const Force_Cleanup_All = lib.func("void Force_Cleanup_All()");
 const Is_Cleanup_In_Progress = lib.func("int Is_Cleanup_In_Progress()");
 const Get_License_Info = lib.func("int Get_License_Info(char *buffer, int buffer_size)");
 
+// radarsimc reports the active license as "Key: value" lines (empty when
+// unlicensed). Returned as a map so the renderer can pick the fields it shows.
+function readLicenseInfo(): Record<string, string> {
+  let buf = Buffer.alloc(1024);
+  let len: number = Get_License_Info(buf, buf.length);
+  if (len > buf.length - 1) {
+    buf = Buffer.alloc(len + 1);
+    len = Get_License_Info(buf, buf.length);
+  }
+  const info: Record<string, string> = {};
+  if (len <= 0) return info;
+  for (const line of buf.toString("utf8", 0, Math.min(len, buf.length - 1)).split(/\r?\n/)) {
+    const i = line.indexOf(":");
+    if (i > 0) info[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+  return info;
+}
+
 // ── Off-thread native calls ──────────────────────────────────────────────────
 // The Electron main process is also the thread that pumps the window's OS
 // event loop, so a synchronous call into radarsimc freezes the window for the
@@ -928,7 +946,12 @@ export class RadarSimBridge {
     return out;
   }
 
-  async checkLibrary(): Promise<{ radarsimlib_version: string; radarsimlib_available: boolean; licensed: boolean }> {
+  async checkLibrary(): Promise<{
+    radarsimlib_version: string;
+    radarsimlib_available: boolean;
+    licensed: boolean;
+    license_info: Record<string, string>;
+  }> {
     const version = new Int32Array(3);
     Get_Version(version);
     const licensed: number = Is_Licensed();
@@ -936,6 +959,7 @@ export class RadarSimBridge {
       radarsimlib_version: `${version[0]}.${version[1]}.${version[2]}`,
       radarsimlib_available: true,
       licensed: licensed === 1,
+      license_info: readLicenseInfo(),
     };
   }
 
