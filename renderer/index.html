@@ -46,43 +46,19 @@
       </div>
     </div>
 
-    <!-- Title bar: the window's drag strip, with the brand, the actions and the window buttons on it -->
+    <!-- Title bar: the window's drag strip, with the logo and the actions in the middle and the window buttons on it -->
     <header id="titlebar">
-      <div class="brand">
-        <span class="logo-link" onclick="window.api.openExternal('https://radarsimx.com/')" title="RadarSimX">
-          <img src="assets/logo.svg" width="30" height="30" alt="RadarSimApp logo" />
-        </span>
-        <div class="brand-text">
-          <span class="brand-mark">RadarSimApp</span>
-          <span class="brand-sub"><span id="app-version"></span> &middot; RadarSimX</span>
-        </div>
-      </div>
-
       <div class="plate">
-        <button id="btn-save-config" class="btn-secondary btn-sm" title="Save the configuration to a file">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-            <polyline points="17 21 17 13 7 13 7 21" />
-            <polyline points="7 3 7 8 15 8" />
-          </svg>
-          <span>Save</span>
+        <!-- The logo, name and version; they open radarsimx.com -->
+        <button type="button" class="plate-brand" onclick="window.api.openExternal('https://radarsimx.com/')"
+          title="Open radarsimx.com">
+          <img src="assets/logo.svg" width="34" height="34" alt="" />
+          <span class="brand-text">
+            <span class="brand-mark">RadarSimApp</span>
+            <span class="brand-sub"><span id="app-version"></span> &middot; RadarSimX</span>
+          </span>
         </button>
-        <button id="btn-load-config" class="btn-secondary btn-sm" title="Load a configuration from a file">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            <line x1="12" y1="11" x2="12" y2="17" />
-            <polyline points="9 14 12 17 15 14" />
-          </svg>
-          <span>Load</span>
-        </button>
-        <button id="btn-reset-config" class="btn-secondary btn-sm btn-icon-only" title="Reset to factory defaults"
-          aria-label="Reset to factory defaults">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="1 4 1 10 7 10" />
-            <path d="M3.51 15a9 9 0 1 0 .49-4.95" />
-          </svg>
-        </button>
-        <span class="plate-sep"></span>
+        <span class="plate-sep" aria-hidden="true"></span>
         <button id="btn-activate" class="btn-secondary btn-sm btn-warn hidden" title="Activate a license">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round">
@@ -91,21 +67,40 @@
           </svg>
           <span>Activate</span>
         </button>
-        <button id="btn-check-env" class="btn-secondary btn-sm btn-icon-only" title="About" aria-label="About">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-        </button>
         <button id="btn-run-sim" class="btn-primary btn-run" title="Run the simulation (Ctrl+Enter)">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none">
             <polygon points="6 3 20 12 6 21 6 3" />
           </svg>
-          <span>Run</span>
+          <span>Run Simulation</span>
           <kbd>Ctrl &crarr;</kbd>
         </button>
+        <!-- The less frequent actions, in a menu beside Run -->
+        <button id="btn-run-menu" class="btn-secondary btn-sm btn-icon-only" title="More actions" aria-label="More actions"
+          aria-haspopup="menu" aria-expanded="false" aria-controls="run-menu">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+            <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
+          </svg>
+        </button>
+        <div id="run-menu" class="menu hidden" role="menu" aria-label="More actions">
+          <button id="btn-save-config" class="menu-item" role="menuitem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+            <span>Save configuration…</span>
+          </button>
+          <button id="btn-load-config" class="menu-item" role="menuitem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /><line x1="12" y1="11" x2="12" y2="17" /><polyline points="9 14 12 17 15 14" /></svg>
+            <span>Load configuration…</span>
+          </button>
+          <div class="menu-sep" role="separator"></div>
+          <button id="btn-reset-config" class="menu-item" role="menuitem" data-danger>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 .49-4.95" /></svg>
+            <span>Reset to defaults…</span>
+          </button>
+          <div class="menu-sep" role="separator"></div>
+          <button id="btn-check-env" class="menu-item" role="menuitem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+            <span>About RadarSimApp</span>
+          </button>
+        </div>
       </div>
 
       <div id="window-controls">

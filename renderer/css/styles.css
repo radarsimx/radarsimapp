@@ -110,20 +110,29 @@ sup{top:-.5em}
 .s3-far :is(.mk-tx,.mk-rx) b{display:none}
 
 /* ── Title bar ─────────────────────────────────────────── */
-/* The window's drag strip, over the top of the stage: the brand, the actions,
-   the window buttons */
+/* The window's drag strip, over the top of the stage: the brand and the actions
+   in the middle, the window buttons at the right */
 #titlebar{position:absolute;top:0;left:0;right:0;z-index:50;height:var(--bar-h);display:grid;
-  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;padding-left:12px;
+  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;
   background:linear-gradient(rgba(13,11,18,.92),rgba(13,11,18,0));-webkit-app-region:drag;container-type:inline-size}
-.brand{display:flex;align-items:center;gap:10px;min-width:0}
-.logo-link{display:flex;flex-shrink:0;cursor:pointer;-webkit-app-region:no-drag}
-.logo-link:hover img{opacity:.85}
-.brand-text{display:flex;flex-direction:column;min-width:0;line-height:1}
-.brand-mark{font-size:15px;font-weight:700;letter-spacing:.02em}
+.plate{grid-column:2}
+#window-controls{grid-column:3}
+/* Logo, name and version, at the start of the plate; they open radarsimx.com */
+.plate-brand{display:flex;align-items:center;gap:10px;flex-shrink:0;padding:0 6px 0 0;text-align:left;
+  background:none;border:0;border-radius:var(--r);outline:0}
+.plate-brand img{display:block;flex-shrink:0;transition:opacity .12s}
+.plate-brand:hover img{opacity:.85}
+.plate-brand:focus-visible{box-shadow:0 0 0 2px var(--accent)}
+.brand-text{display:flex;flex-direction:column;line-height:1}
+.brand-mark{font-size:15px;font-weight:700;letter-spacing:.02em;color:var(--ink-2)}
 .brand-sub{margin-top:4px;font-size:11px;color:var(--ink-3);white-space:nowrap}
-.plate{display:flex;align-items:center;align-self:end;margin-bottom:2px;gap:6px;padding:5px;background:var(--panel);border:1px solid var(--line);
-  border-radius:var(--r-lg);backdrop-filter:blur(10px);-webkit-app-region:no-drag}
-.plate-sep{width:1px;height:18px;margin:0 2px;background:var(--line-2)}
+.plate-sep{width:1px;height:24px;margin:0 2px;background:var(--line-2)}
+.plate{position:relative;display:flex;align-items:center;align-self:end;margin-bottom:2px;gap:6px;padding:5px;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(10px);
+  -webkit-app-region:no-drag}
+/* The "more actions" button beside Run: square, as tall as Run, lit while its menu is open */
+#btn-run-menu{width:30px;height:30px}
+#btn-run-menu[aria-expanded="true"]{background:var(--accent-soft);border-color:var(--accent)}
 .btn-run{height:30px;padding:0 10px 0 12px;font-weight:700}
 .btn-run kbd{padding:3px 5px;font:600 10px/1 var(--mono);color:rgba(255,255,255,.75);
   border:1px solid rgba(255,255,255,.3);border-radius:4px}
@@ -132,11 +141,9 @@ sup{top:-.5em}
   color:var(--ink-2);background:transparent;border:0;outline:none;transition:background .12s,color .12s}
 #window-controls button:hover{color:var(--ink);background:var(--panel-2)}
 #window-controls #btn-win-close:hover{color:#fff;background:#e81123}
-/* macOS: native traffic lights sit at the left of the bar, so the brand moves
-   over to clear them and the custom window buttons go */
+/* macOS: native traffic lights sit at the left of the bar, where nothing else
+   is, and the custom window buttons go */
 .platform-darwin #window-controls{display:none}
-.platform-darwin #titlebar{padding-left:88px;padding-right:12px}
-.platform-darwin.is-fullscreen #titlebar{padding-left:12px}
 /* The bar sheds what it can as the window narrows */
 @container (max-width:1180px){.brand-sub{display:none}}
 @container (max-width:1080px){.plate .btn-sm>span,.btn-run kbd{display:none}}
@@ -419,7 +426,18 @@ select option{color:var(--ink);background:var(--solid)}
 .btn-icon-only{width:28px;padding:0}
 .btn-warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 55%,transparent)}
 .btn-secondary.btn-warn:hover{background:var(--warn-soft);border-color:var(--warn)}
-#btn-reset-config:hover{color:var(--danger);background:var(--danger-soft);border-color:var(--danger)}
+/* A menu dropped from a button */
+.menu{position:absolute;top:calc(100% + 6px);right:0;z-index:40;display:flex;flex-direction:column;min-width:210px;
+  padding:4px;background:var(--solid);border:1px solid var(--line-2);border-radius:var(--r-lg);box-shadow:var(--shadow)}
+.menu-item{display:flex;align-items:center;gap:10px;height:32px;padding:0 10px;font-size:12.5px;text-align:left;
+  white-space:nowrap;color:var(--ink);background:transparent;border:0;border-radius:var(--r);outline:0}
+.menu-item>svg{flex-shrink:0;color:var(--ink-3)}
+.menu-item:is(:hover,:focus-visible):not(:disabled){background:var(--accent-soft)}
+.menu-item:is(:hover,:focus-visible):not(:disabled)>svg{color:var(--accent)}
+.menu-item[data-danger]:is(:hover,:focus-visible){color:var(--danger);background:var(--danger-soft)}
+.menu-item[data-danger]:is(:hover,:focus-visible)>svg{color:var(--danger)}
+.menu-item:disabled{opacity:.38;cursor:not-allowed}
+.menu-sep{height:1px;margin:4px 6px;background:var(--line)}
 .btn-icon{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:24px;height:24px;
   color:var(--accent);background:var(--accent-soft);border:1px solid transparent;border-radius:var(--r);
   transition:background .12s,color .12s}
