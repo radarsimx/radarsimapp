@@ -1,20 +1,42 @@
 // ===== RadarSimApp - Main Renderer Script =====
 
-import { debounce, wrapNumberInput } from './utils.js';
-import { txChannels, rxChannels, pointTargets, meshTargets } from './shared.js';
-import { updateTxWaveformPlot, plotResults, renderResultView, markResultsOutdated, updateTxInfo, redrawInspectorPlots } from './plots.js';
-import { saveTxChannelStates, saveRxChannelStates, renderTxChannels, renderRxChannels } from './channels.js';
-import { savePointTargetStates, saveMeshTargetStates, renderPointTargets, renderMeshTargets } from './targets.js';
-import { collectConfig } from './config.js';
-import { debouncedAutoSave, resetToDefault, initApp } from './state.js';
-import { updateScene, setSceneSink } from './scene.js';
-import { SceneView, canRotate, type SceneFraming, type CameraPreset, type EditTarget, type EditMode } from './scene3d.js';
-import type { Pose } from './scene.js';
-import { updateReadout, formatLength } from './readout.js';
-import { initOutline, select, syncCoverageFocus, type Selection } from './outline.js';
-import { createBusyAnimation } from './busy.js';
-import { initColumnResize, place as placeColumnGrips } from './colresize.js';
-import { pref, setPref, setStageView, setResultViewsAvailable, isResultView, layoutStage, type StageView } from './stage.js';
+import { createBusyAnimation } from "./busy.js";
+import { renderRxChannels, renderTxChannels, saveRxChannelStates, saveTxChannelStates } from "./channels.js";
+import { initColumnResize, place as placeColumnGrips } from "./colresize.js";
+import { collectConfig } from "./config.js";
+import { initOutline, type Selection, select, syncCoverageFocus } from "./outline.js";
+import {
+  markResultsOutdated,
+  plotResults,
+  redrawInspectorPlots,
+  renderResultView,
+  updateTxInfo,
+  updateTxWaveformPlot,
+} from "./plots.js";
+import { formatLength, updateReadout } from "./readout.js";
+import type { Pose } from "./scene.js";
+import { setSceneSink, updateScene } from "./scene.js";
+import {
+  type CameraPreset,
+  canRotate,
+  type EditMode,
+  type EditTarget,
+  type SceneFraming,
+  SceneView,
+} from "./scene3d.js";
+import { meshTargets, pointTargets, rxChannels, txChannels } from "./shared.js";
+import {
+  isResultView,
+  layoutStage,
+  pref,
+  type StageView,
+  setPref,
+  setResultViewsAvailable,
+  setStageView,
+} from "./stage.js";
+import { debouncedAutoSave, initApp, resetToDefault } from "./state.js";
+import { renderMeshTargets, renderPointTargets, saveMeshTargetStates, savePointTargetStates } from "./targets.js";
+import { byId, debounce, wrapNumberInput } from "./utils.js";
 
 // --- App version ---
 window.api.getAppVersion().then((v) => {
@@ -23,7 +45,7 @@ window.api.getAppVersion().then((v) => {
 });
 
 // --- State ---
-let lastSimResult: any = null;
+let lastSimResult: SimResult | null = null;
 
 // --- 3D Scene ---
 // The view needs WebGL. Without it the panels and the result plots still work.
@@ -31,25 +53,26 @@ let sceneView: SceneView | null = null;
 /** The grid's cell (m): positions moved in the scene are kept to a hundredth of it. */
 let sceneCell = 1;
 try {
-  sceneView = new SceneView(document.getElementById("scene-host")!);
-  sceneView.onScale = (cell) => {
+  const view = new SceneView(byId("scene-host"));
+  sceneView = view;
+  view.onScale = (cell) => {
     sceneCell = cell;
-    document.getElementById("scene-scale")!.textContent = `Grid ${formatLength(cell)}`;
+    byId("scene-scale").textContent = `Grid ${formatLength(cell)}`;
   };
-  setSceneSink((model) => sceneView!.setModel(model));
+  setSceneSink((model) => view.setModel(model));
   // What is clicked in the scene opens its fields, its panel unfolded if need
   // be, and takes the handle to be moved or turned right there
-  sceneView.onPick = (target) => {
+  view.onPick = (target) => {
     const panel = document.getElementById(_editPanel(target)) as HTMLDetailsElement | null;
     if (panel && !panel.open) panel.open = true;
     select({ kind: target.kind, index: target.index });
-    sceneView!.setEditTarget(target);
+    view.setEditTarget(target);
   };
-  sceneView.onEdit = _writePose;
-  sceneView.onEditChange = _showEditBar;
+  view.onEdit = _writePose;
+  view.onEditChange = _showEditBar;
 } catch (err) {
   console.warn("[scene] 3D view unavailable:", err);
-  document.getElementById("scene-host")!.textContent = "3D view unavailable";
+  byId("scene-host").textContent = "3D view unavailable";
 }
 
 // --- Editing in the scene ---
@@ -76,29 +99,35 @@ function _writePose(target: EditTarget, pose: Pose, done: boolean): void {
   const set = (id: string, value: number, digits: number): void => {
     const input = document.getElementById(id) as HTMLInputElement | null;
     if (!input) return;
-    const text = String(Number(value.toFixed(digits)) || 0);  // no "-0"
+    const text = String(Number(value.toFixed(digits)) || 0); // no "-0"
     if (Number(input.value) === Number(text)) return;
     input.value = text;
     _dragged.add(input);
   };
-  ["x", "y", "z"].forEach((a, k) => set(`${prefix}-loc-${a}`, pose.location[k], places));
+  ["x", "y", "z"].forEach((a, k) => {
+    set(`${prefix}-loc-${a}`, pose.location[k], places);
+  });
   if (canRotate(target)) {
-    ["yaw", "pitch", "roll"].forEach((a, k) => set(`${prefix}-rot-${a}`, pose.rotation[k], 1));
+    ["yaw", "pitch", "roll"].forEach((a, k) => {
+      set(`${prefix}-rot-${a}`, pose.rotation[k], 1);
+    });
   }
   updateScene();
   if (!done) return;
-  _dragged.forEach((input) => input.dispatchEvent(new Event("input", { bubbles: true })));
+  _dragged.forEach((input) => {
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
   _dragged.clear();
 }
 
 // Called as the scene is first drawn, so it finds its elements itself
 function _showEditBar(target: EditTarget | null, mode: EditMode): void {
-  const bar = document.getElementById("scene-edit")!;
+  const bar = byId("scene-edit");
   bar.classList.toggle("hidden", !target);
   if (!target) return;
   bar.dataset.kind = target.kind;
   const i = target.index ?? 0;
-  document.getElementById("scene-edit-name")!.textContent =
+  byId("scene-edit-name").textContent =
     target.kind === "radar" ? "Radar" : target.kind === "point" ? `T${i + 1}` : `M${i + 1}`;
   bar.querySelectorAll<HTMLButtonElement>("[data-edit-mode]").forEach((btn) => {
     btn.setAttribute("aria-checked", String(btn.dataset.editMode === mode));
@@ -109,7 +138,7 @@ function _showEditBar(target: EditTarget | null, mode: EditMode): void {
 document.querySelectorAll<HTMLButtonElement>("#scene-edit [data-edit-mode]").forEach((btn) => {
   btn.addEventListener("click", () => sceneView?.setEditMode(btn.dataset.editMode as EditMode));
 });
-document.getElementById("btn-scene-edit-done")!.addEventListener("click", () => sceneView?.setEditTarget(null));
+byId("btn-scene-edit-done").addEventListener("click", () => sceneView?.setEditTarget(null));
 
 // The handle follows what is picked in the panel it belongs to: onto another
 // target or the platform, and away when something it cannot move is picked
@@ -119,13 +148,16 @@ document.addEventListener("outlineselect", (e) => {
   const next = (e as CustomEvent<Selection>).detail;
   const onTargets = (k: string): boolean => k === "point" || k === "mesh";
   if (onTargets(next.kind) !== onTargets(current.kind)) return;
-  sceneView!.setEditTarget(next.kind === "radar" || onTargets(next.kind)
-    ? { kind: next.kind as EditTarget["kind"], index: next.index } : null);
+  sceneView?.setEditTarget(
+    next.kind === "radar" || onTargets(next.kind) ? { kind: next.kind as EditTarget["kind"], index: next.index } : null,
+  );
 });
 
 // --- Stage Views ---
 function _resizePlots(root: ParentNode): void {
-  root.querySelectorAll(".js-plotly-plot").forEach((plot) => Plotly.Plots.resize(plot as HTMLElement));
+  root.querySelectorAll(".js-plotly-plot").forEach((plot) => {
+    Plotly.Plots.resize(plot as HTMLElement);
+  });
 }
 
 document.querySelectorAll<HTMLButtonElement>("button[data-view]").forEach((btn) => {
@@ -136,7 +168,8 @@ document.addEventListener("stageview", (e) => {
   const view = (e as CustomEvent<StageView>).detail;
   if (isResultView(view)) {
     renderResultView();
-    _resizePlots(document.querySelector(".stage-view.active")!);
+    const active = document.querySelector(".stage-view.active");
+    if (active) _resizePlots(active);
   } else {
     sceneView?.setFraming(view as SceneFraming);
   }
@@ -145,7 +178,7 @@ document.addEventListener("stageview", (e) => {
 document.querySelectorAll<HTMLButtonElement>("button[data-cam]").forEach((btn) => {
   btn.addEventListener("click", () => sceneView?.setCamera(btn.dataset.cam as CameraPreset));
 });
-document.getElementById("btn-scene-fit")!.addEventListener("click", () => sceneView?.fit());
+byId("btn-scene-fit").addEventListener("click", () => sceneView?.fit());
 
 // --- Panels ---
 // Panels fold away, and start as they were left.
@@ -153,17 +186,21 @@ document.getElementById("btn-scene-fit")!.addEventListener("click", () => sceneV
 // panel is open at a time: opening one folds the rest.
 function _accordionSiblings(panel: HTMLDetailsElement): HTMLDetailsElement[] {
   const col = panel.closest<HTMLElement>(".hud-col[data-accordion]");
-  return col ? Array.from(col.querySelectorAll<HTMLDetailsElement>(":scope > details[data-panel]"))
-    .filter((p) => p !== panel) : [];
+  return col
+    ? Array.from(col.querySelectorAll<HTMLDetailsElement>(":scope > details[data-panel]")).filter((p) => p !== panel)
+    : [];
 }
 
 document.querySelectorAll<HTMLDetailsElement>("details[data-panel]").forEach((panel) => {
-  const name = panel.dataset.panel!;
+  const name = panel.dataset.panel;
+  if (!name) return;
   panel.open = pref(`panel.${name}`, panel.open);
   panel.addEventListener("toggle", () => {
     setPref(`panel.${name}`, panel.open);
     if (panel.open) {
-      _accordionSiblings(panel).forEach((p) => { p.open = false; });
+      _accordionSiblings(panel).forEach((p) => {
+        p.open = false;
+      });
       // A folded panel had nothing to draw its plots into
       redrawInspectorPlots();
     }
@@ -172,7 +209,7 @@ document.querySelectorAll<HTMLDetailsElement>("details[data-panel]").forEach((pa
     if (panel.id === "panel-radar") syncCoverageFocus();
     // Nor does the handle stay on something whose fields have been folded away
     const editing = sceneView?.getEditTarget();
-    if (!panel.open && editing && _editPanel(editing) === panel.id) sceneView!.setEditTarget(null);
+    if (!panel.open && editing && _editPanel(editing) === panel.id) sceneView?.setEditTarget(null);
   });
 });
 // Saved from before there was an accordion, two may start open: keep the first
@@ -199,13 +236,17 @@ function _layout(): void {
 
 // On the next frame: laying out moves things the observer is watching
 const _sizes = new ResizeObserver(() => requestAnimationFrame(_layout));
-document.querySelectorAll("#stage, .hud-col, #titlebar, .stage-bottom").forEach((elem) => _sizes.observe(elem));
+document.querySelectorAll("#stage, .hud-col, #titlebar, .stage-bottom").forEach((elem) => {
+  _sizes.observe(elem);
+});
 
 // --- Keyboard ---
 window.addEventListener("keydown", (e) => {
   const dialogs = document.querySelectorAll(".dialog-overlay:not(.hidden)");
   if (e.key === "Escape") {
-    dialogs.forEach((d) => d.classList.add("hidden"));
+    dialogs.forEach((d) => {
+      d.classList.add("hidden");
+    });
   } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && dialogs.length === 0) {
     e.preventDefault();
     (document.getElementById("btn-run-sim") as HTMLButtonElement).click();
@@ -214,7 +255,8 @@ window.addEventListener("keydown", (e) => {
 
 // --- Custom Number Input Spinners ---
 document.querySelectorAll('input[type="number"]:not([readonly])').forEach((input) => {
-  const parent = input.parentNode!;
+  const parent = input.parentNode;
+  if (!parent) return;
   const next = input.nextSibling;
   const wrapper = wrapNumberInput(input as HTMLInputElement);
   parent.insertBefore(wrapper, next);
@@ -224,29 +266,26 @@ document.querySelectorAll('input[type="number"]:not([readonly])').forEach((input
 const debouncedUpdateTxInfo = debounce(updateTxInfo);
 const debouncedUpdateTxWaveformPlot = debounce(updateTxWaveformPlot);
 
-["tx-f-start", "tx-f-end", "tx-t-start", "tx-t-end"].forEach((id) =>
-  document.getElementById(id)!.addEventListener("input", debouncedUpdateTxInfo)
-);
-document.getElementById("tx-prp")!.addEventListener("input", debouncedUpdateTxWaveformPlot);
+["tx-f-start", "tx-f-end", "tx-t-start", "tx-t-end"].forEach((id) => {
+  byId(id).addEventListener("input", debouncedUpdateTxInfo);
+});
+byId("tx-prp").addEventListener("input", debouncedUpdateTxWaveformPlot);
 
 const debouncedUpdateReadout = debounce(updateReadout);
-["tx-prp", "tx-pulses", "rx-fs"].forEach((id) =>
-  document.getElementById(id)!.addEventListener("input", debouncedUpdateReadout)
-);
+["tx-prp", "tx-pulses", "rx-fs"].forEach((id) => {
+  byId(id).addEventListener("input", debouncedUpdateReadout);
+});
 
 // --- Radar Input Listeners ---
 const debouncedUpdateScene = debounce(updateScene);
-[
-  "radar-loc-x", "radar-loc-y", "radar-loc-z",
-  "radar-rot-yaw", "radar-rot-pitch", "radar-rot-roll",
-].forEach((id) => {
+["radar-loc-x", "radar-loc-y", "radar-loc-z", "radar-rot-yaw", "radar-rot-pitch", "radar-rot-roll"].forEach((id) => {
   document.getElementById(id)?.addEventListener("input", debouncedUpdateScene);
 });
 
 // --- Run menu: Save, Load, Reset and About, dropped from the button beside Run ---
 {
   const toggle = document.getElementById("btn-run-menu") as HTMLButtonElement;
-  const menu = document.getElementById("run-menu")!;
+  const menu = byId("run-menu");
   const items = () => [...menu.querySelectorAll<HTMLButtonElement>(".menu-item:not(:disabled)")];
   const isOpen = () => !menu.classList.contains("hidden");
 
@@ -283,13 +322,18 @@ const debouncedUpdateScene = debounce(updateScene);
   menu.addEventListener("keydown", (e) => {
     const list = items();
     const i = list.indexOf(document.activeElement as HTMLButtonElement);
-    const go = (n: number) => { e.preventDefault(); list[(n + list.length) % list.length]?.focus(); };
+    const go = (n: number) => {
+      e.preventDefault();
+      list[(n + list.length) % list.length]?.focus();
+    };
     if (e.key === "ArrowDown") go(i + 1);
     else if (e.key === "ArrowUp") go(i - 1);
     else if (e.key === "Home") go(0);
     else if (e.key === "End") go(list.length - 1);
-    else if (e.key === "Escape") { e.stopPropagation(); close(true); }
-    else if (e.key === "Tab") close(false);
+    else if (e.key === "Escape") {
+      e.stopPropagation();
+      close(true);
+    } else if (e.key === "Tab") close(false);
   });
 
   document.addEventListener("pointerdown", (e) => {
@@ -300,30 +344,30 @@ const debouncedUpdateScene = debounce(updateScene);
 }
 
 // --- Reset ---
-document.getElementById("btn-reset-config")!.addEventListener("click", () => {
-  document.getElementById("reset-dialog-overlay")!.classList.remove("hidden");
+byId("btn-reset-config").addEventListener("click", () => {
+  byId("reset-dialog-overlay").classList.remove("hidden");
 });
 
 ["btn-reset-cancel", "btn-reset-cancel-x"].forEach((id) => {
-  document.getElementById(id)!.addEventListener("click", () => {
-    document.getElementById("reset-dialog-overlay")!.classList.add("hidden");
+  byId(id).addEventListener("click", () => {
+    byId("reset-dialog-overlay").classList.add("hidden");
   });
 });
 
-document.getElementById("btn-reset-confirm")!.addEventListener("click", () => {
-  document.getElementById("reset-dialog-overlay")!.classList.add("hidden");
+byId("btn-reset-confirm").addEventListener("click", () => {
+  byId("reset-dialog-overlay").classList.add("hidden");
   resetToDefault();
 });
 
 // Range Profile ↔ Range-Doppler dependency
-document.getElementById("proc-range-doppler")!.addEventListener("change", (e) => {
+byId("proc-range-doppler").addEventListener("change", (e) => {
   const rpCheckbox = document.getElementById("proc-range-profile") as HTMLInputElement;
   if ((e.target as HTMLInputElement).checked) {
     rpCheckbox.checked = true;
   }
   _syncProcSubOptions();
 });
-document.getElementById("proc-range-profile")!.addEventListener("change", (e) => {
+byId("proc-range-profile").addEventListener("change", (e) => {
   const rdCheckbox = document.getElementById("proc-range-doppler") as HTMLInputElement;
   if (!(e.target as HTMLInputElement).checked && rdCheckbox.checked) {
     rdCheckbox.checked = false;
@@ -331,55 +375,61 @@ document.getElementById("proc-range-profile")!.addEventListener("change", (e) =>
   _syncProcSubOptions();
 });
 
-function _isPow2(n: number): boolean { return n > 0 && (n & (n - 1)) === 0; }
+function _isPow2(n: number): boolean {
+  return n > 0 && (n & (n - 1)) === 0;
+}
 
 function _validateFftInput(inputEl: HTMLInputElement, minVal: number, label: string): boolean {
   const val = parseInt(inputEl.value, 10);
-  let msg = '';
+  let msg = "";
   if (!_isPow2(val)) msg = `${label} must be a power of 2`;
   else if (val < minVal) msg = `${label} must be \u2265 ${minVal} (next: ${_nextPow2UI(minVal)})`;
-  const wrap = inputEl.closest('.proc-sub-input-wrap');
-  inputEl.classList.toggle('is-invalid', !!msg);
+  const wrap = inputEl.closest(".proc-sub-input-wrap");
+  inputEl.classList.toggle("is-invalid", !!msg);
   if (wrap) {
-    if (msg) wrap.setAttribute('data-error', msg);
-    else wrap.removeAttribute('data-error');
+    if (msg) wrap.setAttribute("data-error", msg);
+    else wrap.removeAttribute("data-error");
   }
   return !msg;
 }
 
 function _validateFftInputs(): void {
-  const tStart = parseFloat((document.getElementById('tx-t-start') as HTMLInputElement).value) || 0;
-  const tEnd = parseFloat((document.getElementById('tx-t-end') as HTMLInputElement).value) || 0;
-  const fs = (parseFloat((document.getElementById('rx-fs') as HTMLInputElement).value) || 2) * 1e6;
-  const pulses = parseInt((document.getElementById('tx-pulses') as HTMLInputElement).value, 10) || 1;
+  const tStart = parseFloat((document.getElementById("tx-t-start") as HTMLInputElement).value) || 0;
+  const tEnd = parseFloat((document.getElementById("tx-t-end") as HTMLInputElement).value) || 0;
+  const fs = (parseFloat((document.getElementById("rx-fs") as HTMLInputElement).value) || 2) * 1e6;
+  const pulses = parseInt((document.getElementById("tx-pulses") as HTMLInputElement).value, 10) || 1;
   const spp = Math.ceil(Math.abs(tEnd - tStart) * 1e-6 * fs) || 1;
-  if ((document.getElementById('proc-rd-range-fft-enable') as HTMLInputElement).checked) {
-    _validateFftInput(document.getElementById('proc-rd-range-fft') as HTMLInputElement, spp, 'Range FFT');
+  if ((document.getElementById("proc-rd-range-fft-enable") as HTMLInputElement).checked) {
+    _validateFftInput(document.getElementById("proc-rd-range-fft") as HTMLInputElement, spp, "Range FFT");
   }
-  if ((document.getElementById('proc-rd-doppler-fft-enable') as HTMLInputElement).checked) {
-    _validateFftInput(document.getElementById('proc-rd-doppler-fft') as HTMLInputElement, pulses, 'Doppler FFT');
+  if ((document.getElementById("proc-rd-doppler-fft-enable") as HTMLInputElement).checked) {
+    _validateFftInput(document.getElementById("proc-rd-doppler-fft") as HTMLInputElement, pulses, "Doppler FFT");
   }
 }
 
 // Custom FFT size toggles
 ["proc-rd-range-fft", "proc-rd-doppler-fft"].forEach((id) => {
-  const enableCb = document.getElementById(id + "-enable") as HTMLInputElement;
+  const enableCb = document.getElementById(`${id}-enable`) as HTMLInputElement;
   const input = document.getElementById(id) as HTMLInputElement;
   enableCb.addEventListener("change", () => {
     input.disabled = !enableCb.checked;
     if (!enableCb.checked) {
-      input.classList.remove('is-invalid');
-      const wrap = input.closest('.proc-sub-input-wrap');
-      if (wrap) wrap.removeAttribute('data-error');
+      input.classList.remove("is-invalid");
+      const wrap = input.closest(".proc-sub-input-wrap");
+      if (wrap) wrap.removeAttribute("data-error");
       _updateAutoFftValues();
     } else {
       _validateFftInputs();
     }
   });
-  input.addEventListener('input', _validateFftInputs);
+  input.addEventListener("input", _validateFftInputs);
 });
 
-function _nextPow2UI(n: number): number { let p = 1; while (p < n) p <<= 1; return p; }
+function _nextPow2UI(n: number): number {
+  let p = 1;
+  while (p < n) p <<= 1;
+  return p;
+}
 
 function _updateAutoFftValues(): void {
   const tStart = parseFloat((document.getElementById("tx-t-start") as HTMLInputElement).value) || 0;
@@ -406,23 +456,23 @@ function _updateAutoFftValues(): void {
 function _syncProcSubOptions(): void {
   const rpOn = (document.getElementById("proc-range-profile") as HTMLInputElement).checked;
   const rdOn = (document.getElementById("proc-range-doppler") as HTMLInputElement).checked;
-  document.getElementById("proc-range-profile-opts")!.classList.toggle("disabled", !rpOn);
-  document.getElementById("proc-range-doppler-opts")!.classList.toggle("disabled", !rdOn);
+  byId("proc-range-profile-opts").classList.toggle("disabled", !rpOn);
+  byId("proc-range-doppler-opts").classList.toggle("disabled", !rdOn);
   if (!rpOn) {
     (document.getElementById("proc-rd-range-fft-enable") as HTMLInputElement).checked = false;
     const rpFft = document.getElementById("proc-rd-range-fft") as HTMLInputElement;
     rpFft.disabled = true;
-    rpFft.classList.remove('is-invalid');
-    const rpWrap = rpFft.closest('.proc-sub-input-wrap');
-    if (rpWrap) rpWrap.removeAttribute('data-error');
+    rpFft.classList.remove("is-invalid");
+    const rpWrap = rpFft.closest(".proc-sub-input-wrap");
+    if (rpWrap) rpWrap.removeAttribute("data-error");
   }
   if (!rdOn) {
     (document.getElementById("proc-rd-doppler-fft-enable") as HTMLInputElement).checked = false;
     const rdFft = document.getElementById("proc-rd-doppler-fft") as HTMLInputElement;
     rdFft.disabled = true;
-    rdFft.classList.remove('is-invalid');
-    const rdWrap = rdFft.closest('.proc-sub-input-wrap');
-    if (rdWrap) rdWrap.removeAttribute('data-error');
+    rdFft.classList.remove("is-invalid");
+    const rdWrap = rdFft.closest(".proc-sub-input-wrap");
+    if (rdWrap) rdWrap.removeAttribute("data-error");
   }
   _updateAutoFftValues();
 }
@@ -432,10 +482,12 @@ function _syncProcSubOptions(): void {
 function _syncProcessing(): void {
   const rdCb = document.getElementById("proc-range-doppler") as HTMLInputElement;
   const rpCb = document.getElementById("proc-range-profile") as HTMLInputElement;
-  if (rdCb.checked) { rpCb.checked = true; }
+  if (rdCb.checked) {
+    rpCb.checked = true;
+  }
   _syncProcSubOptions();
   ["proc-rd-range-fft", "proc-rd-doppler-fft"].forEach((id) => {
-    const enabled = (document.getElementById(id + "-enable") as HTMLInputElement).checked;
+    const enabled = (document.getElementById(`${id}-enable`) as HTMLInputElement).checked;
     (document.getElementById(id) as HTMLInputElement).disabled = !enabled;
   });
 }
@@ -445,7 +497,7 @@ document.addEventListener("configapplied", _syncProcessing);
 // --- Add Buttons ---
 // What is added is picked in the outline, so its fields come up to be filled in.
 
-document.getElementById("btn-add-tx-ch")!.addEventListener("click", () => {
+byId("btn-add-tx-ch").addEventListener("click", () => {
   saveTxChannelStates();
   txChannels.push({});
   renderTxChannels();
@@ -454,7 +506,7 @@ document.getElementById("btn-add-tx-ch")!.addEventListener("click", () => {
   debouncedAutoSave();
 });
 
-document.getElementById("btn-add-rx-ch")!.addEventListener("click", () => {
+byId("btn-add-rx-ch").addEventListener("click", () => {
   saveRxChannelStates();
   rxChannels.push({});
   renderRxChannels();
@@ -463,7 +515,7 @@ document.getElementById("btn-add-rx-ch")!.addEventListener("click", () => {
   debouncedAutoSave();
 });
 
-document.getElementById("btn-add-point-target")!.addEventListener("click", () => {
+byId("btn-add-point-target").addEventListener("click", () => {
   savePointTargetStates();
   pointTargets.push({ location: [10, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 });
   renderPointTargets();
@@ -472,7 +524,7 @@ document.getElementById("btn-add-point-target")!.addEventListener("click", () =>
   debouncedAutoSave();
 });
 
-document.getElementById("btn-add-mesh-target")!.addEventListener("click", () => {
+byId("btn-add-mesh-target").addEventListener("click", () => {
   saveMeshTargetStates();
   meshTargets.push({});
   renderMeshTargets();
@@ -484,12 +536,12 @@ document.getElementById("btn-add-mesh-target")!.addEventListener("click", () => 
 // --- Run Simulation ---
 const busy = createBusyAnimation(document.getElementById("sim-canvas") as HTMLCanvasElement);
 
-document.getElementById("btn-run-sim")!.addEventListener("click", async () => {
+byId("btn-run-sim").addEventListener("click", async () => {
   const btn = document.getElementById("btn-run-sim") as HTMLButtonElement;
-  const status = document.getElementById("sim-status")!;
+  const status = byId("sim-status");
 
   _validateFftInputs();
-  if (document.querySelector('#proc-range-profile-opts .is-invalid, #proc-range-doppler-opts .is-invalid')) {
+  if (document.querySelector("#proc-range-profile-opts .is-invalid, #proc-range-doppler-opts .is-invalid")) {
     status.className = "status-msg error";
     status.textContent = "Invalid FFT size. Fix the errors above before running.";
     return;
@@ -499,8 +551,8 @@ document.getElementById("btn-run-sim")!.addEventListener("click", async () => {
   status.className = "status-msg running";
   status.textContent = "Running simulation...";
 
-  const overlay = document.getElementById("sim-overlay")!;
-  const overlaySub = document.getElementById("sim-overlay-sub")!;
+  const overlay = byId("sim-overlay");
+  const overlaySub = byId("sim-overlay-sub");
   overlaySub.textContent = "";
 
   overlay.classList.remove("hidden");
@@ -519,28 +571,29 @@ document.getElementById("btn-run-sim")!.addEventListener("click", async () => {
 
     const result = await window.api.runSimulation(config);
 
-    if (!result.success) {
-      throw new Error(result.error);
+    if (!result.success || !result.data) {
+      throw new Error(result.error ?? "The simulation returned no result.");
     }
 
-    lastSimResult = result.data;
+    const _resultData = result.data;
+    lastSimResult = _resultData;
     status.className = "status-msg success";
-    status.textContent = `Simulation complete. Baseband shape: [${result.data.baseband_shape.join(" × ")}]`;
+    status.textContent = `Simulation complete. Baseband shape: [${_resultData.baseband_shape.join(" × ")}]`;
     (document.getElementById("btn-export") as HTMLButtonElement).disabled = false;
 
     // Bring up the most processed result the run produced
-    const _resultData = result.data;
     setResultViewsAvailable({
-      "baseband": !!_resultData.baseband,
+      baseband: !!_resultData.baseband,
       "range-profile": !!_resultData.range_profile,
       "range-doppler": !!_resultData.range_doppler,
     });
-    setStageView(_resultData.range_doppler ? "range-doppler"
-      : _resultData.range_profile ? "range-profile" : "baseband");
+    setStageView(
+      _resultData.range_doppler ? "range-doppler" : _resultData.range_profile ? "range-profile" : "baseband",
+    );
     setTimeout(() => plotResults(_resultData), 0);
   } catch (err) {
     status.className = "status-msg error";
-    status.textContent = "Error: " + (err as Error).message;
+    status.textContent = `Error: ${(err as Error).message}`;
   } finally {
     btn.disabled = false;
     clearTimeout(_overlayRevealTimer);
@@ -558,7 +611,7 @@ document.getElementById("btn-run-sim")!.addEventListener("click", async () => {
 });
 
 // --- Export ---
-document.getElementById("btn-export")!.addEventListener("click", async () => {
+byId("btn-export").addEventListener("click", async () => {
   if (!lastSimResult) return;
   await window.api.exportResults(lastSimResult);
 });
@@ -610,40 +663,37 @@ function renderLicenseStatus(licensed: boolean, info: Record<string, string> = {
 }
 
 function setLicenseDetailsExpanded(expanded: boolean): void {
-  const toggleEl = document.getElementById("btn-license-details")!;
+  const toggleEl = byId("btn-license-details");
   toggleEl.setAttribute("aria-expanded", String(expanded));
   toggleEl.textContent = expanded ? "Hide details" : "Show details";
-  document.getElementById("about-license-details")!.classList.toggle("hidden", !expanded);
+  byId("about-license-details").classList.toggle("hidden", !expanded);
 }
 
-document.getElementById("btn-license-details")!.addEventListener("click", (e) => {
+byId("btn-license-details").addEventListener("click", (e) => {
   const expanded = (e.currentTarget as HTMLElement).getAttribute("aria-expanded") === "true";
   setLicenseDetailsExpanded(!expanded);
 });
 
-document.getElementById("btn-check-env")!.addEventListener("click", async () => {
-  const overlay = document.getElementById("about-dialog-overlay")!;
-  const versionEl = document.getElementById("about-version")!;
-  const licenseEl = document.getElementById("about-license")!;
-  const yearEl = document.getElementById("about-year")!;
+byId("btn-check-env").addEventListener("click", async () => {
+  const overlay = byId("about-dialog-overlay");
+  const versionEl = byId("about-version");
+  const licenseEl = byId("about-license");
+  const yearEl = byId("about-year");
   yearEl.textContent = String(new Date().getFullYear());
   versionEl.textContent = "Checking...";
   licenseEl.textContent = "";
-  document.getElementById("btn-license-details")!.classList.add("hidden");
+  byId("btn-license-details").classList.add("hidden");
   setLicenseDetailsExpanded(false);
   overlay.classList.remove("hidden");
 
   try {
-    const [appVersion, result] = await Promise.all([
-      window.api.getAppVersion(),
-      window.api.checkLibrary(),
-    ]);
+    const [appVersion, result] = await Promise.all([window.api.getAppVersion(), window.api.checkLibrary()]);
     if (result.success && result.data) {
       const d = result.data;
       if (d.radarsimlib_available) {
         versionEl.textContent = `RadarSimApp v${appVersion} — RadarSimLib v${d.radarsimlib_version}`;
         renderLicenseStatus(d.licensed, d.license_info);
-        document.getElementById("btn-activate")!.classList.toggle("hidden", d.licensed);
+        byId("btn-activate").classList.toggle("hidden", d.licensed);
       } else {
         versionEl.textContent = `RadarSimApp v${appVersion} — RadarSimLib not found`;
         licenseEl.textContent = "";
@@ -657,20 +707,20 @@ document.getElementById("btn-check-env")!.addEventListener("click", async () => 
 });
 
 // --- Activate License ---
-document.getElementById("btn-activate")!.addEventListener("click", () => {
-  document.getElementById("license-dialog-status")!.textContent = "";
-  document.getElementById("license-dialog-overlay")!.classList.remove("hidden");
+byId("btn-activate").addEventListener("click", () => {
+  byId("license-dialog-status").textContent = "";
+  byId("license-dialog-overlay").classList.remove("hidden");
 });
 
-document.getElementById("btn-about-close")!.addEventListener("click", () => {
-  document.getElementById("about-dialog-overlay")!.classList.add("hidden");
+byId("btn-about-close").addEventListener("click", () => {
+  byId("about-dialog-overlay").classList.add("hidden");
 });
 
-document.getElementById("reset-dialog-overlay")!.addEventListener("click", (e) => {
+byId("reset-dialog-overlay").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) (e.currentTarget as HTMLElement).classList.add("hidden");
 });
 
-document.getElementById("about-dialog-overlay")!.addEventListener("click", (e) => {
+byId("about-dialog-overlay").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) (e.currentTarget as HTMLElement).classList.add("hidden");
 });
 
@@ -680,17 +730,19 @@ document.getElementById("about-dialog-overlay")!.addEventListener("click", (e) =
     const result = await window.api.checkLibrary();
     if (result.success && result.data) {
       const licensed = result.data.licensed;
-      document.getElementById("btn-activate")!.classList.toggle("hidden", licensed);
+      byId("btn-activate").classList.toggle("hidden", licensed);
       if (!licensed) {
-        document.getElementById("license-dialog-overlay")!.classList.remove("hidden");
+        byId("license-dialog-overlay").classList.remove("hidden");
       }
     }
-  } catch (_) { /* ignore */ }
+  } catch (_) {
+    /* ignore */
+  }
 })();
 
 // --- License dialog handlers ---
 async function _doLicenseActivation(): Promise<void> {
-  const statusEl = document.getElementById("license-dialog-status")!;
+  const statusEl = byId("license-dialog-status");
   const btn = document.getElementById("btn-license-select") as HTMLButtonElement;
   btn.disabled = true;
   statusEl.textContent = "Activating...";
@@ -702,8 +754,8 @@ async function _doLicenseActivation(): Promise<void> {
       return;
     }
     if (result.success && result.data?.licensed) {
-      document.getElementById("license-dialog-overlay")!.classList.add("hidden");
-      document.getElementById("btn-activate")!.classList.add("hidden");
+      byId("license-dialog-overlay").classList.add("hidden");
+      byId("btn-activate").classList.add("hidden");
       const info = await window.api.checkLibrary().catch(() => null);
       renderLicenseStatus(true, info?.success ? info.data?.license_info : undefined);
     } else {
@@ -711,19 +763,19 @@ async function _doLicenseActivation(): Promise<void> {
       (statusEl as HTMLElement).style.color = "var(--danger)";
     }
   } catch (err) {
-    statusEl.textContent = "Error: " + (err as Error).message;
+    statusEl.textContent = `Error: ${(err as Error).message}`;
     (statusEl as HTMLElement).style.color = "var(--danger)";
   } finally {
     btn.disabled = false;
   }
 }
 
-document.getElementById("btn-license-select")!.addEventListener("click", _doLicenseActivation);
-document.getElementById("btn-license-cancel")!.addEventListener("click", () => {
-  document.getElementById("license-dialog-overlay")!.classList.add("hidden");
+byId("btn-license-select").addEventListener("click", _doLicenseActivation);
+byId("btn-license-cancel").addEventListener("click", () => {
+  byId("license-dialog-overlay").classList.add("hidden");
 });
-document.getElementById("btn-license-close")!.addEventListener("click", () => {
-  document.getElementById("license-dialog-overlay")!.classList.add("hidden");
+byId("btn-license-close").addEventListener("click", () => {
+  byId("license-dialog-overlay").classList.add("hidden");
 });
 
 // --- Initialize Application ---

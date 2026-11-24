@@ -1,11 +1,11 @@
 // ===== RadarSimApp - State Persistence =====
 
-import { debounce } from './utils.js';
-import { txChannels, rxChannels, pointTargets, meshTargets } from './shared.js';
-import { saveTxChannelStates, saveRxChannelStates, renderTxChannels, renderRxChannels } from './channels.js';
-import { savePointTargetStates, saveMeshTargetStates, renderPointTargets, renderMeshTargets } from './targets.js';
-import { clearResultPlots, updateTxInfo } from './plots.js';
-import { updateScene } from './scene.js';
+import { renderRxChannels, renderTxChannels, saveRxChannelStates, saveTxChannelStates } from "./channels.js";
+import { clearResultPlots, updateTxInfo } from "./plots.js";
+import { updateScene } from "./scene.js";
+import { meshTargets, pointTargets, rxChannels, txChannels } from "./shared.js";
+import { renderMeshTargets, renderPointTargets, saveMeshTargetStates, savePointTargetStates } from "./targets.js";
+import { byId, debounce } from "./utils.js";
 
 const STATE_KEY = "radarsimapp_state";
 
@@ -61,18 +61,45 @@ export function resetToDefault(): void {
 }
 
 const STATIC_FIELDS: string[] = [
-  "tx-f-start", "tx-f-end", "tx-t-start", "tx-t-end",
-  "tx-pulses", "tx-prp", "tx-power",
-  "rx-fs", "rx-bb-type", "rx-nf", "rx-rf-gain", "rx-bb-gain", "rx-load-r", "rx-gate-delay",
-  "radar-loc-x", "radar-loc-y", "radar-loc-z",
-  "radar-spd-x", "radar-spd-y", "radar-spd-z",
-  "radar-rot-yaw", "radar-rot-pitch", "radar-rot-roll",
-  "radar-rr-yaw", "radar-rr-pitch", "radar-rr-roll",
-  "sim-density", "sim-level",
-  "proc-rd-range-fft", "proc-rd-doppler-fft",
+  "tx-f-start",
+  "tx-f-end",
+  "tx-t-start",
+  "tx-t-end",
+  "tx-pulses",
+  "tx-prp",
+  "tx-power",
+  "rx-fs",
+  "rx-bb-type",
+  "rx-nf",
+  "rx-rf-gain",
+  "rx-bb-gain",
+  "rx-load-r",
+  "rx-gate-delay",
+  "radar-loc-x",
+  "radar-loc-y",
+  "radar-loc-z",
+  "radar-spd-x",
+  "radar-spd-y",
+  "radar-spd-z",
+  "radar-rot-yaw",
+  "radar-rot-pitch",
+  "radar-rot-roll",
+  "radar-rr-yaw",
+  "radar-rr-pitch",
+  "radar-rr-roll",
+  "sim-density",
+  "sim-level",
+  "proc-rd-range-fft",
+  "proc-rd-doppler-fft",
 ];
 
-const CHECKBOX_FIELDS: string[] = ["proc-noise", "proc-range-doppler", "proc-range-profile", "proc-rd-range-fft-enable", "proc-rd-doppler-fft-enable"];
+const CHECKBOX_FIELDS: string[] = [
+  "proc-noise",
+  "proc-range-doppler",
+  "proc-range-profile",
+  "proc-rd-range-fft-enable",
+  "proc-rd-doppler-fft-enable",
+];
 
 export function captureState(): AppState {
   saveTxChannelStates();
@@ -99,20 +126,21 @@ export function captureState(): AppState {
   };
 }
 
-export function applyState(state: AppState): void {
+export function applyState(state: Partial<AppState> | null | undefined): void {
   if (!state) return;
 
-  if (state.fields) {
+  const fields = state.fields;
+  if (fields) {
     STATIC_FIELDS.forEach((id) => {
-      if (id in state.fields) {
+      if (id in fields) {
         const elem = document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null;
-        if (elem) elem.value = state.fields[id] as string;
+        if (elem) elem.value = fields[id] as string;
       }
     });
     CHECKBOX_FIELDS.forEach((id) => {
-      if (id in state.fields) {
+      if (id in fields) {
         const elem = document.getElementById(id) as HTMLInputElement | null;
-        if (elem) elem.checked = !!state.fields[id];
+        if (elem) elem.checked = !!fields[id];
       }
     });
   }
@@ -136,7 +164,7 @@ export function applyState(state: AppState): void {
 export const debouncedAutoSave = debounce(() => {
   try {
     localStorage.setItem(STATE_KEY, JSON.stringify(captureState()));
-  } catch (_) { }
+  } catch (_) {}
 }, 500);
 
 function attachAutoSave(): void {
@@ -149,10 +177,11 @@ async function saveConfigToFile(): Promise<boolean> {
   return window.api.saveConfig(JSON.stringify(state, null, 2));
 }
 
-export function validateState(state: any): void {
-  if (!state || typeof state !== "object" || Array.isArray(state)) {
+export function validateState(input: unknown): asserts input is AppState {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new Error("File does not contain a valid configuration object.");
   }
+  const state = input as Record<string, unknown>;
   const required = ["fields", "txChannels", "rxChannels", "pointTargets", "meshTargets"];
   for (const key of required) {
     if (!(key in state)) {
@@ -164,7 +193,7 @@ export function validateState(state: any): void {
       throw new Error(`Expected "${key}" to be an array, got ${typeof state[key]}.`);
     }
   }
-  if (typeof state.fields !== "object" || Array.isArray(state.fields)) {
+  if (!state.fields || typeof state.fields !== "object" || Array.isArray(state.fields)) {
     throw new Error('Expected "fields" to be an object.');
   }
 }
@@ -172,11 +201,11 @@ export function validateState(state: any): void {
 async function loadConfigFromFile(): Promise<boolean> {
   const raw = await window.api.loadConfig();
   if (!raw) return false;
-  let state: any;
+  let state: unknown;
   try {
     state = JSON.parse(raw);
   } catch (e) {
-    throw new Error("File is not valid JSON: " + (e as Error).message);
+    throw new Error(`File is not valid JSON: ${(e as Error).message}`);
   }
   validateState(state);
   applyState(state);
@@ -187,9 +216,9 @@ async function loadConfigFromFile(): Promise<boolean> {
 // --- Application Init ---
 export function initApp(): void {
   // Config button event listeners
-  document.getElementById("btn-save-config")!.addEventListener("click", async () => {
+  byId("btn-save-config").addEventListener("click", async () => {
     const btn = document.getElementById("btn-save-config") as HTMLButtonElement;
-    const status = document.getElementById("config-status")!;
+    const status = byId("config-status");
     btn.disabled = true;
     try {
       const saved = await saveConfigToFile();
@@ -202,25 +231,34 @@ export function initApp(): void {
       status.className = "config-status err";
     } finally {
       btn.disabled = false;
-      setTimeout(() => { status.textContent = ""; status.className = "config-status"; }, 3000);
+      setTimeout(() => {
+        status.textContent = "";
+        status.className = "config-status";
+      }, 3000);
     }
   });
 
-  document.getElementById("btn-load-config")!.addEventListener("click", async () => {
+  byId("btn-load-config").addEventListener("click", async () => {
     const btn = document.getElementById("btn-load-config") as HTMLButtonElement;
-    const status = document.getElementById("config-status")!;
+    const status = byId("config-status");
     btn.disabled = true;
     try {
       const loaded = await loadConfigFromFile();
       if (loaded) {
         status.textContent = "Config loaded.";
         status.className = "config-status ok";
-        setTimeout(() => { status.textContent = ""; status.className = "config-status"; }, 3000);
+        setTimeout(() => {
+          status.textContent = "";
+          status.className = "config-status";
+        }, 3000);
       }
     } catch (err) {
       status.textContent = (err as Error).message;
       status.className = "config-status err";
-      setTimeout(() => { status.textContent = ""; status.className = "config-status"; }, 6000);
+      setTimeout(() => {
+        status.textContent = "";
+        status.className = "config-status";
+      }, 6000);
     } finally {
       btn.disabled = false;
     }
@@ -233,7 +271,7 @@ export function initApp(): void {
       applyState(JSON.parse(raw));
       restored = true;
     }
-  } catch (_) { }
+  } catch (_) {}
 
   if (!restored) {
     txChannels.push({});

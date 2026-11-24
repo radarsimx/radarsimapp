@@ -10,22 +10,27 @@
 // mesh cases on the library's own free-tier error. Both are things the machine
 // running these tests is expected to provide.
 
-import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import type { RadarSimBridge } from "../../bridge.ts";
+import { loadBuilt } from "../helpers/built.mts";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const LIB_DIR = path.join(REPO_ROOT, "radarsimlib");
-const LIB_NAME = process.platform === "win32" ? "radarsimc.dll"
-  : process.platform === "darwin" ? "libradarsimc.dylib"
-    : "libradarsimc.so";
+const LIB_NAME =
+  process.platform === "win32"
+    ? "radarsimc.dll"
+    : process.platform === "darwin"
+      ? "libradarsimc.dylib"
+      : "libradarsimc.so";
 const LIB_PATH = path.join(LIB_DIR, LIB_NAME);
 
 const C = 299792458;
 
-let bridge: any = null;
+let bridge: RadarSimBridge;
 let licensed = false;
 let version = "";
 
@@ -37,23 +42,33 @@ const FS = 2e6;
 /** Chirp slope, Hz/s. */
 const SLOPE = (F_END - F_START) / PULSE_LEN;
 
-function baseConfig(overrides: any = {}): any {
+function baseConfig(overrides: SimConfig = {}): SimConfig {
   return {
     transmitter: {
-      f: [F_START, F_END], t: [0, PULSE_LEN],
-      pulses: 4, prp: 100e-6, tx_power: 10,
+      f: [F_START, F_END],
+      t: [0, PULSE_LEN],
+      pulses: 4,
+      prp: 100e-6,
+      tx_power: 10,
       channels: [{ location: [0, 0, 0] }],
       ...(overrides.transmitter || {}),
     },
     receiver: {
-      fs: FS, noise_figure: 0, rf_gain: 20, baseband_gain: 30,
-      load_resistor: 500, bb_type: "complex", gate_delay: 0,
+      fs: FS,
+      noise_figure: 0,
+      rf_gain: 20,
+      baseband_gain: 30,
+      load_resistor: 500,
+      bb_type: "complex",
+      gate_delay: 0,
       channels: [{ location: [0, 0, 0] }],
       ...(overrides.receiver || {}),
     },
     radar: {
-      location: [0, 0, 0], speed: [0, 0, 0],
-      rotation: [0, 0, 0], rotation_rate: [0, 0, 0],
+      location: [0, 0, 0],
+      speed: [0, 0, 0],
+      rotation: [0, 0, 0],
+      rotation_rate: [0, 0, 0],
       ...(overrides.radar || {}),
     },
     targets: overrides.targets ?? [{ location: [10, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 }],
@@ -64,7 +79,7 @@ function baseConfig(overrides: any = {}): any {
 }
 
 /** Smallest run that still exercises the simulator, for the child-process probe. */
-function probeConfig(): any {
+function probeConfig(): SimConfig {
   return baseConfig({ transmitter: { pulses: 1 } });
 }
 
@@ -73,12 +88,15 @@ function probeConfig(): any {
  * half a second inside radarsimc, plus range-Doppler and range-profile
  * processing over 256 x 2048 bins. Sized against MAX_STALL below.
  */
-function heavyConfig(): any {
+function heavyConfig(): SimConfig {
   return baseConfig({
     transmitter: { pulses: 256, prp: 100e-6 },
     receiver: { fs: 20e6, noise_figure: 12, channels: [{ location: [0, 0, 0] }, { location: [0, 0.006, 0] }] },
     targets: Array.from({ length: 32 }, (_, i) => ({
-      location: [10 + i, i - 16, 0], rcs: 20, speed: [-5 - i, 0, 0], phase: 0,
+      location: [10 + i, i - 16, 0],
+      rcs: 20,
+      speed: [-5 - i, 0, 0],
+      phase: 0,
     })),
     simulation: { level: "sample" },
     processing: { noise: true, range_doppler: true, range_profile: true },
@@ -86,23 +104,30 @@ function heavyConfig(): any {
 }
 
 /** Range-FFT one pulse of the returned baseband and report the peak bin. */
-function peakRangeBin(baseband: any, pulse = 0, channel = 0): { bin: number; n: number } {
+function peakRangeBin(baseband: SimResult["baseband"], pulse = 0, channel = 0): { bin: number; n: number } {
   const { re, im } = baseband[pulse][channel];
   const n = 1 << Math.ceil(Math.log2(re.length));
-  const R = new Float64Array(n); R.set(re);
-  const I = new Float64Array(n); I.set(im);
+  const R = new Float64Array(n);
+  R.set(re);
+  const I = new Float64Array(n);
+  I.set(im);
   // Naive DFT magnitude search: the arrays here are small and this keeps the
   // test independent of the app's own FFT.
-  let best = 0, bestMag = -1;
+  let best = 0,
+    bestMag = -1;
   for (let k = 0; k < n; k++) {
-    let sr = 0, si = 0;
+    let sr = 0,
+      si = 0;
     for (let s = 0; s < re.length; s++) {
       const ang = (-2 * Math.PI * k * s) / n;
       sr += R[s] * Math.cos(ang) - I[s] * Math.sin(ang);
       si += R[s] * Math.sin(ang) + I[s] * Math.cos(ang);
     }
     const mag = Math.hypot(sr, si);
-    if (mag > bestMag) { bestMag = mag; best = k; }
+    if (mag > bestMag) {
+      bestMag = mag;
+      best = k;
+    }
   }
   return { bin: best, n };
 }
@@ -126,11 +151,11 @@ function peakRangeBin(baseband: any, pulse = 0, channel = 0): { bin: number; n: 
 before(async () => {
   if (!fs.existsSync(LIB_PATH)) {
     throw new Error(
-      `native library not found at ${LIB_PATH}. The integration suite needs a ` +
-      `radarsimc build for this platform.`);
+      `native library not found at ${LIB_PATH}. The integration suite needs a radarsimc build for this platform.`,
+    );
   }
 
-  const mod = await import("../../dist/bridge.js");
+  const mod = await loadBuilt<typeof import("../../bridge.ts")>("bridge.js");
   bridge = new mod.RadarSimBridge();
 
   const info = await bridge.checkLibrary();
@@ -184,7 +209,10 @@ describe("runSimulation", () => {
     const { re, im } = out.baseband[0][0];
     const energy = re.reduce((a: number, v: number, i: number) => a + v * v + im[i] * im[i], 0);
     assert.ok(energy > 0, "baseband was all zeros; the target produced no echo");
-    assert.ok(re.every((v: number) => Number.isFinite(v)), "baseband contains NaN/Infinity");
+    assert.ok(
+      re.every((v: number) => Number.isFinite(v)),
+      "baseband contains NaN/Infinity",
+    );
   });
 
   test("no targets produces a silent baseband", async () => {
@@ -195,12 +223,16 @@ describe("runSimulation", () => {
   });
 
   test("a more distant target beats at a higher range bin", async () => {
-    const near = await bridge.runSimulation(baseConfig({
-      targets: [{ location: [10, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 }],
-    }));
-    const far = await bridge.runSimulation(baseConfig({
-      targets: [{ location: [30, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 }],
-    }));
+    const near = await bridge.runSimulation(
+      baseConfig({
+        targets: [{ location: [10, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 }],
+      }),
+    );
+    const far = await bridge.runSimulation(
+      baseConfig({
+        targets: [{ location: [30, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 }],
+      }),
+    );
     const a = peakRangeBin(near.baseband);
     const b = peakRangeBin(far.baseband);
     assert.ok(b.bin > a.bin, `10 m peaked at ${a.bin}, 30 m at ${b.bin}`);
@@ -208,9 +240,11 @@ describe("runSimulation", () => {
 
   test("the beat frequency matches the chirp slope", async () => {
     const range = 30;
-    const out = await bridge.runSimulation(baseConfig({
-      targets: [{ location: [range, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 }],
-    }));
+    const out = await bridge.runSimulation(
+      baseConfig({
+        targets: [{ location: [range, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 }],
+      }),
+    );
     const { bin, n } = peakRangeBin(out.baseband);
     const expected = (SLOPE * ((2 * range) / C) * n) / FS;
     assert.ok(Math.abs(bin - expected) <= 2, `peak bin ${bin}, expected about ${expected.toFixed(1)}`);
@@ -223,10 +257,12 @@ describe("runSimulation", () => {
     const target = [{ location: [range, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 }];
 
     const ungated = await bridge.runSimulation(baseConfig({ targets: target }));
-    const gated = await bridge.runSimulation(baseConfig({
-      targets: target,
-      receiver: { gate_delay: (2 * range) / C },
-    }));
+    const gated = await bridge.runSimulation(
+      baseConfig({
+        targets: target,
+        receiver: { gate_delay: (2 * range) / C },
+      }),
+    );
 
     const before = peakRangeBin(ungated.baseband).bin;
     const after = peakRangeBin(gated.baseband).bin;
@@ -242,15 +278,18 @@ describe("runSimulation", () => {
     assert.ok(Array.isArray(on.range_doppler));
     assert.equal(on.range_doppler.length, on.rd_doppler_fft_size);
     assert.equal(on.range_doppler[0][0].length, on.rd_range_fft_size);
+    assert.ok(on.rd_doppler_axis);
     assert.equal(on.rd_doppler_axis.length, on.rd_doppler_fft_size);
   });
 
   test("enabling noise perturbs an otherwise identical run", async () => {
     const quiet = await bridge.runSimulation(baseConfig());
-    const noisy = await bridge.runSimulation(baseConfig({
-      receiver: { noise_figure: 12 },
-      processing: { noise: true },
-    }));
+    const noisy = await bridge.runSimulation(
+      baseConfig({
+        receiver: { noise_figure: 12 },
+        processing: { noise: true },
+      }),
+    );
     assert.notDeepEqual(noisy.baseband[0][0].re, quiet.baseband[0][0].re);
   });
 
@@ -267,26 +306,26 @@ describe("runSimulation", () => {
 
   test("mismatched frequency and time vectors are rejected", async () => {
     await assert.rejects(
-      () => bridge.runSimulation(baseConfig({
-        transmitter: { f: [F_START, F_END, 25e9], t: [0, PULSE_LEN] },
-      })),
-      /same length/
+      () =>
+        bridge.runSimulation(
+          baseConfig({
+            transmitter: { f: [F_START, F_END, 25e9], t: [0, PULSE_LEN] },
+          }),
+        ),
+      /same length/,
     );
   });
 
   // A single-element t is normalized to [0, t0], so t:[0] yields a zero-length
   // pulse. That should surface as a clear error, not a crash or empty result.
   test("a zero-length pulse is rejected rather than silently producing nothing", async () => {
-    await assert.rejects(
-      () => bridge.runSimulation(baseConfig({ transmitter: { t: [0] } })),
-      /Get_BB_Size returned 0/
-    );
+    await assert.rejects(() => bridge.runSimulation(baseConfig({ transmitter: { t: [0] } })), /Get_BB_Size returned 0/);
   });
 
   test("a prp shorter than the pulse is rejected", async () => {
     await assert.rejects(
       () => bridge.runSimulation(baseConfig({ transmitter: { prp: 1e-6 } })),
-      /prp can't be smaller/
+      /prp can't be smaller/,
     );
   });
 });
@@ -324,7 +363,7 @@ describe("main-thread responsiveness", () => {
     assert.ok(
       worst < MAX_STALL,
       `event loop stalled for ${worst} ms during a ${elapsed} ms run ` +
-      `(a synchronous simulation stalls it for the whole run)`
+        `(a synchronous simulation stalls it for the whole run)`,
     );
   });
 
@@ -334,15 +373,19 @@ describe("main-thread responsiveness", () => {
   test("a scene query raised mid-simulation is serialised behind it", async () => {
     const order: string[] = [];
 
-    const sim = bridge.runSimulation(baseConfig({ transmitter: { pulses: 64 } }))
-      .then(() => { order.push("sim"); });
-    const scene = bridge.getSceneState(baseConfig({ radar: { location: [1, 2, 0.5] } }))
-      .then((s: any) => { order.push("scene"); return s; });
+    const sim = bridge.runSimulation(baseConfig({ transmitter: { pulses: 64 } })).then(() => {
+      order.push("sim");
+    });
+    const scene = bridge.getSceneState(baseConfig({ radar: { location: [1, 2, 0.5] } })).then((s) => {
+      order.push("scene");
+      return s;
+    });
 
     const [, s] = await Promise.all([sim, scene]);
 
     assert.deepEqual(order, ["sim", "scene"], "the scene query overtook the simulation");
     assert.deepEqual(s.warnings, [], `unexpected warnings: ${s.warnings.join("; ")}`);
+    assert.ok(s.txLocations);
     assert.deepEqual(Array.from(s.txLocations), [1, 2, 0.5]);
   });
 
@@ -357,12 +400,14 @@ describe("getSceneState", () => {
   test("places a stationary radar at its configured location", async () => {
     const s = await bridge.getSceneState(baseConfig({ radar: { location: [1, 2, 0.5] } }));
     assert.deepEqual(s.warnings, [], `unexpected warnings: ${s.warnings.join("; ")}`);
+    assert.ok(s.txLocations && s.rxLocations);
     assert.deepEqual(Array.from(s.txLocations), [1, 2, 0.5]);
     assert.deepEqual(Array.from(s.rxLocations), [1, 2, 0.5]);
   });
 
   test("an unrotated radar looks down +x", async () => {
     const s = await bridge.getSceneState(baseConfig());
+    assert.ok(s.boresight);
     assert.ok(Math.abs(s.boresight[0] - 1) < 1e-5, `got ${Array.from(s.boresight)}`);
   });
 
@@ -370,6 +415,7 @@ describe("getSceneState", () => {
   // the bridge is what converts. 90 sent through raw yaws by 90 rad.
   test("a 90 degree yaw in the config turns the boresight to +y", async () => {
     const s = await bridge.getSceneState(baseConfig({ radar: { rotation: [90, 0, 0] } }));
+    assert.ok(s.boresight);
     assert.ok(Math.abs(s.boresight[0]) < 1e-5, `boresight x should be ~0, got ${s.boresight[0]}`);
     assert.ok(Math.abs(s.boresight[1] - 1) < 1e-5, `boresight y should be ~1, got ${s.boresight[1]}`);
   });
@@ -378,6 +424,7 @@ describe("getSceneState", () => {
     const cfg = baseConfig({ radar: { speed: [10, 0, 0] } });
     const at0 = await bridge.getSceneState({ ...cfg, timestamp: 0 });
     const at2 = await bridge.getSceneState({ ...cfg, timestamp: 2 });
+    assert.ok(at0.txLocations && at2.txLocations);
     assert.ok(Math.abs(at0.txLocations[0]) < 1e-4);
     assert.ok(Math.abs(at2.txLocations[0] - 20) < 1e-4, `expected x=20, got ${at2.txLocations[0]}`);
   });
@@ -388,21 +435,31 @@ describe("getSceneState", () => {
   });
 
   test("a missing model file is reported as a warning, not a throw", async () => {
-    const s = await bridge.getSceneState(baseConfig({
-      targets: [{ model: path.join(LIB_DIR, "does-not-exist.stl"), location: [10, 0, 0] }],
-    }));
+    const s = await bridge.getSceneState(
+      baseConfig({
+        targets: [{ model: path.join(LIB_DIR, "does-not-exist.stl"), location: [10, 0, 0] }],
+      }),
+    );
     assert.equal(s.meshes.length, 0);
     assert.match(s.warnings.join(" "), /model file not found/);
   });
 
   test("mesh geometry comes back transformed to the target's pose", async () => {
     const stl = path.join(REPO_ROOT, "test", "fixtures", "plate.stl");
-    const s = await bridge.getSceneState(baseConfig({
-      targets: [{
-        model: stl, unit: "m", location: [20, 5, 0],
-        speed: [0, 0, 0], rotation: [0, 0, 0], rotation_rate: [0, 0, 0],
-      }],
-    }));
+    const s = await bridge.getSceneState(
+      baseConfig({
+        targets: [
+          {
+            model: stl,
+            unit: "m",
+            location: [20, 5, 0],
+            speed: [0, 0, 0],
+            rotation: [0, 0, 0],
+            rotation_rate: [0, 0, 0],
+          },
+        ],
+      }),
+    );
     assert.deepEqual(s.warnings, [], `unexpected warnings: ${s.warnings.join("; ")}`);
     assert.equal(s.meshes.length, 1);
 
@@ -419,12 +476,20 @@ describe("getSceneState", () => {
 
   test("mesh rotation is applied, and the config's degrees are converted", async () => {
     const stl = path.join(REPO_ROOT, "test", "fixtures", "plate.stl");
-    const s = await bridge.getSceneState(baseConfig({
-      targets: [{
-        model: stl, unit: "m", location: [10, 0, 0],
-        speed: [0, 0, 0], rotation: [90, 0, 0], rotation_rate: [0, 0, 0],
-      }],
-    }));
+    const s = await bridge.getSceneState(
+      baseConfig({
+        targets: [
+          {
+            model: stl,
+            unit: "m",
+            location: [10, 0, 0],
+            speed: [0, 0, 0],
+            rotation: [90, 0, 0],
+            rotation_rate: [0, 0, 0],
+          },
+        ],
+      }),
+    );
     assert.equal(s.meshes.length, 1);
     // A 90 deg yaw turns the x=const plate into a y=const one.
     const [minX, , , maxX] = s.meshes[0].bounds;
@@ -434,30 +499,45 @@ describe("getSceneState", () => {
 
   test("the model unit scales the geometry", async () => {
     const stl = path.join(REPO_ROOT, "test", "fixtures", "plate.stl");
-    const mk = (unit: string) => bridge.getSceneState(baseConfig({
-      targets: [{
-        model: stl, unit, location: [10, 0, 0],
-        speed: [0, 0, 0], rotation: [0, 0, 0], rotation_rate: [0, 0, 0],
-      }],
-    }));
+    const mk = (unit: string) =>
+      bridge.getSceneState(
+        baseConfig({
+          targets: [
+            {
+              model: stl,
+              unit,
+              location: [10, 0, 0],
+              speed: [0, 0, 0],
+              rotation: [0, 0, 0],
+              rotation_rate: [0, 0, 0],
+            },
+          ],
+        }),
+      );
     const inMetres = await mk("m");
     const inMillimetres = await mk("mm");
-    const spanY = (s: any) => s.meshes[0].bounds[4] - s.meshes[0].bounds[1];
+    const spanY = (s: SceneState) => s.meshes[0].bounds[4] - s.meshes[0].bounds[1];
     assert.ok(Math.abs(spanY(inMetres) - 1) < 1e-4);
     assert.ok(Math.abs(spanY(inMillimetres) - 1e-3) < 1e-6);
   });
 
   test("mesh indices survive an unreadable model earlier in the list", async () => {
     const stl = path.join(REPO_ROOT, "test", "fixtures", "plate.stl");
-    const s = await bridge.getSceneState(baseConfig({
-      targets: [
-        { model: path.join(LIB_DIR, "missing.stl"), location: [5, 0, 0] },
-        {
-          model: stl, unit: "m", location: [20, 0, 0],
-          speed: [0, 0, 0], rotation: [0, 0, 0], rotation_rate: [0, 0, 0],
-        },
-      ],
-    }));
+    const s = await bridge.getSceneState(
+      baseConfig({
+        targets: [
+          { model: path.join(LIB_DIR, "missing.stl"), location: [5, 0, 0] },
+          {
+            model: stl,
+            unit: "m",
+            location: [20, 0, 0],
+            speed: [0, 0, 0],
+            rotation: [0, 0, 0],
+            rotation_rate: [0, 0, 0],
+          },
+        ],
+      }),
+    );
     assert.equal(s.meshes.length, 1);
     assert.equal(s.meshes[0].index, 1, "the surviving mesh keeps its original position");
     assert.match(s.warnings.join(" "), /Mesh 1: model file not found/);

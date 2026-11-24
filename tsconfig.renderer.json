@@ -12,5 +12,5 @@
     "outDir": "./dist/renderer/js",
     "rootDir": "./renderer/ts"
   },
-  "include": ["renderer/ts/**/*.ts"]
+  "include": ["renderer/ts/**/*.ts", "sim-types.d.ts"]
 }

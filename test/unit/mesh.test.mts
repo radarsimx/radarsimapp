@@ -1,12 +1,10 @@
-import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { after, before, describe, test } from "node:test";
 
-import {
-  UNIT_SCALE, SCENE_MAX_CELLS, loadStl, loadAsciiStl, packSceneMesh,
-} from "../../dist/mesh.js";
+import { loadAsciiStl, loadStl, packSceneMesh, SCENE_MAX_CELLS, UNIT_SCALE } from "../../dist/mesh.js";
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 let tmp: string;
@@ -38,7 +36,9 @@ function binaryStl(triangles: number[][][]): Buffer {
   for (const tri of triangles) {
     off += 12; // normal, unused by the loader
     for (const [x, y, z] of tri) {
-      buf.writeFloatLE(x, off); buf.writeFloatLE(y, off + 4); buf.writeFloatLE(z, off + 8);
+      buf.writeFloatLE(x, off);
+      buf.writeFloatLE(y, off + 4);
+      buf.writeFloatLE(z, off + 8);
       off += 12;
     }
     off += 2; // attribute byte count
@@ -49,10 +49,21 @@ function binaryStl(triangles: number[][][]): Buffer {
 before(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "radarsimapp-mesh-"));
   fs.writeFileSync(path.join(tmp, "ascii.stl"), ASCII_STL);
-  fs.writeFileSync(path.join(tmp, "binary.stl"), binaryStl([
-    [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
-    [[1, 1, 0], [0, 1, 0], [1, 0, 0]],
-  ]));
+  fs.writeFileSync(
+    path.join(tmp, "binary.stl"),
+    binaryStl([
+      [
+        [0, 0, 0],
+        [1, 0, 0],
+        [0, 1, 0],
+      ],
+      [
+        [1, 1, 0],
+        [0, 1, 0],
+        [1, 0, 0],
+      ],
+    ]),
+  );
 });
 
 after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -164,7 +175,11 @@ describe("packSceneMesh", () => {
   });
 
   test("index arrays are sequential triples", () => {
-    const m = packSceneMesh(0, 3, meshBuffer(3, () => [0, 0, 0]));
+    const m = packSceneMesh(
+      0,
+      3,
+      meshBuffer(3, () => [0, 0, 0]),
+    );
     assert.deepEqual(Array.from(m.i), [0, 3, 6]);
     assert.deepEqual(Array.from(m.j), [1, 4, 7]);
     assert.deepEqual(Array.from(m.k), [2, 5, 8]);
@@ -172,7 +187,11 @@ describe("packSceneMesh", () => {
 
   test("every index stays inside the vertex arrays", () => {
     const cells = 500;
-    const m = packSceneMesh(0, cells, meshBuffer(cells, () => [1, 2, 3]));
+    const m = packSceneMesh(
+      0,
+      cells,
+      meshBuffer(cells, () => [1, 2, 3]),
+    );
     assert.equal(m.x.length, m.cells * 3);
     assert.ok(m.k[m.cells - 1] < m.x.length, "last index must be addressable");
   });
@@ -181,17 +200,31 @@ describe("packSceneMesh", () => {
     const pts = meshBuffer(2, (c, v) => [c * 10 + v, 1 - v, v === 2 ? 5 : 0]);
     const m = packSceneMesh(0, 2, pts);
     const [minX, minY, minZ, maxX, maxY, maxZ] = m.bounds;
-    assert.equal(minX, 0); assert.equal(maxX, 12);
-    assert.equal(minY, -1); assert.equal(maxY, 1);
-    assert.equal(minZ, 0); assert.equal(maxZ, 5);
+    assert.equal(minX, 0);
+    assert.equal(maxX, 12);
+    assert.equal(minY, -1);
+    assert.equal(maxY, 1);
+    assert.equal(minZ, 0);
+    assert.equal(maxZ, 5);
   });
 
   test("carries the caller's mesh index through", () => {
-    assert.equal(packSceneMesh(7, 1, meshBuffer(1, () => [0, 0, 0])).index, 7);
+    assert.equal(
+      packSceneMesh(
+        7,
+        1,
+        meshBuffer(1, () => [0, 0, 0]),
+      ).index,
+      7,
+    );
   });
 
   test("small meshes are returned whole", () => {
-    const m = packSceneMesh(0, 1000, meshBuffer(1000, () => [0, 0, 0]));
+    const m = packSceneMesh(
+      0,
+      1000,
+      meshBuffer(1000, () => [0, 0, 0]),
+    );
     assert.equal(m.totalCells, 1000);
     assert.equal(m.cells, 1000, "no striding below the cap");
   });
@@ -219,7 +252,9 @@ describe("packSceneMesh", () => {
     const pts = meshBuffer(cells, (c) => [c, c, c]);
     const m = packSceneMesh(0, cells, pts);
     for (let t = 0; t < m.cells; t++) {
-      const a = m.x[t * 3], b = m.x[t * 3 + 1], c = m.x[t * 3 + 2];
+      const a = m.x[t * 3],
+        b = m.x[t * 3 + 1],
+        c = m.x[t * 3 + 2];
       assert.equal(a, b);
       assert.equal(b, c);
     }

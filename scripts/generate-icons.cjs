@@ -12,8 +12,8 @@
 "use strict";
 
 const { createCanvas, loadImage } = require("@napi-rs/canvas");
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const ASSETS = path.join(__dirname, "..", "renderer", "assets");
 const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256];

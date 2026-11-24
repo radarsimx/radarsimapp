@@ -1,11 +1,11 @@
 // ===== RadarSimApp - Target Functions =====
 
-import { el, createInput, createSVG, debounce, parseNumber, confirmAsync, setCount } from './utils.js';
-import { markResultsOutdated } from './plots.js';
-import { updateScene } from './scene.js';
-import { renderOutline } from './outline.js';
-import { pointTargets, meshTargets } from './shared.js';
-import { debouncedAutoSave } from './state.js';
+import { renderOutline } from "./outline.js";
+import { markResultsOutdated } from "./plots.js";
+import { updateScene } from "./scene.js";
+import { meshTargets, pointTargets } from "./shared.js";
+import { debouncedAutoSave } from "./state.js";
+import { byId, confirmAsync, createInput, createSVG, debounce, el, parseNumber, setCount } from "./utils.js";
 
 // --- Point Targets ---
 export function savePointTargetStates(): void {
@@ -18,16 +18,12 @@ export function savePointTargetStates(): void {
     ];
     t.rcs = parseNumber(g(`pt-${i}-rcs`), 20);
     t.phase = parseNumber(g(`pt-${i}-phase`));
-    t.speed = [
-      parseNumber(g(`pt-${i}-spd-x`)),
-      parseNumber(g(`pt-${i}-spd-y`)),
-      parseNumber(g(`pt-${i}-spd-z`)),
-    ];
+    t.speed = [parseNumber(g(`pt-${i}-spd-x`)), parseNumber(g(`pt-${i}-spd-y`)), parseNumber(g(`pt-${i}-spd-z`))];
   });
 }
 
 export function renderPointTargets(): void {
-  const container = document.getElementById("point-targets-list")!;
+  const container = byId("point-targets-list");
   container.innerHTML = "";
   setCount("point-target-count", pointTargets.length);
   pointTargets.forEach((t, i) => {
@@ -79,17 +75,23 @@ export function renderPointTargets(): void {
         ]),
 
         el("div", { className: "card-actions" }, [
-          el("button", {
-            className: "btn-secondary btn-danger", title: "Remove", onClick: async () => {
-              if (!(await confirmAsync(`Remove Target ${i + 1}?`))) return;
-              savePointTargetStates();
-              pointTargets.splice(i, 1);
-              renderPointTargets();
-              updateScene();
-              markResultsOutdated();
-              debouncedAutoSave();
-            }
-          }, [createSVG("trash"), " Remove Target"]),
+          el(
+            "button",
+            {
+              className: "btn-secondary btn-danger",
+              title: "Remove",
+              onClick: async () => {
+                if (!(await confirmAsync(`Remove Target ${i + 1}?`))) return;
+                savePointTargetStates();
+                pointTargets.splice(i, 1);
+                renderPointTargets();
+                updateScene();
+                markResultsOutdated();
+                debouncedAutoSave();
+              },
+            },
+            [createSVG("trash"), " Remove Target"],
+          ),
         ]),
       ]),
     ]);
@@ -117,11 +119,7 @@ export function saveMeshTargetStates(): void {
       parseNumber(g(`mesh-${i}-loc-y`)),
       parseNumber(g(`mesh-${i}-loc-z`)),
     ];
-    t.speed = [
-      parseNumber(g(`mesh-${i}-spd-x`)),
-      parseNumber(g(`mesh-${i}-spd-y`)),
-      parseNumber(g(`mesh-${i}-spd-z`)),
-    ];
+    t.speed = [parseNumber(g(`mesh-${i}-spd-x`)), parseNumber(g(`mesh-${i}-spd-y`)), parseNumber(g(`mesh-${i}-spd-z`))];
     t.rotation = [
       parseNumber(g(`mesh-${i}-rot-yaw`)),
       parseNumber(g(`mesh-${i}-rot-pitch`)),
@@ -139,7 +137,7 @@ export function saveMeshTargetStates(): void {
 }
 
 export function renderMeshTargets(): void {
-  const container = document.getElementById("mesh-targets-list")!;
+  const container = byId("mesh-targets-list");
   container.innerHTML = "";
   setCount("mesh-target-count", meshTargets.length);
   meshTargets.forEach((t, i) => {
@@ -275,17 +273,23 @@ export function renderMeshTargets(): void {
         ]),
 
         el("div", { className: "card-actions" }, [
-          el("button", {
-            className: "btn-secondary btn-danger", title: "Remove", onClick: async () => {
-              if (!(await confirmAsync(`Remove Mesh ${i + 1}?`))) return;
-              saveMeshTargetStates();
-              meshTargets.splice(i, 1);
-              renderMeshTargets();
-              updateScene();
-              markResultsOutdated();
-              debouncedAutoSave();
-            }
-          }, [createSVG("trash"), " Remove Mesh"]),
+          el(
+            "button",
+            {
+              className: "btn-secondary btn-danger",
+              title: "Remove",
+              onClick: async () => {
+                if (!(await confirmAsync(`Remove Mesh ${i + 1}?`))) return;
+                saveMeshTargetStates();
+                meshTargets.splice(i, 1);
+                renderMeshTargets();
+                updateScene();
+                markResultsOutdated();
+                debouncedAutoSave();
+              },
+            },
+            [createSVG("trash"), " Remove Mesh"],
+          ),
         ]),
       ]),
     ]);

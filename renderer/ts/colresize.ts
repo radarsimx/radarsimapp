@@ -3,7 +3,7 @@
 // (or, focused, with the arrow keys). The width sticks, and a double-click on
 // the edge puts it back. A column with every panel folded has nothing to size.
 
-import { pref, setPref } from './stage.js';
+import { pref, setPref } from "./stage.js";
 
 export type Side = "left" | "right";
 
@@ -113,6 +113,9 @@ export function initColumnResize(): void {
   });
 
   // A narrower window may leave a width set before too wide to keep
-  window.addEventListener("resize", () => { _columns.forEach(_apply); place(); });
+  window.addEventListener("resize", () => {
+    _columns.forEach(_apply);
+    place();
+  });
   place();
 }

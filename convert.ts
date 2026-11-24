@@ -1,4 +1,3 @@
-"use strict";
 // ===== RadarSimApp - Conversions and library error codes =====
 //
 // Pure helpers shared by the native bridge. Kept out of bridge.ts so they can
@@ -90,7 +89,7 @@ export function buildAntennaPattern(
   azAngle: number[] | undefined,
   azPattern: number[] | undefined,
   elAngle: number[] | undefined,
-  elPattern: number[] | undefined
+  elPattern: number[] | undefined,
 ): AntennaPattern {
   let phi: Float32Array, phiPtn: Float32Array, antennaGain: number;
   if (azAngle && azPattern && azAngle.length > 0) {
@@ -112,7 +111,7 @@ export function buildAntennaPattern(
       throw new Error("The length of elevation_angle and elevation_pattern must be the same.");
     }
     const elMax = Math.max(...elPattern);
-    const transformed = elAngle.map((v) => (90 - v) * Math.PI / 180).reverse();
+    const transformed = elAngle.map((v) => ((90 - v) * Math.PI) / 180).reverse();
     const ptnFlipped = [...elPattern].reverse().map((v) => v - elMax);
     theta = new Float32Array(transformed);
     thetaPtn = new Float32Array(ptnFlipped);

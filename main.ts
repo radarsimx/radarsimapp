@@ -10,13 +10,26 @@ if (squirrelStartup) {
   require("electron").app.quit();
 }
 
-import { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeTheme } from "electron";
-import * as path from "path";
-import * as fs from "fs";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
+import type { Group } from "h5wasm";
 import { RadarSimBridge } from "./bridge";
 
 let mainWindow: BrowserWindow | undefined;
 let bridge: RadarSimBridge | undefined;
+
+/** The main window, which every dialog is parented to. */
+function requireWindow(): BrowserWindow {
+  if (!mainWindow) throw new Error("The main window is not open");
+  return mainWindow;
+}
+
+/** The bridge, which is created once the app is ready. */
+function requireBridge(): RadarSimBridge {
+  if (!bridge) throw new Error("The simulation bridge is not ready");
+  return bridge;
+}
 
 const isDev: boolean = process.argv.includes("--dev");
 const isMac: boolean = process.platform === "darwin";
@@ -25,7 +38,7 @@ const isMac: boolean = process.platform === "darwin";
  * Creates and configures the main application window.
  */
 function createWindow(): void {
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1024,
@@ -40,13 +53,7 @@ function createWindow(): void {
         : { frame: false }),
     show: false,
     backgroundColor: "#0d0b12",
-    icon: path.join(
-      __dirname,
-      "..",
-      "renderer",
-      "assets",
-      process.platform === "win32" ? "logo.ico" : "logo.png"
-    ),
+    icon: path.join(__dirname, "..", "renderer", "assets", process.platform === "win32" ? "logo.ico" : "logo.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -54,15 +61,17 @@ function createWindow(): void {
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
+  mainWindow = win;
 
-  mainWindow.once("ready-to-show", () => {
-    mainWindow!.show();
+  win.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
+
+  win.once("ready-to-show", () => {
+    win.show();
   });
 
   // In full screen macOS hides the traffic lights, so the bar can take back their room
-  mainWindow.on("enter-full-screen", () => mainWindow!.webContents.send("fullscreen-changed", true));
-  mainWindow.on("leave-full-screen", () => mainWindow!.webContents.send("fullscreen-changed", false));
+  win.on("enter-full-screen", () => win.webContents.send("fullscreen-changed", true));
+  win.on("leave-full-screen", () => win.webContents.send("fullscreen-changed", false));
 }
 
 // Pin the App User Model ID so Windows uses the embedded icon.
@@ -90,18 +99,18 @@ app.on("window-all-closed", () => {
 
 // --- IPC Handlers ---
 
-ipcMain.handle("run-simulation", async (_event, config: Record<string, unknown>) => {
+ipcMain.handle("run-simulation", async (_event, config: SimConfig) => {
   try {
-    const result = await bridge!.runSimulation(config);
+    const result = await requireBridge().runSimulation(config);
     return { success: true, data: result };
   } catch (err) {
     return { success: false, error: (err as Error).message || String(err) };
   }
 });
 
-ipcMain.handle("get-scene-state", async (_event, config: Record<string, unknown>) => {
+ipcMain.handle("get-scene-state", async (_event, config: SimConfig) => {
   try {
-    const result = await bridge!.getSceneState(config);
+    const result = await requireBridge().getSceneState(config);
     return { success: true, data: result };
   } catch (err) {
     return { success: false, error: (err as Error).message || String(err) };
@@ -112,7 +121,7 @@ ipcMain.handle("get-app-version", () => app.getVersion());
 
 ipcMain.handle("check-library", async () => {
   try {
-    const result = await bridge!.checkLibrary();
+    const result = await requireBridge().checkLibrary();
     return { success: true, data: result };
   } catch (err) {
     return { success: false, error: (err as Error).message || String(err) };
@@ -121,13 +130,13 @@ ipcMain.handle("check-library", async () => {
 
 ipcMain.handle("activate-license", async () => {
   try {
-    const result = await dialog.showOpenDialog(mainWindow!, {
+    const result = await dialog.showOpenDialog(requireWindow(), {
       title: "Select License File",
       properties: ["openFile"],
       filters: [{ name: "License Files", extensions: ["lic"] }],
     });
     if (result.canceled) return { success: false, cancelled: true };
-    const data = await bridge!.activateLicense(result.filePaths[0]);
+    const data = await requireBridge().activateLicense(result.filePaths[0]);
     return { success: true, data };
   } catch (err) {
     return { success: false, error: (err as Error).message || String(err) };
@@ -139,11 +148,13 @@ ipcMain.handle("open-external", (_event, url: string) => {
   try {
     const host = new URL(url).hostname.replace(/^www\./, "");
     if (allowedHosts.includes(host)) shell.openExternal(url);
-  } catch { /* Silently ignore malformed URLs. */ }
+  } catch {
+    /* Silently ignore malformed URLs. */
+  }
 });
 
 ipcMain.handle("select-file", async (_event, options?: { filters?: Array<{ name: string; extensions: string[] }> }) => {
-  const result = await dialog.showOpenDialog(mainWindow!, {
+  const result = await dialog.showOpenDialog(requireWindow(), {
     properties: ["openFile"],
     filters: options?.filters || [{ name: "All Files", extensions: ["*"] }],
   });
@@ -151,48 +162,74 @@ ipcMain.handle("select-file", async (_event, options?: { filters?: Array<{ name:
   return result.filePaths[0];
 });
 
-ipcMain.handle("export-results", async (_event, data: Record<string, unknown>) => {
-  const result = await dialog.showSaveDialog(mainWindow!, {
+ipcMain.handle("export-results", async (_event, data: SimResult) => {
+  const result = await dialog.showSaveDialog(requireWindow(), {
     filters: [
       { name: "HDF5", extensions: ["h5"] },
       { name: "JSON", extensions: ["json"] },
     ],
   });
   if (result.canceled) return null;
-  const filePath = result.filePath!;
+  const filePath = result.filePath;
 
   if (filePath.endsWith(".h5")) {
     const h5wasm = await import("h5wasm");
-    await h5wasm.ready;
+    const { FS } = await h5wasm.ready;
     const h5FileName = path.basename(filePath);
     const f = new h5wasm.File(h5FileName, "w");
-    writeHdf5(f as any, data);
+    writeHdf5(f, data);
     f.flush();
     f.close();
-    const bytes = (h5wasm as any).FS.readFile(h5FileName);
-    fs.writeFileSync(filePath, bytes);
-    (h5wasm as any).FS.unlink(h5FileName);
+    fs.writeFileSync(filePath, FS.readFile(h5FileName));
+    FS.unlink(h5FileName);
   } else {
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
   }
   return filePath;
 });
 
+/** A complex sample block as the simulator returns it: matching re/im arrays. */
+interface ComplexBlock {
+  re: ArrayLike<number>;
+  im: ArrayLike<number>;
+}
+
+function isComplexBlock(v: unknown): v is ComplexBlock {
+  return typeof v === "object" && v !== null && "re" in v && "im" in v;
+}
+
+/** The shape of a nested array, read down its first elements, and what sits at the bottom. */
+function nestedShape(arr: unknown[]): { shape: number[]; leaf: unknown } {
+  const shape: number[] = [];
+  let cursor: unknown = arr;
+  while (Array.isArray(cursor)) {
+    shape.push(cursor.length);
+    cursor = cursor[0];
+  }
+  return { shape, leaf: cursor };
+}
+
 /**
  * Recursively writes a JavaScript object to an HDF5 file/group.
  */
-function writeHdf5(group: any, obj: Record<string, any>): void {
+function writeHdf5(group: Group, obj: object): void {
   for (const [key, value] of Object.entries(obj)) {
     if (value == null) continue;
     if (Array.isArray(value)) {
       const cplx = flattenComplexArray(value);
       if (cplx) {
-        const data = new Map([["r", cplx.re], ["i", cplx.im]]);
+        const data = new Map([
+          ["r", cplx.re],
+          ["i", cplx.im],
+        ]);
         group.create_dataset({
           name: key,
           data,
           shape: cplx.shape,
-          dtype: [["r", "<d"], ["i", "<d"]],
+          dtype: [
+            ["r", "<d"],
+            ["i", "<d"],
+          ],
         });
         continue;
       }
@@ -211,31 +248,19 @@ function writeHdf5(group: any, obj: Record<string, any>): void {
   }
 }
 
-function flattenComplexArray(arr: any[]): { re: Float64Array; im: Float64Array; shape: number[] } | null {
-  const shape: number[] = [];
-  let cursor: any = arr;
-  while (Array.isArray(cursor)) {
-    shape.push(cursor.length);
-    cursor = cursor[0];
-  }
-  if (
-    typeof cursor !== "object" ||
-    cursor === null ||
-    !("re" in cursor) ||
-    !("im" in cursor)
-  )
-    return null;
+function flattenComplexArray(arr: unknown[]): { re: Float64Array; im: Float64Array; shape: number[] } | null {
+  const { shape, leaf } = nestedShape(arr);
+  if (!isComplexBlock(leaf)) return null;
 
-  const sampleLen = cursor.re.length;
-  shape.push(sampleLen);
-  const total = shape.reduce((a: number, b: number) => a * b, 1);
+  shape.push(leaf.re.length);
+  const total = shape.reduce((a, b) => a * b, 1);
   const re = new Float64Array(total);
   const im = new Float64Array(total);
   let idx = 0;
-  function fill(a: any): void {
+  function fill(a: unknown): void {
     if (Array.isArray(a)) {
       for (const el of a) fill(el);
-    } else {
+    } else if (isComplexBlock(a)) {
       for (let s = 0; s < a.re.length; s++) {
         re[idx] = a.re[s];
         im[idx] = a.im[s];
@@ -247,20 +272,15 @@ function flattenComplexArray(arr: any[]): { re: Float64Array; im: Float64Array; 
   return { re, im, shape };
 }
 
-function flattenNumericArray(arr: any[]): { data: Float64Array; shape: number[] } | null {
-  const shape: number[] = [];
-  let cursor: any = arr;
-  while (Array.isArray(cursor)) {
-    shape.push(cursor.length);
-    cursor = cursor[0];
-  }
-  if (typeof cursor !== "number") return null;
-  const flat = new Float64Array(shape.reduce((a: number, b: number) => a * b, 1));
+function flattenNumericArray(arr: unknown[]): { data: Float64Array; shape: number[] } | null {
+  const { shape, leaf } = nestedShape(arr);
+  if (typeof leaf !== "number") return null;
+  const flat = new Float64Array(shape.reduce((a, b) => a * b, 1));
   let idx = 0;
-  function fill(a: any): void {
+  function fill(a: unknown): void {
     if (Array.isArray(a)) {
       for (const el of a) fill(el);
-    } else {
+    } else if (typeof a === "number") {
       flat[idx++] = a;
     }
   }
@@ -269,18 +289,18 @@ function flattenNumericArray(arr: any[]): { data: Float64Array; shape: number[] 
 }
 
 ipcMain.handle("save-config", async (_event, jsonData: string) => {
-  const result = await dialog.showSaveDialog(mainWindow!, {
+  const result = await dialog.showSaveDialog(requireWindow(), {
     title: "Save Configuration",
     defaultPath: "radar-config.json",
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (result.canceled) return false;
-  fs.writeFileSync(result.filePath!, jsonData, "utf8");
+  fs.writeFileSync(result.filePath, jsonData, "utf8");
   return true;
 });
 
 ipcMain.handle("load-config", async () => {
-  const result = await dialog.showOpenDialog(mainWindow!, {
+  const result = await dialog.showOpenDialog(requireWindow(), {
     title: "Load Configuration",
     properties: ["openFile"],
     filters: [{ name: "JSON", extensions: ["json"] }],
@@ -290,10 +310,10 @@ ipcMain.handle("load-config", async () => {
 });
 
 // --- Window control handlers ---
-ipcMain.on("window-minimize", () => mainWindow!.minimize());
+ipcMain.on("window-minimize", () => mainWindow?.minimize());
 ipcMain.on("window-maximize", () => {
-  if (mainWindow!.isMaximized()) mainWindow!.unmaximize();
-  else mainWindow!.maximize();
+  if (mainWindow?.isMaximized()) mainWindow.unmaximize();
+  else mainWindow?.maximize();
 });
-ipcMain.on("window-close", () => mainWindow!.close());
-ipcMain.handle("window-is-maximized", () => mainWindow!.isMaximized());
+ipcMain.on("window-close", () => mainWindow?.close());
+ipcMain.handle("window-is-maximized", () => mainWindow?.isMaximized() ?? false);

@@ -1,16 +1,16 @@
-import { test, describe, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-
-import { installAppDom, type DomHandle } from "../helpers/dom.mts";
+import { after, before, beforeEach, describe, test } from "node:test";
+import { loadBuilt } from "../helpers/built.mts";
+import { type DomHandle, installAppDom } from "../helpers/dom.mts";
 
 let handle: DomHandle;
-let collectConfig: any;
-let shared: any;
+let collectConfig: typeof import("../../renderer/ts/config.ts").collectConfig;
+let shared: typeof import("../../renderer/ts/shared.ts");
 
 before(async () => {
   handle = installAppDom();
-  shared = await import("../../dist/renderer/js/shared.js");
-  ({ collectConfig } = await import("../../dist/renderer/js/config.js"));
+  shared = await loadBuilt<typeof import("../../renderer/ts/shared.ts")>("renderer/js/shared.js");
+  ({ collectConfig } = await loadBuilt<typeof import("../../renderer/ts/config.ts")>("renderer/js/config.js"));
 });
 
 after(() => handle.cleanup());
@@ -34,7 +34,9 @@ function addField(id: string, value: string): void {
 }
 
 function resetDynamic(): void {
-  document.querySelectorAll("body > input").forEach((n) => n.remove());
+  document.querySelectorAll("body > input").forEach((n) => {
+    n.remove();
+  });
   shared.txChannels.length = 0;
   shared.rxChannels.length = 0;
   shared.pointTargets.length = 0;
@@ -75,6 +77,7 @@ describe("collectConfig - transmitter", () => {
     addField("tx-ch-0-loc-y", "-50");
     addField("tx-ch-0-loc-z", "0");
     const ch = collectConfig().transmitter.channels[0];
+    assert.ok(ch.location);
     assert.ok(Math.abs(ch.location[0] - 0.1) < 1e-12);
     assert.ok(Math.abs(ch.location[1] + 0.05) < 1e-12);
   });
@@ -88,6 +91,7 @@ describe("collectConfig - transmitter", () => {
     shared.txChannels.push({});
     addField("tx-ch-0-delay", "10");
     const ch = collectConfig().transmitter.channels[0];
+    assert.ok(ch.delay !== undefined);
     assert.ok(Math.abs(ch.delay - 10e-9) < 1e-18);
   });
 
@@ -146,9 +150,15 @@ describe("collectConfig - receiver", () => {
 
 describe("collectConfig - radar", () => {
   test("location and speed are plain metres, rotation stays in degrees", () => {
-    set("radar-loc-x", "1"); set("radar-loc-y", "2"); set("radar-loc-z", "3");
-    set("radar-spd-x", "10"); set("radar-spd-y", "0"); set("radar-spd-z", "0");
-    set("radar-rot-yaw", "90"); set("radar-rot-pitch", "0"); set("radar-rot-roll", "0");
+    set("radar-loc-x", "1");
+    set("radar-loc-y", "2");
+    set("radar-loc-z", "3");
+    set("radar-spd-x", "10");
+    set("radar-spd-y", "0");
+    set("radar-spd-z", "0");
+    set("radar-rot-yaw", "90");
+    set("radar-rot-pitch", "0");
+    set("radar-rot-roll", "0");
     const r = collectConfig().radar;
     assert.deepEqual(r.location, [1, 2, 3]);
     assert.deepEqual(r.speed, [10, 0, 0]);
@@ -166,6 +176,7 @@ describe("collectConfig - targets", () => {
     addField("pt-0-rcs", "20");
     addField("pt-0-phase", "45");
     const t = collectConfig().targets[0];
+    assert.ok(t.model === undefined, "a point target");
     assert.deepEqual(t.location, [10, 0, 0]);
     assert.equal(t.rcs, 20);
     assert.equal(t.phase, 45);
@@ -192,7 +203,8 @@ describe("collectConfig - targets", () => {
     unit.id = "mesh-0-unit";
     for (const u of ["m", "cm", "mm"]) {
       const o = document.createElement("option");
-      o.value = u; o.textContent = u;
+      o.value = u;
+      o.textContent = u;
       unit.appendChild(o);
     }
     unit.value = "mm";

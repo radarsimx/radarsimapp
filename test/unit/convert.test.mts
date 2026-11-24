@@ -1,9 +1,15 @@
-import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { describe, test } from "node:test";
 
 import {
-  ERROR_MESSAGES, errorMsg, toF32, toF64, toI32, deg2rad,
-  parseComplex, buildAntennaPattern,
+  buildAntennaPattern,
+  deg2rad,
+  ERROR_MESSAGES,
+  errorMsg,
+  parseComplex,
+  toF32,
+  toF64,
+  toI32,
 } from "../../dist/convert.js";
 
 describe("typed-array helpers", () => {
@@ -138,16 +144,13 @@ describe("buildAntennaPattern", () => {
   });
 
   test("rejects mismatched azimuth lengths", () => {
-    assert.throws(
-      () => buildAntennaPattern([0, 1], [0], undefined, undefined),
-      /azimuth_angle and azimuth_pattern/
-    );
+    assert.throws(() => buildAntennaPattern([0, 1], [0], undefined, undefined), /azimuth_angle and azimuth_pattern/);
   });
 
   test("rejects mismatched elevation lengths", () => {
     assert.throws(
       () => buildAntennaPattern(undefined, undefined, [0, 1], [0]),
-      /elevation_angle and elevation_pattern/
+      /elevation_angle and elevation_pattern/,
     );
   });
 });

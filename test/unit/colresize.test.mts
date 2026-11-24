@@ -1,7 +1,8 @@
-import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { describe, test } from "node:test";
+import { loadBuilt } from "../helpers/built.mts";
 
-const cols: any = await import("../../dist/renderer/js/colresize.js");
+const cols = await loadBuilt<typeof import("../../renderer/ts/colresize.ts")>("renderer/js/colresize.js");
 
 describe("clampColumnWidth", () => {
   test("keeps a width that fits", () => {

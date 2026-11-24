@@ -1,16 +1,16 @@
 // ===== RadarSimApp - Utility Functions =====
 
-export function debounce<T extends (...args: any[]) => any>(fn: T, delay: number = 150): (...args: Parameters<T>) => void {
+export function debounce<A extends unknown[]>(fn: (...args: A) => unknown, delay: number = 150): (...args: A) => void {
   let timer: ReturnType<typeof setTimeout>;
-  return function (this: any, ...args: Parameters<T>): void {
+  return function (this: unknown, ...args: A): void {
     clearTimeout(timer);
     timer = setTimeout(() => fn.apply(this, args), delay);
   };
 }
 
-export function parseNumber(val: any, fallback: number = 0): number {
-  const n = parseFloat(val);
-  return isNaN(n) ? fallback : n;
+export function parseNumber(val: unknown, fallback: number = 0): number {
+  const n = parseFloat(String(val));
+  return Number.isNaN(n) ? fallback : n;
 }
 
 export function formatComplex(val: string | number): string {
@@ -18,7 +18,7 @@ export function formatComplex(val: string | number): string {
   return String(val);
 }
 
-export function isValidComplex(str: string): boolean {
+export function isValidComplex(str: string | null | undefined): boolean {
   const s = (str ?? "").trim();
   if (s === "") return false;
   const realPat = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
@@ -34,23 +34,41 @@ export function parseCSV(str: string): number[] {
     .map((s) => s.trim())
     .filter((s) => s.length > 0)
     .map(Number)
-    .filter((n) => !isNaN(n));
+    .filter((n) => !Number.isNaN(n));
 }
 
-export function el(tag: string, attrs: Record<string, any> = {}, children: (HTMLElement | SVGElement | string | null)[] = []): HTMLElement {
+/** Attributes for {@link el}: `on*` keys take event handlers, the rest values. */
+export type ElAttrs = Record<string, string | number | boolean | ((e: Event) => void) | null | undefined>;
+
+export function el(
+  tag: string,
+  attrs: ElAttrs = {},
+  children: (HTMLElement | SVGElement | string | null)[] = [],
+): HTMLElement {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
-    if (k === "className") e.className = v;
-    else if (k === "textContent") e.textContent = v;
-    else if (k === "innerHTML") e.innerHTML = v;
-    else if (k.startsWith("on")) e.addEventListener(k.slice(2).toLowerCase(), v);
-    else e.setAttribute(k, v);
+    if (k.startsWith("on")) {
+      if (typeof v === "function") e.addEventListener(k.slice(2).toLowerCase(), v);
+    } else if (k === "className") e.className = String(v);
+    else if (k === "textContent") e.textContent = String(v ?? "");
+    else if (k === "innerHTML") e.innerHTML = String(v ?? "");
+    else e.setAttribute(k, String(v));
   }
   children.forEach((c) => {
     if (typeof c === "string") e.appendChild(document.createTextNode(c));
     else if (c) e.appendChild(c);
   });
   return e;
+}
+
+/**
+ * The element with this id, which the page is expected to have. Throws, naming
+ * the id, when it is missing, rather than failing later on a null.
+ */
+export function byId<T extends HTMLElement = HTMLElement>(id: string): T {
+  const found = document.getElementById(id);
+  if (!found) throw new Error(`Missing element #${id}`);
+  return found as T;
 }
 
 /** Show how many items a list holds, beside its title. */
@@ -70,13 +88,15 @@ export function wrapNumberInput(input: HTMLInputElement): HTMLDivElement {
   upBtn.className = "spin-btn";
   upBtn.type = "button";
   upBtn.tabIndex = -1;
-  upBtn.innerHTML = '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="2,7 5,3 8,7"/></svg>';
+  upBtn.innerHTML =
+    '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="2,7 5,3 8,7"/></svg>';
 
   const downBtn = document.createElement("button");
   downBtn.className = "spin-btn";
   downBtn.type = "button";
   downBtn.tabIndex = -1;
-  downBtn.innerHTML = '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="2,3 5,7 8,3"/></svg>';
+  downBtn.innerHTML =
+    '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="2,3 5,7 8,3"/></svg>';
 
   spinner.appendChild(upBtn);
   spinner.appendChild(downBtn);
@@ -134,12 +154,15 @@ export function createTextInput(id: string, value: string): HTMLTextAreaElement 
 
   const autoResize = (): void => {
     ta.style.height = "auto";
-    ta.style.height = ta.scrollHeight + "px";
+    ta.style.height = `${ta.scrollHeight}px`;
   };
   ta.addEventListener("input", autoResize);
   ta.addEventListener("focus", autoResize, { once: true });
   new ResizeObserver((entries, obs) => {
-    if (entries[0].contentRect.width > 0) { autoResize(); obs.disconnect(); }
+    if (entries[0].contentRect.width > 0) {
+      autoResize();
+      obs.disconnect();
+    }
   }).observe(ta);
   return ta;
 }
@@ -165,11 +188,15 @@ export function createSVG(name: string): SVGSVGElement {
     svg.appendChild(p);
   } else if (name === "close") {
     const l1 = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    l1.setAttribute("x1", "18"); l1.setAttribute("y1", "6");
-    l1.setAttribute("x2", "6"); l1.setAttribute("y2", "18");
+    l1.setAttribute("x1", "18");
+    l1.setAttribute("y1", "6");
+    l1.setAttribute("x2", "6");
+    l1.setAttribute("y2", "18");
     const l2 = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    l2.setAttribute("x1", "6"); l2.setAttribute("y1", "6");
-    l2.setAttribute("x2", "18"); l2.setAttribute("y2", "18");
+    l2.setAttribute("x1", "6");
+    l2.setAttribute("y1", "6");
+    l2.setAttribute("x2", "18");
+    l2.setAttribute("y2", "18");
     svg.appendChild(l1);
     svg.appendChild(l2);
   }
@@ -182,8 +209,22 @@ export function confirmAsync(message: string): Promise<boolean> {
       el("div", { className: "confirm-dialog" }, [
         el("p", { className: "confirm-message", textContent: message }),
         el("div", { className: "confirm-actions" }, [
-          el("button", { className: "btn-secondary", textContent: "Cancel", onClick: () => { overlay.remove(); resolve(false); } }),
-          el("button", { className: "btn-primary btn-danger-solid", textContent: "Delete", onClick: () => { overlay.remove(); resolve(true); } }),
+          el("button", {
+            className: "btn-secondary",
+            textContent: "Cancel",
+            onClick: () => {
+              overlay.remove();
+              resolve(false);
+            },
+          }),
+          el("button", {
+            className: "btn-primary btn-danger-solid",
+            textContent: "Delete",
+            onClick: () => {
+              overlay.remove();
+              resolve(true);
+            },
+          }),
         ]),
       ]),
     ]);

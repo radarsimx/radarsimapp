@@ -1,16 +1,18 @@
-import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { describe, test } from "node:test";
 
-import {
-  randn, nextPow2, fft, applyRangeFFT, applyDopplerFFT, toDbMag3D, toComplex3D,
-} from "../../dist/dsp.js";
+import { applyDopplerFFT, applyRangeFFT, fft, nextPow2, randn, toComplex3D, toDbMag3D } from "../../dist/dsp.js";
 
 /** Peak bin of a magnitude spectrum. */
 function peakBin(re: Float64Array, im: Float64Array, offset = 0, len = re.length): number {
-  let best = 0, bestMag = -1;
+  let best = 0,
+    bestMag = -1;
   for (let i = 0; i < len; i++) {
     const mag = Math.hypot(re[offset + i], im[offset + i]);
-    if (mag > bestMag) { bestMag = mag; best = i; }
+    if (mag > bestMag) {
+      bestMag = mag;
+      best = i;
+    }
   }
   return best;
 }
@@ -45,7 +47,8 @@ describe("fft", () => {
 
   test("an impulse produces a flat spectrum", () => {
     const n = 8;
-    const re = new Float64Array(n); re[0] = 1;
+    const re = new Float64Array(n);
+    re[0] = 1;
     const im = new Float64Array(n);
     fft(re, im);
     for (let i = 0; i < n; i++) {
@@ -54,8 +57,10 @@ describe("fft", () => {
   });
 
   test("a complex exponential lands in exactly its bin", () => {
-    const n = 16, k = 3;
-    const re = new Float64Array(n), im = new Float64Array(n);
+    const n = 16,
+      k = 3;
+    const re = new Float64Array(n),
+      im = new Float64Array(n);
     for (let i = 0; i < n; i++) {
       re[i] = Math.cos((2 * Math.PI * k * i) / n);
       im[i] = Math.sin((2 * Math.PI * k * i) / n);
@@ -67,8 +72,12 @@ describe("fft", () => {
 
   test("Parseval: energy is preserved up to the N factor", () => {
     const n = 16;
-    const re = new Float64Array(n), im = new Float64Array(n);
-    for (let i = 0; i < n; i++) { re[i] = Math.sin(i); im[i] = Math.cos(i * 0.3); }
+    const re = new Float64Array(n),
+      im = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      re[i] = Math.sin(i);
+      im[i] = Math.cos(i * 0.3);
+    }
     const before = re.reduce((a, v, i) => a + v * v + im[i] * im[i], 0);
     fft(re, im);
     const after = re.reduce((a, v, i) => a + v * v + im[i] * im[i], 0);
@@ -86,7 +95,10 @@ describe("fft", () => {
 
 describe("applyRangeFFT", () => {
   test("shapes output as nRx * nPulse * fftSize", () => {
-    const nPulse = 2, nRx = 3, spp = 8, n = 16;
+    const nPulse = 2,
+      nRx = 3,
+      spp = 8,
+      n = 16;
     const re = new Float64Array(nPulse * nRx * spp);
     const im = new Float64Array(nPulse * nRx * spp);
     const out = applyRangeFFT(re, im, nPulse, nRx, spp, n);
@@ -95,13 +107,18 @@ describe("applyRangeFFT", () => {
   });
 
   test("defaults the FFT size to the next power of two", () => {
-    const nPulse = 1, nRx = 1, spp = 5;
+    const nPulse = 1,
+      nRx = 1,
+      spp = 5;
     const out = applyRangeFFT(new Float64Array(spp), new Float64Array(spp), nPulse, nRx, spp);
     assert.equal(out.re.length, 8);
   });
 
   test("each channel/pulse is transformed independently", () => {
-    const nPulse = 2, nRx = 2, spp = 8, n = 8;
+    const nPulse = 2,
+      nRx = 2,
+      spp = 8,
+      n = 8;
     const re = new Float64Array(nPulse * nRx * spp);
     const im = new Float64Array(nPulse * nRx * spp);
     // Give every (channel, pulse) a distinct tone.
@@ -126,7 +143,8 @@ describe("applyRangeFFT", () => {
   });
 
   test("zero-pads when the FFT is longer than the sample count", () => {
-    const spp = 4, n = 16;
+    const spp = 4,
+      n = 16;
     const re = new Float64Array(spp).fill(1);
     const im = new Float64Array(spp);
     const out = applyRangeFFT(re, im, 1, 1, spp, n);
@@ -144,7 +162,10 @@ describe("applyRangeFFT", () => {
 
 describe("applyDopplerFFT", () => {
   test("output is fftshifted so zero Doppler sits at the centre", () => {
-    const nPulse = 8, nRx = 1, rangeDim = 1, n = 8;
+    const nPulse = 8,
+      nRx = 1,
+      rangeDim = 1,
+      n = 8;
     // Constant across pulses -> all energy at zero Doppler.
     const re = new Float64Array(nPulse).fill(1);
     const im = new Float64Array(nPulse);
@@ -154,7 +175,10 @@ describe("applyDopplerFFT", () => {
   });
 
   test("shapes output as nRx * fftSize * rangeDim", () => {
-    const nPulse = 4, nRx = 2, rangeDim = 3, n = 8;
+    const nPulse = 4,
+      nRx = 2,
+      rangeDim = 3,
+      n = 8;
     const re = new Float64Array(nPulse * nRx * rangeDim);
     const im = new Float64Array(nPulse * nRx * rangeDim);
     const out = applyDopplerFFT(re, im, nPulse, nRx, rangeDim, n);
@@ -162,13 +186,17 @@ describe("applyDopplerFFT", () => {
   });
 
   test("range bins stay separated", () => {
-    const nPulse = 4, nRx = 1, rangeDim = 2, n = 4;
+    const nPulse = 4,
+      nRx = 1,
+      rangeDim = 2,
+      n = 4;
     const re = new Float64Array(nPulse * rangeDim);
     const im = new Float64Array(nPulse * rangeDim);
     // Only range bin 1 carries energy.
     for (let p = 0; p < nPulse; p++) re[p * rangeDim + 1] = 1;
     const out = applyDopplerFFT(re, im, nPulse, nRx, rangeDim, n);
-    let bin0 = 0, bin1 = 0;
+    let bin0 = 0,
+      bin1 = 0;
     for (let p = 0; p < n; p++) {
       bin0 += Math.hypot(out.re[p * rangeDim], out.im[p * rangeDim]);
       bin1 += Math.hypot(out.re[p * rangeDim + 1], out.im[p * rangeDim + 1]);
@@ -201,7 +229,9 @@ describe("toDbMag3D", () => {
   });
 
   test("nests as [pulse][channel][sample]", () => {
-    const nPulse = 2, nRx = 3, spp = 4;
+    const nPulse = 2,
+      nRx = 3,
+      spp = 4;
     const re = new Float64Array(nPulse * nRx * spp).fill(1);
     const im = new Float64Array(nPulse * nRx * spp);
     const out = toDbMag3D(re, im, nPulse, nRx, spp);
@@ -213,16 +243,18 @@ describe("toDbMag3D", () => {
 
 describe("toComplex3D", () => {
   test("splits the flat buffers into per-pulse, per-channel slices", () => {
-    const nPulse = 2, nRx = 2, spp = 3;
+    const nPulse = 2,
+      nRx = 2,
+      spp = 3;
     const re = new Float64Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
     const im = new Float64Array(12).fill(-1);
     const out = toComplex3D(re, im, nPulse, nRx, spp);
     assert.equal(out.length, nPulse);
     assert.equal(out[0].length, nRx);
     // layout is (channel * nPulse + pulse) * spp
-    assert.deepEqual(out[0][0].re, [1, 2, 3]);   // c=0 p=0
-    assert.deepEqual(out[1][0].re, [4, 5, 6]);   // c=0 p=1
-    assert.deepEqual(out[0][1].re, [7, 8, 9]);   // c=1 p=0
+    assert.deepEqual(out[0][0].re, [1, 2, 3]); // c=0 p=0
+    assert.deepEqual(out[1][0].re, [4, 5, 6]); // c=0 p=1
+    assert.deepEqual(out[0][1].re, [7, 8, 9]); // c=1 p=0
     assert.deepEqual(out[1][1].re, [10, 11, 12]); // c=1 p=1
     assert.deepEqual(out[0][0].im, [-1, -1, -1]);
   });
@@ -236,11 +268,13 @@ describe("toComplex3D", () => {
 describe("randn", () => {
   test("produces a roughly standard normal distribution", () => {
     const n = 20000;
-    let sum = 0, sumSq = 0;
+    let sum = 0,
+      sumSq = 0;
     for (let i = 0; i < n; i++) {
       const v = randn();
       assert.ok(Number.isFinite(v), "must never emit NaN or Infinity");
-      sum += v; sumSq += v * v;
+      sum += v;
+      sumSq += v * v;
     }
     const mean = sum / n;
     const variance = sumSq / n - mean * mean;

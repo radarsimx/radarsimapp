@@ -4,13 +4,13 @@
 // It draws a SceneModel (scene.ts) and holds no state of its own beyond the
 // camera.
 
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { meshColor, type SceneModel, type SceneMarker, type Vec3, type Pose } from './scene.js';
-import { formatLength } from './readout.js';
-import type { StageInsets } from './stage.js';
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { TransformControls } from "three/addons/controls/TransformControls.js";
+import { CSS2DObject, CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
+import { formatLength } from "./readout.js";
+import { meshColor, type Pose, type SceneMarker, type SceneModel, type Vec3 } from "./scene.js";
+import type { StageInsets } from "./stage.js";
 
 /** What the camera frames: everything, or just the antenna array. */
 export type SceneFraming = "scene" | "array";
@@ -43,13 +43,15 @@ function rotationQuaternion([yaw, pitch, roll]: Vec3): THREE.Quaternion {
 function quaternionRotation(q: THREE.Quaternion, near: Vec3): Vec3 {
   const e = new THREE.Euler().setFromQuaternion(q, "ZYX");
   const deg = THREE.MathUtils.radToDeg;
-  return ([deg(e.z), -deg(e.y), deg(e.x)] as Vec3)
-    .map((a, k) => a + 360 * Math.round((near[k] - a) / 360)) as Vec3;
+  return ([deg(e.z), -deg(e.y), deg(e.x)] as Vec3).map((a, k) => a + 360 * Math.round((near[k] - a) / 360)) as Vec3;
 }
 
 function poseMatrix(p: Pose): THREE.Matrix4 {
   return new THREE.Matrix4().compose(
-    new THREE.Vector3(...p.location), rotationQuaternion(p.rotation), new THREE.Vector3(1, 1, 1));
+    new THREE.Vector3(...p.location),
+    rotationQuaternion(p.rotation),
+    new THREE.Vector3(1, 1, 1),
+  );
 }
 
 /** What takes something placed at one pose to the same place at another. */
@@ -66,14 +68,14 @@ const FOV = 38;
 /** Unit-ish vectors from what is looked at toward the camera; z is up. */
 const VIEW_DIRECTIONS: Record<CameraPreset, Vec3> = {
   iso: [-1, -0.9, 0.7],
-  top: [-0.001, 0, 1],  // a hair off vertical, so +x stays up the screen
+  top: [-0.001, 0, 1], // a hair off vertical, so +x stays up the screen
   side: [0, -1, 0],
 };
 
 /** Smallest region worth framing (m): a lone channel, a lone target. */
 const MIN_RADIUS: Record<SceneFraming, number> = { array: 0.01, scene: 0.5 };
 
-const GRID_CELLS = 20;       // cells from the centre of the grid to its rim
+const GRID_CELLS = 20; // cells from the centre of the grid to its rim
 const GRID_MAJOR_EVERY = 5;
 const MAX_RINGS = 8;
 /** Below this many pixels across, the array's channel names are dropped. */
@@ -103,7 +105,8 @@ function smoothstep(x: number, from: number, to: number): number {
  * cell long so it can fade toward the rim.
  */
 function gridGeometry(colorAt: (r: number, major: boolean) => THREE.Color): THREE.BufferGeometry {
-  const positions: number[] = [], colors: number[] = [];
+  const positions: number[] = [],
+    colors: number[] = [];
   for (let line = -GRID_CELLS; line <= GRID_CELLS; line++) {
     const major = line % GRID_MAJOR_EVERY === 0;
     for (let piece = -GRID_CELLS; piece < GRID_CELLS; piece++) {
@@ -134,7 +137,7 @@ function beamFrame(boresight: Vec3, rollDeg: number): THREE.Quaternion {
   const x = new THREE.Vector3(...boresight).normalize();
   // Before the roll, y is level: yaw and pitch never tip it
   const y = new THREE.Vector3(0, 0, 1).cross(x);
-  if (y.lengthSq() < 1e-6) y.set(0, 1, 0);  // looking straight up or down
+  if (y.lengthSq() < 1e-6) y.set(0, 1, 0); // looking straight up or down
   y.normalize();
   const z = new THREE.Vector3().crossVectors(x, y);
   const roll = THREE.MathUtils.degToRad(rollDeg);
@@ -145,14 +148,15 @@ function beamFrame(boresight: Vec3, rollDeg: number): THREE.Quaternion {
 
 /** A fan from the origin, between two angles (deg) off +x toward +y; its rim and edges outlined if given an edge. */
 function fanObject(lo: number, hi: number, fill: THREE.Material, edge: THREE.LineBasicMaterial | null): THREE.Group {
-  const a0 = THREE.MathUtils.degToRad(lo), span = THREE.MathUtils.degToRad(hi - lo);
+  const a0 = THREE.MathUtils.degToRad(lo),
+    span = THREE.MathUtils.degToRad(hi - lo);
   const steps = Math.max(2, Math.ceil(Math.abs(hi - lo) / 3));
   const g = new THREE.Group();
   g.add(new THREE.Mesh(new THREE.CircleGeometry(1, steps, a0, span), fill));
   if (!edge) return g;
   const outline: THREE.Vector3[] = [new THREE.Vector3()];
   for (let i = 0; i <= steps; i++) {
-    const a = a0 + span * i / steps;
+    const a = a0 + (span * i) / steps;
     outline.push(new THREE.Vector3(Math.cos(a), Math.sin(a), 0));
   }
   outline.push(new THREE.Vector3());
@@ -179,7 +183,7 @@ function markerObject(kind: string, marker: SceneMarker, color?: string): CSS2DO
   name.textContent = marker.label;
   div.append(glyph, name);
   const obj = new CSS2DObject(div);
-  obj.center.set(0, 0.5);  // anchored by its glyph, not by the middle of the pair
+  obj.center.set(0, 0.5); // anchored by its glyph, not by the middle of the pair
   obj.position.set(...marker.position);
   return obj;
 }
@@ -302,18 +306,22 @@ export class SceneView {
 
     const line = new THREE.Color(this.css("--view-grid"));
     this.grid = new THREE.LineSegments(
-      gridGeometry((r, major) => background.clone().lerp(
-        line, (1 - smoothstep(r, GRID_CELLS * 0.25, GRID_CELLS * 0.95)) * (major ? 1 : 0.42))),
-      new THREE.LineBasicMaterial({ vertexColors: true }));
+      gridGeometry((r, major) =>
+        background.clone().lerp(line, (1 - smoothstep(r, GRID_CELLS * 0.25, GRID_CELLS * 0.95)) * (major ? 1 : 0.42)),
+      ),
+      new THREE.LineBasicMaterial({ vertexColors: true }),
+    );
 
     const circle: THREE.Vector3[] = [];
     for (let s = 0; s <= 128; s++) {
-      const a = 2 * Math.PI * s / 128;
+      const a = (2 * Math.PI * s) / 128;
       circle.push(new THREE.Vector3(Math.cos(a), Math.sin(a), 0));
     }
     this.ringGeometry = new THREE.BufferGeometry().setFromPoints(circle);
     this.ringMaterial = new THREE.LineBasicMaterial({
-      color: this.css("--view-ring"), transparent: true, opacity: 0.5,
+      color: this.css("--view-ring"),
+      transparent: true,
+      opacity: 0.5,
     });
 
     this.axes.setColors(this.css("--ax-x"), this.css("--ax-y"), this.css("--ax-z"));
@@ -323,7 +331,11 @@ export class SceneView {
     // its pattern spans.
     const fan = (token: string, fillOpacity: number) => ({
       fill: new THREE.MeshBasicMaterial({
-        color: this.css(token), transparent: true, opacity: fillOpacity, side: THREE.DoubleSide, depthWrite: false,
+        color: this.css(token),
+        transparent: true,
+        opacity: fillOpacity,
+        side: THREE.DoubleSide,
+        depthWrite: false,
       }),
       edge: new THREE.LineBasicMaterial({ color: this.css(token), transparent: true, opacity: 0.4, depthWrite: false }),
     });
@@ -333,14 +345,20 @@ export class SceneView {
     const color = this.css("--boresight");
     this.beamAxis = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(1, 0, 0)]),
-      new THREE.LineDashedMaterial({ color, dashSize: 0.025, gapSize: 0.018, transparent: true, opacity: 0.95 }));
+      new THREE.LineDashedMaterial({ color, dashSize: 0.025, gapSize: 0.018, transparent: true, opacity: 0.95 }),
+    );
     this.beamAxis.computeLineDistances();
     // A flat chevron, drawn in the beam's level plane and seen from above
     const chevron = new THREE.Shape();
-    chevron.moveTo(0, 0); chevron.lineTo(-1, 0.6); chevron.lineTo(-0.7, 0); chevron.lineTo(-1, -0.6);
+    chevron.moveTo(0, 0);
+    chevron.lineTo(-1, 0.6);
+    chevron.lineTo(-0.7, 0);
+    chevron.lineTo(-1, -0.6);
     chevron.closePath();
-    this.beamTip = new THREE.Mesh(new THREE.ShapeGeometry(chevron),
-      new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+    this.beamTip = new THREE.Mesh(
+      new THREE.ShapeGeometry(chevron),
+      new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }),
+    );
     this.beam.add(this.beamFans, this.beamAxis, this.beamTip);
     this.beam.visible = false;
 
@@ -388,28 +406,38 @@ export class SceneView {
     // the release instead, ahead of the controls. Only a press and release in
     // about the same place counts; a drag orbits the view.
     const canvas = this.renderer.domElement;
-    this.host.addEventListener("pointerdown", (e) => {
-      this.press = e.button === 0
-        ? { x: e.clientX, y: e.clientY, on: e.target, onGizmo: gizmo.axis !== null } : null;
-    }, { capture: true });
-    this.host.addEventListener("pointerup", (e) => {
-      const press = this.press;
-      this.press = null;
-      if (!press || press.onGizmo || Math.hypot(e.clientX - press.x, e.clientY - press.y) >= 5) return;
-      // A marker may lie under another (the channels sit on the platform):
-      // the first one under the press that can be picked is the one
-      const marker = (press.on as Element | null)?.closest?.(".mk")
-        ? document.elementsFromPoint(press.x, press.y).map((el) => el.closest(".mk-pick")).find((el) => el)
-        : null;
-      const picked = marker ? this.pickTargets.get(marker) : undefined;
-      if (picked) {
-        this.onPick?.(picked);
-      } else if (press.on === canvas) {
-        const mesh = this.meshAt(e.clientX, e.clientY);
-        if (mesh !== null) this.onPick?.({ kind: "mesh", index: mesh });
-        else this.setEditTarget(null);
-      }
-    }, { capture: true });
+    this.host.addEventListener(
+      "pointerdown",
+      (e) => {
+        this.press = e.button === 0 ? { x: e.clientX, y: e.clientY, on: e.target, onGizmo: gizmo.axis !== null } : null;
+      },
+      { capture: true },
+    );
+    this.host.addEventListener(
+      "pointerup",
+      (e) => {
+        const press = this.press;
+        this.press = null;
+        if (!press || press.onGizmo || Math.hypot(e.clientX - press.x, e.clientY - press.y) >= 5) return;
+        // A marker may lie under another (the channels sit on the platform):
+        // the first one under the press that can be picked is the one
+        const marker = (press.on as Element | null)?.closest?.(".mk")
+          ? document
+              .elementsFromPoint(press.x, press.y)
+              .map((el) => el.closest(".mk-pick"))
+              .find((el) => el)
+          : null;
+        const picked = marker ? this.pickTargets.get(marker) : undefined;
+        if (picked) {
+          this.onPick?.(picked);
+        } else if (press.on === canvas) {
+          const mesh = this.meshAt(e.clientX, e.clientY);
+          if (mesh !== null) this.onPick?.({ kind: "mesh", index: mesh });
+          else this.setEditTarget(null);
+        }
+      },
+      { capture: true },
+    );
 
     // Shift snaps: to the grid's cells when moving, to 15 degrees when turning.
     // Read off the pointer as well as the keys, so it holds however Shift went down.
@@ -436,7 +464,9 @@ export class SceneView {
   private meshAt(clientX: number, clientY: number): number | null {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(
-      ((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
     this.raycaster.setFromCamera(ndc, this.camera);
     const hit = this.raycaster.intersectObjects(this.meshGroup.children, false)[0];
     if (!hit) return null;
@@ -446,7 +476,7 @@ export class SceneView {
 
   /** Put the handle on something, or (null) take it off. */
   setEditTarget(target: EditTarget | null): void {
-    if (target && !this.poseOf(target)) target = null;  // not in the scene (any more)
+    if (target && !this.poseOf(target)) target = null; // not in the scene (any more)
     if (sameTarget(target, this.editTarget)) return;
     this.editTarget = target;
     if (target && !canRotate(target)) this.editMode = "translate";
@@ -499,12 +529,14 @@ export class SceneView {
   }
 
   private emitEdit(done: boolean): void {
-    const target = this.editTarget, start = this.dragStart;
+    const target = this.editTarget,
+      start = this.dragStart;
     if (!target || !start) return;
     // Only what the handle is for changes; the rest stays exactly as it was
-    const pose: Pose = this.editMode === "rotate"
-      ? { location: start.location, rotation: quaternionRotation(this.proxy.quaternion, start.rotation) }
-      : { location: this.proxy.position.toArray() as Vec3, rotation: start.rotation };
+    const pose: Pose =
+      this.editMode === "rotate"
+        ? { location: start.location, rotation: quaternionRotation(this.proxy.quaternion, start.rotation) }
+        : { location: this.proxy.position.toArray() as Vec3, rotation: start.rotation };
     this.onEdit?.(target, pose, done);
   }
 
@@ -516,16 +548,35 @@ export class SceneView {
   setModel(model: SceneModel): void {
     this.model = model;
 
-    this.markers.clear();  // a removed marker takes its element with it
+    this.markers.clear(); // a removed marker takes its element with it
     this.channelMarkers.clear();
-    this.markers.add(this.pickable(markerObject("radar", { label: "Radar", position: model.radar }),
-      { kind: "radar" }, "Platform: click to move or turn it"));
-    model.tx.forEach((m) => this.channelMarkers.add(markerObject("tx", m)));
-    model.rx.forEach((m) => this.channelMarkers.add(markerObject("rx", m)));
-    model.pointTargets.forEach((m, i) => this.markers.add(this.pickable(markerObject("point", m),
-      { kind: "point", index: i }, `${m.label}: click to move it`)));
-    model.meshMarkers.forEach((m) => this.markers.add(this.pickable(markerObject("mesh", m),
-      { kind: "mesh", index: m.index ?? 0 }, `${m.label}: click to move or turn it`)));
+    this.markers.add(
+      this.pickable(
+        markerObject("radar", { label: "Radar", position: model.radar }),
+        { kind: "radar" },
+        "Platform: click to move or turn it",
+      ),
+    );
+    model.tx.forEach((m) => {
+      this.channelMarkers.add(markerObject("tx", m));
+    });
+    model.rx.forEach((m) => {
+      this.channelMarkers.add(markerObject("rx", m));
+    });
+    model.pointTargets.forEach((m, i) => {
+      this.markers.add(
+        this.pickable(markerObject("point", m), { kind: "point", index: i }, `${m.label}: click to move it`),
+      );
+    });
+    model.meshMarkers.forEach((m) => {
+      this.markers.add(
+        this.pickable(
+          markerObject("mesh", m),
+          { kind: "mesh", index: m.index ?? 0 },
+          `${m.label}: click to move or turn it`,
+        ),
+      );
+    });
     // Until the library answers for where the platform is now, what it placed
     // moves by however far the platform has moved since
     this.radarLib.matrix.copy(poseChange(model.radarLibPose, model.radarPose));
@@ -561,7 +612,9 @@ export class SceneView {
    */
   private buildBeam(model: SceneModel): void {
     this.beam.visible = !!model.boresight;
-    this.beamFans.traverse((o) => { if (o instanceof THREE.Mesh || o instanceof THREE.Line) o.geometry.dispose(); });
+    this.beamFans.traverse((o) => {
+      if (o instanceof THREE.Mesh || o instanceof THREE.Line) o.geometry.dispose();
+    });
     this.beamFans.clear();
     if (!model.boresight) return;
     // Where the library had the platform; radarLib moves it on to where it is now
@@ -570,23 +623,27 @@ export class SceneView {
     this.beam.position.set(...at.location);
     this.beam.quaternion.copy(frame);
 
-    const channels = [...model.tx, ...model.rx].filter((c) => c.coverage);
+    const channels = [...model.tx, ...model.rx].flatMap((c) => (c.coverage ? [{ ...c, coverage: c.coverage }] : []));
     // A chain's fans share its shade, so where only some of its channels
     // reach shows lighter than where they all do
     for (const cut of ["az", "el"] as const) {
-      const count = channels.filter((c) => c.coverage![cut]).length;
-      this.fanStyle[cut].fill.opacity = model.fanEdges ? FAN_FILL[cut]
+      const count = channels.filter((c) => c.coverage[cut]).length;
+      this.fanStyle[cut].fill.opacity = model.fanEdges
+        ? FAN_FILL[cut]
         : Math.max(CHAIN_FILL_MIN[cut], CHAIN_FILL[cut] / Math.max(1, count));
     }
 
     const toPlatform = frame.clone().invert();
     const radar = new THREE.Vector3(...at.location);
     for (const c of channels) {
-      const { az, el } = c.coverage!;
+      const { az, el } = c.coverage;
       // A fan's place is set here, in the platform's axes; its size, each frame
       const fans = new THREE.Group();
-      fans.position.set(...c.position).sub(radar).applyQuaternion(toPlatform);
-      const edge = (cut: "az" | "el") => model.fanEdges ? this.fanStyle[cut].edge : null;
+      fans.position
+        .set(...c.position)
+        .sub(radar)
+        .applyQuaternion(toPlatform);
+      const edge = (cut: "az" | "el") => (model.fanEdges ? this.fanStyle[cut].edge : null);
       if (az) fans.add(fanObject(az.lo, az.hi, this.fanStyle.az.fill, edge("az")));
       if (el) {
         // Elevation is the same turn off +x, toward +z instead of +y
@@ -627,7 +684,8 @@ export class SceneView {
       this.meshObjects.delete(source);
     }
     for (const m of meshes) {
-      if (!this.meshObjects.has(m)) {
+      let object = this.meshObjects.get(m);
+      if (!object) {
         const positions = new Float32Array(m.x.length * 3);
         for (let v = 0; v < m.x.length; v++) {
           positions[v * 3] = m.x[v];
@@ -636,27 +694,37 @@ export class SceneView {
         }
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-        const object = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
-          color: meshColor(m.index), flatShading: true, roughness: 0.65, metalness: 0.05,
-          side: THREE.DoubleSide,
-        }));
+        object = new THREE.Mesh(
+          geometry,
+          new THREE.MeshStandardMaterial({
+            color: meshColor(m.index),
+            flatShading: true,
+            roughness: 0.65,
+            metalness: 0.05,
+            side: THREE.DoubleSide,
+          }),
+        );
         object.matrixAutoUpdate = false;
         this.meshGroup.add(object);
         this.meshObjects.set(m, object);
       }
       // The geometry is where the library placed it; until it places it again,
       // it moves by however far the mesh has moved in the fields since
-      const object = this.meshObjects.get(m)!;
       const pose = model.meshPoses[m.index];
       const change = pose ? poseChange(model.meshLibPoses.get(m.index), pose) : new THREE.Matrix4();
       object.matrix.copy(change);
       object.matrixWorldNeedsUpdate = true;
-      if (m.bounds.every(isFinite)) {
+      if (m.bounds.every(Number.isFinite)) {
         const [x0, y0, , x1, y1, z1] = m.bounds;
         const top = new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, z1).applyMatrix4(change);
         const label = `M${m.index + 1}`;
-        this.markers.add(this.pickable(markerObject("mesh", { label, position: top.toArray() as Vec3 },
-          meshColor(m.index)), { kind: "mesh", index: m.index }, `${label}: click to move or turn it`));
+        this.markers.add(
+          this.pickable(
+            markerObject("mesh", { label, position: top.toArray() as Vec3 }, meshColor(m.index)),
+            { kind: "mesh", index: m.index },
+            `${label}: click to move or turn it`,
+          ),
+        );
       }
     }
   }
@@ -668,11 +736,17 @@ export class SceneView {
 
     const radar = new THREE.Vector3(...model.radar);
     let reach = 0;
-    const consider = (p: Vec3): void => { reach = Math.max(reach, radar.distanceTo(new THREE.Vector3(...p))); };
-    model.pointTargets.forEach((m) => consider(m.position));
-    model.meshMarkers.forEach((m) => consider(m.position));
+    const consider = (p: Vec3): void => {
+      reach = Math.max(reach, radar.distanceTo(new THREE.Vector3(...p)));
+    };
+    model.pointTargets.forEach((m) => {
+      consider(m.position);
+    });
+    model.meshMarkers.forEach((m) => {
+      consider(m.position);
+    });
     model.meshes.forEach((m) => {
-      if (!m.bounds.every(isFinite)) return;
+      if (!m.bounds.every(Number.isFinite)) return;
       consider([m.bounds[0], m.bounds[1], m.bounds[2]]);
       consider([m.bounds[3], m.bounds[4], m.bounds[5]]);
     });
@@ -702,17 +776,27 @@ export class SceneView {
   /** Bounding sphere (m) of what a framing takes in. */
   private bounds(framing: SceneFraming): THREE.Sphere {
     const box = new THREE.Box3();
-    const add = (p: Vec3): void => { box.expandByPoint(new THREE.Vector3(...p)); };
+    const add = (p: Vec3): void => {
+      box.expandByPoint(new THREE.Vector3(...p));
+    };
     const model = this.model;
     if (model) {
       add(model.radar);
-      model.tx.forEach((m) => add(m.position));
-      model.rx.forEach((m) => add(m.position));
+      model.tx.forEach((m) => {
+        add(m.position);
+      });
+      model.rx.forEach((m) => {
+        add(m.position);
+      });
       if (framing === "scene") {
-        model.pointTargets.forEach((m) => add(m.position));
-        model.meshMarkers.forEach((m) => add(m.position));
+        model.pointTargets.forEach((m) => {
+          add(m.position);
+        });
+        model.meshMarkers.forEach((m) => {
+          add(m.position);
+        });
         model.meshes.forEach((m) => {
-          if (!m.bounds.every(isFinite)) return;
+          if (!m.bounds.every(Number.isFinite)) return;
           add([m.bounds[0], m.bounds[1], m.bounds[2]]);
           add([m.bounds[3], m.bounds[4], m.bounds[5]]);
         });
@@ -769,7 +853,8 @@ export class SceneView {
     this.userMoved = false;
     this.fitted = sphere;
 
-    const w = this.host.clientWidth, h = this.host.clientHeight;
+    const w = this.host.clientWidth,
+      h = this.host.clientHeight;
     if (!w || !h) {
       this.refitOnShow = true;
       return;
@@ -777,8 +862,8 @@ export class SceneView {
     const freeW = Math.max(w - this.insets.left - this.insets.right, 1);
     const freeH = Math.max(h - this.insets.top - this.insets.bottom, 1);
     const tanHalf = Math.tan(THREE.MathUtils.degToRad(FOV) / 2);
-    const half = Math.atan(tanHalf * Math.min(freeW, freeH) / h);
-    const distance = sphere.radius / Math.sin(half) * 1.2 * UNITS_PER_METRE;
+    const half = Math.atan((tanHalf * Math.min(freeW, freeH)) / h);
+    const distance = (sphere.radius / Math.sin(half)) * 1.2 * UNITS_PER_METRE;
 
     const target = sphere.center.clone().multiplyScalar(UNITS_PER_METRE);
     const position = target.clone().addScaledVector(this.direction, distance);
@@ -788,8 +873,10 @@ export class SceneView {
       this.camera.position.copy(position);
     } else {
       this.tween = {
-        fromPosition: this.camera.position.clone(), toPosition: position,
-        fromTarget: this.orbit.target.clone(), toTarget: target,
+        fromPosition: this.camera.position.clone(),
+        toPosition: position,
+        fromTarget: this.orbit.target.clone(),
+        toTarget: target,
         start: 0,
       };
     }
@@ -813,8 +900,9 @@ export class SceneView {
   }
 
   private resize(): void {
-    const w = this.host.clientWidth, h = this.host.clientHeight;
-    if (!w || !h) return;  // hidden behind a result plot
+    const w = this.host.clientWidth,
+      h = this.host.clientHeight;
+    if (!w || !h) return; // hidden behind a result plot
     this.renderer.setSize(w, h, false);
     this.labels.setSize(w, h);
     this.camera.aspect = w / h;
@@ -844,7 +932,7 @@ export class SceneView {
       if (k >= 1) this.tween = null;
       animating = true;
     }
-    if (this.orbit.update()) animating = true;  // still coasting
+    if (this.orbit.update()) animating = true; // still coasting
 
     this.fitToDistance();
     this.renderer.render(this.scene, this.camera);
@@ -870,7 +958,8 @@ export class SceneView {
     this.grid.position.set(
       Math.round(this.orbit.target.x / UNITS_PER_METRE / snap) * snap,
       Math.round(this.orbit.target.y / UNITS_PER_METRE / snap) * snap,
-      this.framing === "array" ? this.model?.radar[2] ?? 0 : 0);
+      this.framing === "array" ? (this.model?.radar[2] ?? 0) : 0,
+    );
 
     this.axes.scale.setScalar(metres * 0.07);
     // Out to the last range ring; with nothing to range, a share of the view
@@ -891,8 +980,9 @@ export class SceneView {
     // Channel names pile up into one blot once the array is a speck
     const array = this.arrayBounds;
     const toArray = this.camera.position.distanceTo(array.center.clone().multiplyScalar(UNITS_PER_METRE));
-    const pixels = array.radius * UNITS_PER_METRE / (toArray * Math.tan(THREE.MathUtils.degToRad(FOV) / 2))
-      * this.host.clientHeight;
+    const pixels =
+      ((array.radius * UNITS_PER_METRE) / (toArray * Math.tan(THREE.MathUtils.degToRad(FOV) / 2))) *
+      this.host.clientHeight;
     this.host.classList.toggle("s3-far", pixels < ARRAY_LABEL_MIN_PX);
 
     // Near and far planes track the view, so depth holds from millimetres to kilometres

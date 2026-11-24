@@ -1,7 +1,20 @@
 // --- Plotly global (loaded via <script> tag) ---
+/** Plotly takes traces, layout and config as plain objects of its own options. */
+type PlotlyObject = Record<string, unknown>;
+
 declare namespace Plotly {
-  function newPlot(root: string | HTMLElement, data: any[], layout?: any, config?: any): Promise<any>;
-  function react(root: string | HTMLElement, data: any[], layout?: any, config?: any): Promise<any>;
+  function newPlot(
+    root: string | HTMLElement,
+    data: PlotlyObject[],
+    layout?: PlotlyObject,
+    config?: PlotlyObject,
+  ): Promise<HTMLElement>;
+  function react(
+    root: string | HTMLElement,
+    data: PlotlyObject[],
+    layout?: PlotlyObject,
+    config?: PlotlyObject,
+  ): Promise<HTMLElement>;
   function purge(root: string | HTMLElement): void;
   namespace Plots {
     function resize(root: HTMLElement): void;
@@ -9,9 +22,9 @@ declare namespace Plotly {
 }
 
 // --- Electron preload API ---
-interface IpcResult {
+interface IpcResult<T = undefined> {
   success: boolean;
-  data?: any;
+  data?: T;
   error?: string;
 }
 
@@ -43,13 +56,13 @@ interface SceneState {
 }
 
 interface ElectronAPI {
-  runSimulation(config: any): Promise<IpcResult>;
-  getSceneState(config: any): Promise<IpcResult & { data?: SceneState }>;
+  runSimulation(config: SimConfig): Promise<IpcResult<SimResult>>;
+  getSceneState(config: SimConfig): Promise<IpcResult<SceneState>>;
   getAppVersion(): Promise<string>;
-  checkLibrary(): Promise<IpcResult>;
-  activateLicense(): Promise<IpcResult & { cancelled?: boolean }>;
+  checkLibrary(): Promise<IpcResult<LibraryInfo>>;
+  activateLicense(): Promise<IpcResult<{ licensed: boolean; product?: string }> & { cancelled?: boolean }>;
   selectFile(options?: FileDialogOptions): Promise<string | null>;
-  exportResults(data: any): Promise<string | null>;
+  exportResults(data: SimResult): Promise<string | null>;
   openExternal(url: string): Promise<void>;
   saveConfig(jsonData: string): Promise<boolean>;
   loadConfig(): Promise<string | null>;

@@ -1,7 +1,7 @@
-import { test, describe, before, after, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-
-import { installAppDom, type DomHandle } from "../helpers/dom.mts";
+import { after, afterEach, before, beforeEach, describe, test } from "node:test";
+import { loadBuilt } from "../helpers/built.mts";
+import { type DomHandle, installAppDom, stubApi } from "../helpers/dom.mts";
 
 // The 3D scene must not re-derive platform rotation or motion in JS: the
 // channel positions and the boresight are whatever radarsimlib reports through
@@ -12,13 +12,22 @@ import { installAppDom, type DomHandle } from "../helpers/dom.mts";
 // stand in for it as the scene's sink.
 
 let handle: DomHandle;
-let scene: any;
-let shared: any;
+type SceneModule = typeof import("../../renderer/ts/scene.ts");
+type SceneModel = Parameters<Parameters<SceneModule["setSceneSink"]>[0]>[0];
 
-/** The last model the scene handed to its view. */
-let model: any;
+let scene: SceneModule;
+let shared: typeof import("../../renderer/ts/shared.ts");
 
-let sceneResponse: any;
+/** The last model the scene handed to its view, or null before it hands one. */
+let model: SceneModel | null = null;
+
+/** The model the scene last drew, failing the test when it drew none. */
+function drawn(): SceneModel {
+  assert.ok(model, "the scene handed its view no model");
+  return model;
+}
+
+let sceneResponse: IpcResult<SceneState>;
 
 /** Wait out the scene-state debounce and the IPC round trip it guards. */
 async function settleSceneState(): Promise<void> {
@@ -32,13 +41,15 @@ function poseNote(): HTMLElement {
 before(async () => {
   handle = installAppDom();
 
-  (globalThis as any).window.api = {
+  stubApi({
     getSceneState: async () => sceneResponse,
-  };
+  });
 
-  shared = await import("../../dist/renderer/js/shared.js");
-  scene = await import("../../dist/renderer/js/scene.js");
-  scene.setSceneSink((m: any) => { model = m; });
+  shared = await loadBuilt<typeof import("../../renderer/ts/shared.ts")>("renderer/js/shared.js");
+  scene = await loadBuilt<typeof import("../../renderer/ts/scene.ts")>("renderer/js/scene.js");
+  scene.setSceneSink((m) => {
+    model = m;
+  });
 });
 
 after(() => {
@@ -77,12 +88,12 @@ describe("radar pose", () => {
     scene.updateScene();
     await settleSceneState();
 
-    assert.equal(model.tx.length, 1);
-    assert.equal(model.tx[0].label, "TX1");
-    assert.deepEqual(model.tx[0].position, [3, 4, 5]);
+    assert.equal(drawn().tx.length, 1);
+    assert.equal(drawn().tx[0].label, "TX1");
+    assert.deepEqual(drawn().tx[0].position, [3, 4, 5]);
 
-    assert.equal(model.rx.length, 2, "one marker per reported RX channel");
-    assert.deepEqual(model.rx[1].position, [9, 10, 11]);
+    assert.equal(drawn().rx.length, 2, "one marker per reported RX channel");
+    assert.deepEqual(drawn().rx[1].position, [9, 10, 11]);
   });
 
   describe("coverage", () => {
@@ -102,12 +113,14 @@ describe("radar pose", () => {
       field("rx-ch-1-az-angles", "30, -60, 0");
     });
     afterEach(() => {
-      fields.forEach((f) => f.remove());
+      fields.forEach((f) => {
+        f.remove();
+      });
       fields = [];
       scene.setCoverageFocus(null);
     });
 
-    async function withFocus(focus: any): Promise<void> {
+    async function withFocus(focus: Parameters<SceneModule["setCoverageFocus"]>[0]): Promise<void> {
       scene.setCoverageFocus(focus);
       scene.updateScene();
       await settleSceneState();
@@ -115,24 +128,27 @@ describe("radar pose", () => {
 
     test("one channel picked: only it has coverage, its own span, outlined", async () => {
       await withFocus({ kind: "rx", index: 1 });
-      assert.deepEqual(model.rx[1].coverage, { az: { lo: -60, hi: 30 }, el: null });
-      assert.equal(model.rx[0].coverage, null, "a channel not picked draws no fans");
-      assert.equal(model.tx[0].coverage, null);
-      assert.equal(model.fanEdges, true);
+      assert.deepEqual(drawn().rx[1].coverage, { az: { lo: -60, hi: 30 }, el: null });
+      assert.equal(drawn().rx[0].coverage, null, "a channel not picked draws no fans");
+      assert.equal(drawn().tx[0].coverage, null);
+      assert.equal(drawn().fanEdges, true);
     });
 
     test("a chain picked: each of its channels with its own span, shaded only", async () => {
       await withFocus({ kind: "receiver" });
-      assert.deepEqual(model.rx[0].coverage, { az: { lo: -45, hi: 45 }, el: null });
-      assert.deepEqual(model.rx[1].coverage, { az: { lo: -60, hi: 30 }, el: null },
-        "each channel keeps its own span, not one shared by all");
-      assert.equal(model.tx[0].coverage, null, "the other chain draws no fans");
-      assert.equal(model.fanEdges, false);
+      assert.deepEqual(drawn().rx[0].coverage, { az: { lo: -45, hi: 45 }, el: null });
+      assert.deepEqual(
+        drawn().rx[1].coverage,
+        { az: { lo: -60, hi: 30 }, el: null },
+        "each channel keeps its own span, not one shared by all",
+      );
+      assert.equal(drawn().tx[0].coverage, null, "the other chain draws no fans");
+      assert.equal(drawn().fanEdges, false);
     });
 
     test("anything else picked: no fans at all", async () => {
       await withFocus(null);
-      assert.ok([...model.tx, ...model.rx].every((c: any) => c.coverage === null));
+      assert.ok([...drawn().tx, ...drawn().rx].every((c) => c.coverage === null));
     });
   });
 
@@ -142,15 +158,18 @@ describe("radar pose", () => {
     scene.updateScene();
     await settleSceneState();
 
-    assert.deepEqual(model.boresight, [0, 1, 0],
-      "the boresight followed the yaw input instead of the library's vector");
+    assert.deepEqual(
+      drawn().boresight,
+      [0, 1, 0],
+      "the boresight followed the yaw input instead of the library's vector",
+    );
   });
 
   test("keeps the platform marker where it is configured", async () => {
     scene.updateScene();
     await settleSceneState();
 
-    assert.deepEqual(model.radar, [0, 0, radarHeight]);
+    assert.deepEqual(drawn().radar, [0, 0, radarHeight]);
   });
 
   test("omits channels and boresight, and says why, when the pose is unavailable", async () => {
@@ -158,10 +177,10 @@ describe("radar pose", () => {
     scene.updateScene();
     await settleSceneState();
 
-    assert.deepEqual(model.tx, []);
-    assert.deepEqual(model.rx, []);
-    assert.equal(model.boresight, null, "no arrow rather than a guessed one");
-    assert.match(model.poseError ?? "", /free tier channel limit/);
+    assert.deepEqual(drawn().tx, []);
+    assert.deepEqual(drawn().rx, []);
+    assert.equal(drawn().boresight, null, "no arrow rather than a guessed one");
+    assert.match(drawn().poseError ?? "", /free tier channel limit/);
 
     assert.match(poseNote().textContent ?? "", /free tier channel limit/);
     assert.ok(!poseNote().classList.contains("hidden"), "the note should be showing");
@@ -172,7 +191,9 @@ describe("radar pose", () => {
       success: true,
       data: {
         timestamp: 0,
-        txLocations: null, rxLocations: null, boresight: null,
+        txLocations: null,
+        rxLocations: null,
+        boresight: null,
         meshes: [],
         warnings: ["Radar pose: radar reports 0 TX / 1 RX channels"],
       },
@@ -180,7 +201,7 @@ describe("radar pose", () => {
     scene.updateScene();
     await settleSceneState();
 
-    assert.match(model.poseError ?? "", /0 TX \/ 1 RX/);
+    assert.match(drawn().poseError ?? "", /0 TX \/ 1 RX/);
   });
 
   test("clears the note once the pose is back", async () => {
@@ -204,7 +225,7 @@ describe("radar pose", () => {
     scene.updateScene();
     await settleSceneState();
 
-    assert.equal(model.poseError, null);
+    assert.equal(drawn().poseError, null);
     assert.ok(poseNote().classList.contains("hidden"));
   });
 });
@@ -212,7 +233,11 @@ describe("radar pose", () => {
 describe("targets", () => {
   test("draws point targets from their fields before the library answers", () => {
     shared.pointTargets.push({});
-    for (const [axis, value] of [["x", "25"], ["y", "-3"], ["z", "1.5"]]) {
+    for (const [axis, value] of [
+      ["x", "25"],
+      ["y", "-3"],
+      ["z", "1.5"],
+    ]) {
       const input = document.createElement("input");
       input.id = `pt-0-loc-${axis}`;
       input.value = value;
@@ -221,32 +246,45 @@ describe("targets", () => {
 
     scene.updateScene();
 
-    assert.deepEqual(model.pointTargets, [{ label: "T1", index: 0, position: [25, -3, 1.5] }]);
-    document.querySelectorAll("body > input").forEach((n) => n.remove());
+    assert.deepEqual(drawn().pointTargets, [{ label: "T1", index: 0, position: [25, -3, 1.5] }]);
+    document.querySelectorAll("body > input").forEach((n) => {
+      n.remove();
+    });
   });
 
   test("marks a mesh target at its origin until the library returns its geometry", async () => {
     shared.meshTargets.push({});
     scene.updateScene();
-    assert.equal(model.meshMarkers.length, 1);
-    assert.equal(model.meshMarkers[0].label, "M1");
+    assert.equal(drawn().meshMarkers.length, 1);
+    assert.equal(drawn().meshMarkers[0].label, "M1");
 
     const mesh = {
-      index: 0, totalCells: 1, cells: 1,
-      x: new Float32Array([0, 1, 0]), y: new Float32Array([0, 0, 1]), z: new Float32Array([0, 0, 0]),
-      i: new Int32Array([0]), j: new Int32Array([1]), k: new Int32Array([2]),
+      index: 0,
+      totalCells: 1,
+      cells: 1,
+      x: new Float32Array([0, 1, 0]),
+      y: new Float32Array([0, 0, 1]),
+      z: new Float32Array([0, 0, 0]),
+      i: new Int32Array([0]),
+      j: new Int32Array([1]),
+      k: new Int32Array([2]),
       bounds: [0, 0, 0, 1, 1, 0],
     };
+    assert.ok(sceneResponse.data);
     sceneResponse.data.meshes = [mesh];
     await settleSceneState();
 
-    assert.equal(model.meshes.length, 1);
-    assert.deepEqual(model.meshMarkers, [], "the geometry replaces the stand-in marker");
+    assert.equal(drawn().meshes.length, 1);
+    assert.deepEqual(drawn().meshMarkers, [], "the geometry replaces the stand-in marker");
   });
 });
 
 describe("mesh labels", () => {
-  const mesh = (cells: number, totalCells: number): any => ({ index: 1, cells, totalCells });
+  const mesh = (cells: number, totalCells: number): Parameters<SceneModule["meshLabel"]>[0] => ({
+    index: 1,
+    cells,
+    totalCells,
+  });
 
   test("gives the triangle count of a mesh drawn whole", () => {
     assert.equal(scene.meshLabel(mesh(1200, 1200)), "M2 (1200 tri)");

@@ -1,7 +1,8 @@
-import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { describe, test } from "node:test";
+import { loadBuilt } from "../helpers/built.mts";
 
-const beam: any = await import("../../dist/renderer/js/beam.js");
+const beam = await loadBuilt<typeof import("../../renderer/ts/beam.ts")>("renderer/js/beam.js");
 
 describe("angleSpan", () => {
   test("is the least and greatest angle, in any order", () => {
@@ -20,8 +21,7 @@ describe("angleSpan", () => {
 
 describe("channelCoverage", () => {
   test("is the span of each of the channel's cuts", () => {
-    assert.deepEqual(beam.channelCoverage([-60, 0, 20], [-5, 40]),
-      { az: { lo: -60, hi: 20 }, el: { lo: -5, hi: 40 } });
+    assert.deepEqual(beam.channelCoverage([-60, 0, 20], [-5, 40]), { az: { lo: -60, hi: 20 }, el: { lo: -5, hi: 40 } });
   });
 
   test("a cut with no angles has no span", () => {

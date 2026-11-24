@@ -1,38 +1,48 @@
-"use strict";
 // ===== RadarSimApp - Native C Bridge =====
 
+import * as fs from "node:fs";
+import * as path from "node:path";
 import koffi from "koffi";
-import * as path from "path";
-import * as fs from "fs";
 
+import { buildAntennaPattern, type ComplexParsed, deg2rad, errorMsg, parseComplex, toF32, toF64 } from "./convert.js";
 import {
-  errorMsg, toF32, toF64, deg2rad,
-  parseComplex, buildAntennaPattern, ComplexParsed,
-} from "./convert.js";
-import {
-  randn, nextPow2, makeYielder,
-  applyRangeFFTAsync, applyDopplerFFTAsync, toDbMag3DAsync, toComplex3DAsync,
+  applyDopplerFFTAsync,
+  applyRangeFFTAsync,
+  makeYielder,
+  nextPow2,
+  randn,
+  toComplex3DAsync,
+  toDbMag3DAsync,
 } from "./dsp.js";
-import { loadStl, packSceneMesh, SceneMesh } from "./mesh.js";
+import { loadStl, packSceneMesh, type SceneMesh } from "./mesh.js";
 
 // ── Resolve real filesystem path (asar-unpacked in packaged builds) ──────────
 // __dirname is dist/ at runtime; the native library lives in radarsimlib/
 // at the project root (one level up from dist/).
-const baseDir: string = path
-  .join(__dirname, "..", "radarsimlib")
-  .replace("app.asar", "app.asar.unpacked");
+const baseDir: string = path.join(__dirname, "..", "radarsimlib").replace("app.asar", "app.asar.unpacked");
 
 // ── Native library ───────────────────────────────────────────────────────────
-const libName: string = process.platform === "win32" ? "radarsimc.dll"
-  : process.platform === "darwin" ? "libradarsimc.dylib"
-  : "libradarsimc.so";
+const libName: string =
+  process.platform === "win32"
+    ? "radarsimc.dll"
+    : process.platform === "darwin"
+      ? "libradarsimc.dylib"
+      : "libradarsimc.so";
 const libPath: string = path.join(baseDir, libName);
 const lib = koffi.load(libPath);
+
+/** A bound native function. */
+type NativeFunction = ReturnType<typeof lib.func>;
+
+/** An opaque handle radarsimc hands out: only ever passed back to it. */
+type NativePtr = unknown;
 
 // ── Function bindings ─────────────────────────────────────────────────────────
 const Get_Version = lib.func("void Get_Version(int *version)");
 const Is_Licensed = lib.func("int Is_Licensed()");
-const Set_License_Files = lib.func("int Set_License_Files(const char **license_file_paths, int num_files, const char *product)");
+const Set_License_Files = lib.func(
+  "int Set_License_Files(const char **license_file_paths, int num_files, const char *product)",
+);
 
 // ── License activation ─────────────────────────────────────────────────────────
 interface LicenseProduct {
@@ -42,7 +52,7 @@ interface LicenseProduct {
 
 const LICENSE_PRODUCTS: LicenseProduct[] = [
   { pattern: /^license_RadarSimApp_.*\.lic$/, product: "RadarSimApp" },
-  { pattern: /^license_RadarSimPy_.*\.lic$/,  product: "RadarSimPy"  },
+  { pattern: /^license_RadarSimPy_.*\.lic$/, product: "RadarSimPy" },
 ];
 
 // radarsimc's own spelling of each platform. A license issued for "all" runs
@@ -82,7 +92,9 @@ function readLicensePayload(licPath: string): LicensePayload | null {
       // The signature is base64 too, but it is not JSON, so it falls through.
       const payload: unknown = JSON.parse(Buffer.from(block, "base64").toString("utf8"));
       if (payload && typeof payload === "object") return payload as LicensePayload;
-    } catch { /* Not the key block -- keep looking. */ }
+    } catch {
+      /* Not the key block -- keep looking. */
+    }
   }
   return null;
 }
@@ -97,9 +109,7 @@ function diagnoseLicense(licPath: string, product?: string): LicenseRejection {
   }
 
   // Payload timestamps are UTC, unlike the local-time dates in the file header.
-  const expiry = payload.expiration_date
-    ? Date.parse(`${payload.expiration_date.replace(" ", "T")}Z`)
-    : NaN;
+  const expiry = payload.expiration_date ? Date.parse(`${payload.expiration_date.replace(" ", "T")}Z`) : NaN;
   if (!Number.isNaN(expiry) && expiry < Date.now()) {
     return { reason: `expired on ${payload.expiration_date} UTC`, expired: true };
   }
@@ -153,112 +163,78 @@ function diagnoseLicense(licPath: string, product?: string): LicenseRejection {
 
 const Create_Transmitter = lib.func(
   "void *Create_Transmitter(double *freq, double *freq_time, int waveform_size," +
-  " double *freq_offset, double *pulse_start_time, int num_pulses, float tx_power)"
+    " double *freq_offset, double *pulse_start_time, int num_pulses, float tx_power)",
 );
 const Create_Transmitter_SSBPhaseNoise = lib.func(
   "void *Create_Transmitter_SSBPhaseNoise(double *freq, double *freq_time," +
-  " int waveform_size, double *freq_offset, double *pulse_start_time," +
-  " int num_pulses, float tx_power, double *pn_freq, double *pn_power," +
-  " int pn_size, double pn_fs, int pn_num_samples, uint64 pn_seed, bool pn_validation)"
+    " int waveform_size, double *freq_offset, double *pulse_start_time," +
+    " int num_pulses, float tx_power, double *pn_freq, double *pn_power," +
+    " int pn_size, double pn_fs, int pn_num_samples, uint64 pn_seed, bool pn_validation)",
 );
 const Add_Txchannel = lib.func(
   "int Add_Txchannel(float *location, float *polar_real, float *polar_imag," +
-  " float *phi, float *phi_ptn, int phi_length," +
-  " float *theta, float *theta_ptn, int theta_length," +
-  " float antenna_gain," +
-  " float *mod_t, float *mod_var_real, float *mod_var_imag, int mod_length," +
-  " float *pulse_mod_real, float *pulse_mod_imag," +
-  " float delay, float grid, void *ptr_tx_c)"
+    " float *phi, float *phi_ptn, int phi_length," +
+    " float *theta, float *theta_ptn, int theta_length," +
+    " float antenna_gain," +
+    " float *mod_t, float *mod_var_real, float *mod_var_imag, int mod_length," +
+    " float *pulse_mod_real, float *pulse_mod_imag," +
+    " float delay, float grid, void *ptr_tx_c)",
 );
 const Get_Num_Txchannel = lib.func("int Get_Num_Txchannel(void *ptr_tx_c)");
 const Free_Transmitter = lib.func("void Free_Transmitter(void *ptr_tx_c)");
 
 const Create_Receiver = lib.func(
   "void *Create_Receiver(float fs, float rf_gain, float resistor," +
-  " float baseband_gain, float baseband_bw, double gate_delay)"
+    " float baseband_gain, float baseband_bw, double gate_delay)",
 );
 const Add_Rxchannel = lib.func(
   "int Add_Rxchannel(float *location, float *polar_real, float *polar_imag," +
-  " float *phi, float *phi_ptn, int phi_length," +
-  " float *theta, float *theta_ptn, int theta_length," +
-  " float antenna_gain, void *ptr_rx_c)"
+    " float *phi, float *phi_ptn, int phi_length," +
+    " float *theta, float *theta_ptn, int theta_length," +
+    " float antenna_gain, void *ptr_rx_c)",
 );
 const Get_Num_Rxchannel = lib.func("int Get_Num_Rxchannel(void *ptr_rx_c)");
 const Free_Receiver = lib.func("void Free_Receiver(void *ptr_rx_c)");
 
 const Create_Radar = lib.func(
   "void *Create_Radar(void *ptr_tx_c, void *ptr_rx_c," +
-  " double *frame_start_time, int num_frames," +
-  " float *location, float *speed, float *rotation, float *rotation_rate)"
-);
-const Create_Radar_Array = lib.func(
-  "void *Create_Radar_Array(void *ptr_tx_c, void *ptr_rx_c," +
-  " double *frame_start_time, int num_frames," +
-  " float *location_array, int num_locations, float *speed," +
-  " float *rotation_array, int num_rotations, float *rotation_rate)"
+    " double *frame_start_time, int num_frames," +
+    " float *location, float *speed, float *rotation, float *rotation_rate)",
 );
 const Get_BB_Size = lib.func("int Get_BB_Size(void *ptr_radar_c)");
 const Free_Radar = lib.func("void Free_Radar(void *ptr_radar_c)");
 
 const Init_Targets = lib.func("void *Init_Targets()");
 const Add_Point_Target = lib.func(
-  "int Add_Point_Target(float *location, float *speed," +
-  " float rcs, float phs, void *ptr_targets_c)"
-);
-const Add_Point_Target_Array = lib.func(
-  "int Add_Point_Target_Array(float *location_array, int num_locations, float *speed," +
-  " float *rcs_array, float *phase_array, int num_rcs, void *ptr_targets_c)"
+  "int Add_Point_Target(float *location, float *speed," + " float rcs, float phs, void *ptr_targets_c)",
 );
 const Add_Mesh_Target = lib.func(
   "int Add_Mesh_Target(float *points, int *cells, int cell_size," +
-  " float *origin, float *location, float *speed," +
-  " float *rotation, float *rotation_rate," +
-  " float ep_real, float ep_imag, float mu_real, float mu_imag," +
-  " bool skip_diffusion, float density, bool environment," +
-  " void *ptr_targets_c)"
-);
-const Add_Mesh_Target_Array = lib.func(
-  "int Add_Mesh_Target_Array(float *points, int *cells, int cell_size," +
-  " float *origin, float *location_array, float *speed_array," +
-  " float *rotation_array, float *rotation_rate_array, int num_motions," +
-  " float ep_real, float ep_imag, float mu_real, float mu_imag," +
-  " bool skip_diffusion, float density, bool environment, void *ptr_targets_c)"
+    " float *origin, float *location, float *speed," +
+    " float *rotation, float *rotation_rate," +
+    " float ep_real, float ep_imag, float mu_real, float mu_imag," +
+    " bool skip_diffusion, float density, bool environment," +
+    " void *ptr_targets_c)",
 );
 const Free_Targets = lib.func("void Free_Targets(void *ptr_targets_c)");
 
 const Get_Radar_State = lib.func(
   "int Get_Radar_State(void *ptr_radar_c, double *timestamp_array, int num_timestamps," +
-  " float *tx_locations_out, float *rx_locations_out, float *boresight_out)"
+    " float *tx_locations_out, float *rx_locations_out, float *boresight_out)",
 );
 const Get_Num_Targets = lib.func("int Get_Num_Targets(void *ptr_targets_c)");
 const Get_Target_Mesh_Size = lib.func("int Get_Target_Mesh_Size(void *ptr_targets_c, int target_index)");
 const Get_Target_Mesh_State = lib.func(
   "int Get_Target_Mesh_State(void *ptr_targets_c, int target_index," +
-  " double *timestamp_array, int num_timestamps," +
-  " double *sim_timestamps, int num_sim_timestamps, double *points_out)"
+    " double *timestamp_array, int num_timestamps," +
+    " double *sim_timestamps, int num_sim_timestamps, double *points_out)",
 );
 
 const Run_RadarSimulator = lib.func(
   "int Run_RadarSimulator(void *ptr_radar_c, void *ptr_targets_c," +
-  " int level, float density, int *ray_filter," +
-  " double *ptr_bb_real, double *ptr_bb_imag)"
+    " int level, float density, int *ray_filter," +
+    " double *ptr_bb_real, double *ptr_bb_imag)",
 );
-const Run_InterferenceSimulator = lib.func(
-  "int Run_InterferenceSimulator(void *ptr_radar_c, void *ptr_interf_radar_c," +
-  " double *ptr_interf_real, double *ptr_interf_imag)"
-);
-const Run_LidarSimulator = lib.func(
-  "int Run_LidarSimulator(void *ptr_targets_c, double *phi_array, double *theta_array," +
-  " int num_rays, double *sensor_location, double *cloud_points," +
-  " double *cloud_distances, double *cloud_intensities, int max_points, int *actual_points)"
-);
-const Run_NoiseSimulator = lib.func(
-  "int Run_NoiseSimulator(void *ptr_radar_c, double noise_level, bool is_complex," +
-  " double *timestamps, int ts_channel_size, int ts_pulse_size, int ts_sample_size," +
-  " double *noise_real, double *noise_imag, uint64 seed)"
-);
-const Force_Cleanup_All = lib.func("void Force_Cleanup_All()");
-const Is_Cleanup_In_Progress = lib.func("int Is_Cleanup_In_Progress()");
 const Get_License_Info = lib.func("int Get_License_Info(char *buffer, int buffer_size)");
 
 // radarsimc reports the active license as "Key: value" lines (empty when
@@ -288,7 +264,7 @@ function readLicenseInfo(): Record<string, string> {
 //
 // Argument buffers must stay untouched until the callback fires; every caller
 // below keeps them local and only reads them after the await.
-function callAsync<T>(fn: any, ...args: unknown[]): Promise<T> {
+function callAsync<T>(fn: NativeFunction, ...args: unknown[]): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     fn.async(...args, (err: Error | null, result: T) => {
       if (err) reject(err);
@@ -313,7 +289,7 @@ function serialize<T>(work: () => Promise<T>): Promise<T> {
 
 // ── Builders ──────────────────────────────────────────────────────────────────
 interface TransmitterResult {
-  ptr: any;
+  ptr: NativePtr;
   pulses: number;
   pulseDuration: number;
   prp: Float64Array;
@@ -321,11 +297,18 @@ interface TransmitterResult {
   delays: number[];
 }
 
-function _buildTransmitter(txCfg: any): TransmitterResult {
-  let f: number[] = txCfg.f || [24e9, 24.5e9];
-  let t: number[] = txCfg.t || [0, 80e-6];
-  if (!Array.isArray(f)) f = [f];
-  if (!Array.isArray(t)) t = [t];
+function _asArray(v: number | number[]): number[] {
+  return Array.isArray(v) ? v : [v];
+}
+
+/** A mesh target is one with a model file; anything else is a point target. */
+function isMeshTarget(t: TargetConfig): t is MeshTargetConfig {
+  return Boolean(t?.model);
+}
+
+function _buildTransmitter(txCfg: TransmitterConfig): TransmitterResult {
+  let f = _asArray(txCfg.f || [24e9, 24.5e9]);
+  let t = _asArray(txCfg.t || [0, 80e-6]);
   if (f.length === 1) f = [f[0], f[0]];
   if (t.length === 1) t = [0, t[0]];
   if (f.length !== t.length) {
@@ -370,7 +353,7 @@ function _buildTransmitter(txCfg: any): TransmitterResult {
     }
   }
 
-  let ptrTx: any;
+  let ptrTx: NativePtr;
   if (txCfg.pn_f && txCfg.pn_power) {
     const pnF = toF64(txCfg.pn_f);
     const pnPw = toF64(txCfg.pn_power);
@@ -378,22 +361,69 @@ function _buildTransmitter(txCfg: any): TransmitterResult {
     const pnNumSamples: number = txCfg.pn_num_samples || 0;
     const pnSeed: bigint = BigInt(txCfg.pn_seed || 0);
     const pnValidation: boolean = txCfg.pn_validation || false;
-    console.log("[bridge] Create_Transmitter_SSBPhaseNoise args:",
-      "freq.len=", freq.length, "freqTime.len=", freqTime.length,
-      "waveform_size=", freq.length, "fOffset.len=", fOffset.length,
-      "pst.len=", pst.length, "numPulses=", numPulses, "txPower=", txPower,
-      "pnF.len=", pnF.length, "pnFs=", pnFs, "pnNumSamples=", pnNumSamples);
+    console.log(
+      "[bridge] Create_Transmitter_SSBPhaseNoise args:",
+      "freq.len=",
+      freq.length,
+      "freqTime.len=",
+      freqTime.length,
+      "waveform_size=",
+      freq.length,
+      "fOffset.len=",
+      fOffset.length,
+      "pst.len=",
+      pst.length,
+      "numPulses=",
+      numPulses,
+      "txPower=",
+      txPower,
+      "pnF.len=",
+      pnF.length,
+      "pnFs=",
+      pnFs,
+      "pnNumSamples=",
+      pnNumSamples,
+    );
     ptrTx = Create_Transmitter_SSBPhaseNoise(
-      freq, freqTime, freq.length, fOffset, pst, numPulses, txPower,
-      pnF, pnPw, pnF.length, pnFs, pnNumSamples, pnSeed, pnValidation
+      freq,
+      freqTime,
+      freq.length,
+      fOffset,
+      pst,
+      numPulses,
+      txPower,
+      pnF,
+      pnPw,
+      pnF.length,
+      pnFs,
+      pnNumSamples,
+      pnSeed,
+      pnValidation,
     );
   } else {
-    console.log("[bridge] Create_Transmitter args:",
-      "freq=", Array.from(freq), "freqTime=", Array.from(freqTime),
-      "waveform_size=", freq.length,
-      "fOffset.len=", fOffset.length, "fOffset[0]=", fOffset[0],
-      "pst.len=", pst.length, "pst[0]=", pst[0], "pst[last]=", pst[pst.length - 1],
-      "numPulses=", numPulses, "txPower=", txPower);
+    console.log(
+      "[bridge] Create_Transmitter args:",
+      "freq=",
+      Array.from(freq),
+      "freqTime=",
+      Array.from(freqTime),
+      "waveform_size=",
+      freq.length,
+      "fOffset.len=",
+      fOffset.length,
+      "fOffset[0]=",
+      fOffset[0],
+      "pst.len=",
+      pst.length,
+      "pst[0]=",
+      pst[0],
+      "pst[last]=",
+      pst[pst.length - 1],
+      "numPulses=",
+      numPulses,
+      "txPower=",
+      txPower,
+    );
     ptrTx = Create_Transmitter(freq, freqTime, freq.length, fOffset, pst, numPulses, txPower);
     console.log("[bridge] Create_Transmitter returned:", ptrTx);
   }
@@ -418,19 +448,22 @@ function _buildTransmitter(txCfg: any): TransmitterResult {
         polarIm = new Float32Array(3);
       }
 
-      const { phi, phiPtn, theta, thetaPtn, antennaGain } =
-        buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
-          ch.elevation_angle, ch.elevation_pattern);
+      const { phi, phiPtn, theta, thetaPtn, antennaGain } = buildAntennaPattern(
+        ch.azimuth_angle,
+        ch.azimuth_pattern,
+        ch.elevation_angle,
+        ch.elevation_pattern,
+      );
 
       let pModRe: Float32Array, pModIm: Float32Array;
       if (ch.pulse_amp && ch.pulse_phs) {
-        const phsRad = ch.pulse_phs.map((v: number) => (v * Math.PI) / 180);
-        pModRe = new Float32Array(ch.pulse_amp.map((a: number, i: number) => a * Math.cos(phsRad[i])));
-        pModIm = new Float32Array(ch.pulse_amp.map((a: number, i: number) => a * Math.sin(phsRad[i])));
+        const phsRad = ch.pulse_phs.map((v) => (v * Math.PI) / 180);
+        pModRe = new Float32Array(ch.pulse_amp.map((a, i) => a * Math.cos(phsRad[i])));
+        pModIm = new Float32Array(ch.pulse_amp.map((a, i) => a * Math.sin(phsRad[i])));
       } else if (ch.pulse_phs && !ch.pulse_amp) {
-        const phsRad = ch.pulse_phs.map((v: number) => (v * Math.PI) / 180);
-        pModRe = new Float32Array(phsRad.map((p: number) => Math.cos(p)));
-        pModIm = new Float32Array(phsRad.map((p: number) => Math.sin(p)));
+        const phsRad = ch.pulse_phs.map((v) => (v * Math.PI) / 180);
+        pModRe = new Float32Array(phsRad.map((p) => Math.cos(p)));
+        pModIm = new Float32Array(phsRad.map((p) => Math.sin(p)));
       } else if (ch.pulse_amp && !ch.pulse_phs) {
         pModRe = toF32(ch.pulse_amp);
         pModIm = new Float32Array(ch.pulse_amp.length);
@@ -439,12 +472,14 @@ function _buildTransmitter(txCfg: any): TransmitterResult {
         pModIm = new Float32Array(numPulses);
       }
 
-      let modT: Float32Array, modVarRe: Float32Array, modVarIm: Float32Array, modLen = 0;
+      let modT: Float32Array,
+        modVarRe: Float32Array,
+        modVarIm: Float32Array,
+        modLen = 0;
       if (ch.mod_t && (ch.phs != null || ch.amp != null)) {
         modT = toF32(ch.mod_t);
         const amp = ch.amp || new Array(modT.length).fill(1);
-        const phs = ch.phs ? ch.phs.map((v: number) => (v * Math.PI) / 180)
-          : new Array(modT.length).fill(0);
+        const phs = ch.phs ? ch.phs.map((v: number) => (v * Math.PI) / 180) : new Array(modT.length).fill(0);
         modVarRe = new Float32Array(amp.map((a: number, i: number) => a * Math.cos(phs[i])));
         modVarIm = new Float32Array(amp.map((a: number, i: number) => a * Math.sin(phs[i])));
         modLen = modT.length;
@@ -458,13 +493,25 @@ function _buildTransmitter(txCfg: any): TransmitterResult {
       txDelays.push(chDelay);
 
       const ret = Add_Txchannel(
-        loc, polarRe, polarIm,
-        phi, phiPtn, phi.length,
-        theta, thetaPtn, theta.length,
+        loc,
+        polarRe,
+        polarIm,
+        phi,
+        phiPtn,
+        phi.length,
+        theta,
+        thetaPtn,
+        theta.length,
         antennaGain,
-        modT, modVarRe, modVarIm, modLen,
-        pModRe, pModIm,
-        chDelay, (1 / 180) * Math.PI, ptrTx
+        modT,
+        modVarRe,
+        modVarIm,
+        modLen,
+        pModRe,
+        pModIm,
+        chDelay,
+        (1 / 180) * Math.PI,
+        ptrTx,
       );
       if (ret !== 0) throw new Error(errorMsg(ret, "Add_Txchannel"));
     }
@@ -484,7 +531,7 @@ function _buildTransmitter(txCfg: any): TransmitterResult {
 }
 
 interface ReceiverResult {
-  ptr: any;
+  ptr: NativePtr;
   fs: number;
   rfGain: number;
   noiseFigure: number;
@@ -496,7 +543,7 @@ interface ReceiverResult {
   numChannels: number;
 }
 
-function _buildReceiver(rxCfg: any): ReceiverResult {
+function _buildReceiver(rxCfg: ReceiverConfig): ReceiverResult {
   const rxFs: number = rxCfg.fs || 2e6;
   const rfGain: number = rxCfg.rf_gain || 0;
   const res: number = rxCfg.load_resistor || 500;
@@ -531,15 +578,25 @@ function _buildReceiver(rxCfg: any): ReceiverResult {
         polarIm = new Float32Array(3);
       }
 
-      const { phi, phiPtn, theta, thetaPtn, antennaGain } =
-        buildAntennaPattern(ch.azimuth_angle, ch.azimuth_pattern,
-          ch.elevation_angle, ch.elevation_pattern);
+      const { phi, phiPtn, theta, thetaPtn, antennaGain } = buildAntennaPattern(
+        ch.azimuth_angle,
+        ch.azimuth_pattern,
+        ch.elevation_angle,
+        ch.elevation_pattern,
+      );
 
       const ret = Add_Rxchannel(
-        loc, polarRe, polarIm,
-        phi, phiPtn, phi.length,
-        theta, thetaPtn, theta.length,
-        antennaGain, ptrRx
+        loc,
+        polarRe,
+        polarIm,
+        phi,
+        phiPtn,
+        phi.length,
+        theta,
+        thetaPtn,
+        theta.length,
+        antennaGain,
+        ptrRx,
       );
       if (ret !== 0) throw new Error(errorMsg(ret, "Add_Rxchannel"));
     }
@@ -568,19 +625,22 @@ function _buildReceiver(rxCfg: any): ReceiverResult {
  * Note the unit change: the config carries orientation in degrees (matching the
  * UI labels), while Create_Radar takes rad and rad/s.
  */
-function _createRadar(ptrTx: any, ptrRx: any, radarCfg: any): any {
+function _createRadar(ptrTx: NativePtr, ptrRx: NativePtr, radarCfg: PlatformConfig): NativePtr {
   const ptrRadar = Create_Radar(
-    ptrTx, ptrRx, new Float64Array([0.0]), 1,
+    ptrTx,
+    ptrRx,
+    new Float64Array([0.0]),
+    1,
     toF32(radarCfg.location || [0, 0, 0]),
     toF32(radarCfg.speed || [0, 0, 0]),
     deg2rad(radarCfg.rotation || [0, 0, 0]),
-    deg2rad(radarCfg.rotation_rate || [0, 0, 0])
+    deg2rad(radarCfg.rotation_rate || [0, 0, 0]),
   );
   if (!ptrRadar) throw new Error("Create_Radar returned null");
   return ptrRadar;
 }
 
-async function _buildTargets(targetsCfg: any[], density: number = 1): Promise<any> {
+async function _buildTargets(targetsCfg: TargetConfig[]): Promise<NativePtr> {
   const ptrTargets = Init_Targets();
   if (!ptrTargets) throw new Error("Init_Targets returned null");
 
@@ -591,12 +651,12 @@ async function _buildTargets(targetsCfg: any[], density: number = 1): Promise<an
       const loc = toF32(t.location || [0, 0, 0]);
       const speed = toF32(t.speed || [0, 0, 0]);
 
-      if (t.model) {
+      if (isMeshTarget(t)) {
         const mesh = loadStl(t.model, t.unit || "m");
         const origin = toF32(t.origin || [0, 0, 0]);
 
-        const rot = toF32((t.rotation || [0, 0, 0]).map((v: number) => (v * Math.PI) / 180));
-        const rotRate = toF32((t.rotation_rate || [0, 0, 0]).map((v: number) => (v * Math.PI) / 180));
+        const rot = toF32((t.rotation || [0, 0, 0]).map((v) => (v * Math.PI) / 180));
+        const rotRate = toF32((t.rotation_rate || [0, 0, 0]).map((v) => (v * Math.PI) / 180));
 
         let epReal: number, epImag: number;
         if (!t.permittivity || t.permittivity === "PEC") {
@@ -611,23 +671,33 @@ async function _buildTargets(targetsCfg: any[], density: number = 1): Promise<an
         // Off-thread: a million-triangle mesh takes real time to ingest.
         const ret = await callAsync<number>(
           Add_Mesh_Target,
-          mesh.points, mesh.cells, mesh.cellSize,
-          origin, loc, speed, rot, rotRate,
-          epReal, epImag, 1.0, 0.0,
+          mesh.points,
+          mesh.cells,
+          mesh.cellSize,
+          origin,
+          loc,
+          speed,
+          rot,
+          rotRate,
+          epReal,
+          epImag,
+          1.0,
+          0.0,
           t.skip_diffusion || false,
           t.density || 0,
           t.environment || false,
-          ptrTargets
+          ptrTargets,
         );
         if (ret !== 0) throw new Error(errorMsg(ret, "Add_Mesh_Target"));
       } else {
         const phaseRad = t.phase != null ? (t.phase * Math.PI) / 180 : 0;
         const ret = await callAsync<number>(
           Add_Point_Target,
-          loc, speed,
+          loc,
+          speed,
           t.rcs != null ? t.rcs : 0,
           phaseRad,
-          ptrTargets
+          ptrTargets,
         );
         if (ret !== 0) throw new Error(errorMsg(ret, "Add_Point_Target"));
       }
@@ -655,30 +725,37 @@ interface SceneState {
 
 // ── RadarSimBridge ───────────────────────────────────────────────────────────
 export class RadarSimBridge {
-  constructor() { }
-
-  async runSimulation(config: any): Promise<any> {
+  async runSimulation(config: SimConfig): Promise<SimResult> {
     return serialize(() => this._runSimulation(config));
   }
 
-  private async _runSimulation(config: any): Promise<any> {
-    const txCfg = config.transmitter || {};
-    const rxCfg = config.receiver || {};
-    const radarCfg = config.radar || {};
-    const simCfg = config.simulation || {};
-    const procCfg = config.processing || {};
+  private async _runSimulation(config: SimConfig): Promise<SimResult> {
+    const txCfg: TransmitterConfig = config.transmitter || {};
+    const rxCfg: ReceiverConfig = config.receiver || {};
+    const radarCfg: PlatformConfig = config.radar || {};
+    const simCfg: SimulationConfig = config.simulation || {};
+    const procCfg: ProcessingConfig = config.processing || {};
 
-    console.log("[bridge] runSimulation config:", JSON.stringify({
-      tx_f: txCfg.f, tx_t: txCfg.t, tx_pulses: txCfg.pulses, tx_prp: txCfg.prp,
-      tx_channels: txCfg.channels?.length,
-      rx_fs: rxCfg.fs, rx_gate_delay: rxCfg.gate_delay, rx_channels: rxCfg.channels?.length,
-      num_targets: config.targets?.length,
-      density: simCfg.density, level: simCfg.level,
-    }));
+    console.log(
+      "[bridge] runSimulation config:",
+      JSON.stringify({
+        tx_f: txCfg.f,
+        tx_t: txCfg.t,
+        tx_pulses: txCfg.pulses,
+        tx_prp: txCfg.prp,
+        tx_channels: txCfg.channels?.length,
+        rx_fs: rxCfg.fs,
+        rx_gate_delay: rxCfg.gate_delay,
+        rx_channels: rxCfg.channels?.length,
+        num_targets: config.targets?.length,
+        density: simCfg.density,
+        level: simCfg.level,
+      }),
+    );
 
     const density = Number(simCfg.density) || 1;
     const levelMap: Record<string, number> = { frame: 0, pulse: 1, sample: 2 };
-    const level = levelMap[simCfg.level] ?? 0;
+    const level = levelMap[simCfg.level ?? ""] ?? 0;
 
     // Every handle the library hands out is also entered in its own cleanup
     // registry, and Free_* is what unregisters it. So a handle dropped on an
@@ -690,8 +767,8 @@ export class RadarSimBridge {
     // section releases them exactly once.
     let tx: TransmitterResult | null = null;
     let rx: ReceiverResult | null = null;
-    let ptrRadar: any = null;
-    let ptrTargets: any = null;
+    let ptrRadar: NativePtr = null;
+    let ptrTargets: NativePtr = null;
     let bbSize = 0;
     let bbRe: Float64Array;
     let bbIm: Float64Array;
@@ -711,7 +788,7 @@ export class RadarSimBridge {
       console.log("[bridge] Radar pointer:", ptrRadar);
 
       console.log("[bridge] Building targets...");
-      ptrTargets = await _buildTargets(config.targets || [], density);
+      ptrTargets = await _buildTargets(config.targets || []);
       console.log("[bridge] Targets pointer:", ptrTargets);
 
       console.log("[bridge] Getting BB size...");
@@ -724,9 +801,7 @@ export class RadarSimBridge {
 
       console.log("[bridge] Running RadarSimulator (level=%d, density=%f)...", level, density);
       // The long one. Runs on a worker thread so the window stays responsive.
-      status = await callAsync<number>(
-        Run_RadarSimulator, ptrRadar, ptrTargets, level, density, rayFilter, bbRe, bbIm
-      );
+      status = await callAsync<number>(Run_RadarSimulator, ptrRadar, ptrTargets, level, density, rayFilter, bbRe, bbIm);
       console.log("[bridge] Run_RadarSimulator status:", status);
     } finally {
       // Reverse order of creation. Free_Radar does not touch the TX/RX it was
@@ -748,7 +823,12 @@ export class RadarSimBridge {
     const numChannels = numTxCh * numRxCh;
     const spp = Math.round(bbSize / (numPulses * numChannels));
 
-    const output: any = { baseband_shape: [spp, numPulses, numChannels] };
+    const output: SimResult = {
+      baseband_shape: [spp, numPulses, numChannels],
+      baseband: [],
+      bb_type: rxCfg.bb_type || "complex",
+      range_axis: [],
+    };
 
     // --- Add receiver noise ---
     if (procCfg.noise !== false) {
@@ -764,7 +844,7 @@ export class RadarSimBridge {
 
       const noiseBandwidth = rxFs;
       const receiverNoiseDbm = inputNoiseDbm + rfGain + noiseFigure + 10 * Math.log10(noiseBandwidth) + bbGain;
-      const receiverNoiseWatts = 1e-3 * Math.pow(10, receiverNoiseDbm / 10);
+      const receiverNoiseWatts = 1e-3 * 10 ** (receiverNoiseDbm / 10);
       const noiseAmplitude = Math.sqrt(receiverNoiseWatts * loadR);
 
       const scale = rxBbType === "real" ? noiseAmplitude : noiseAmplitude / Math.SQRT2;
@@ -805,7 +885,6 @@ export class RadarSimBridge {
     }
 
     output.baseband = await toComplex3DAsync(bbRe, bbIm, numPulses, numChannels, spp);
-    output.bb_type = rxCfg.bb_type || "complex";
 
     if (procCfg.range_doppler !== false && numPulses > 1) {
       const rdRangeN = procCfg.rd_range_fft || nextPow2(spp);
@@ -832,9 +911,7 @@ export class RadarSimBridge {
 
     if (numPulses > 1) {
       const half = Math.floor(numPulses / 2);
-      output.velocity_axis = Array.from({ length: numPulses },
-        (_, i) => i - half
-      );
+      output.velocity_axis = Array.from({ length: numPulses }, (_, i) => i - half);
     }
 
     return output;
@@ -850,11 +927,11 @@ export class RadarSimBridge {
    * `warnings` instead of thrown — a scene preview should degrade, not break,
    * when e.g. the free-tier channel limit rejects a multi-channel array.
    */
-  async getSceneState(config: any): Promise<SceneState> {
+  async getSceneState(config: SimConfig): Promise<SceneState> {
     return serialize(() => this._getSceneState(config));
   }
 
-  private async _getSceneState(config: any): Promise<SceneState> {
+  private async _getSceneState(config: SimConfig): Promise<SceneState> {
     const timestamp = Number(config.timestamp) || 0;
     const ts = new Float64Array([timestamp]);
     const out: SceneState = {
@@ -869,7 +946,7 @@ export class RadarSimBridge {
     // --- Radar pose ---
     let tx: TransmitterResult | null = null;
     let rx: ReceiverResult | null = null;
-    let ptrRadar: any = null;
+    let ptrRadar: NativePtr = null;
     try {
       tx = _buildTransmitter(config.transmitter || {});
       rx = _buildReceiver(config.receiver || {});
@@ -902,10 +979,10 @@ export class RadarSimBridge {
     // failing the whole batch — the model path is a live text field, so it is
     // routinely half-typed. uiIndex maps native mesh order back to the
     // caller's mesh-target numbering across those gaps.
-    const allMeshes = (config.targets || []).filter((t: any) => t && t.model);
-    const meshCfgs: any[] = [];
+    const allMeshes = (config.targets || []).filter(isMeshTarget);
+    const meshCfgs: MeshTargetConfig[] = [];
     const uiIndex: number[] = [];
-    allMeshes.forEach((t: any, n: number) => {
+    allMeshes.forEach((t, n) => {
       if (!fs.existsSync(t.model)) {
         out.warnings.push(`Mesh ${n + 1}: model file not found (${t.model})`);
         return;
@@ -915,7 +992,7 @@ export class RadarSimBridge {
     });
 
     if (meshCfgs.length > 0) {
-      let ptrTargets: any = null;
+      let ptrTargets: NativePtr = null;
       try {
         ptrTargets = await _buildTargets(meshCfgs);
         const numMesh: number = Get_Num_Targets(ptrTargets);
@@ -927,9 +1004,7 @@ export class RadarSimBridge {
             continue;
           }
           const pts = new Float64Array(cells * 9);
-          const status: number = await callAsync<number>(
-            Get_Target_Mesh_State, ptrTargets, m, ts, 1, null, 0, pts
-          );
+          const status: number = await callAsync<number>(Get_Target_Mesh_State, ptrTargets, m, ts, 1, null, 0, pts);
           if (status !== 0) {
             out.warnings.push(errorMsg(status, label));
             continue;
@@ -946,12 +1021,7 @@ export class RadarSimBridge {
     return out;
   }
 
-  async checkLibrary(): Promise<{
-    radarsimlib_version: string;
-    radarsimlib_available: boolean;
-    licensed: boolean;
-    license_info: Record<string, string>;
-  }> {
+  async checkLibrary(): Promise<LibraryInfo> {
     const version = new Int32Array(3);
     Get_Version(version);
     const licensed: number = Is_Licensed();

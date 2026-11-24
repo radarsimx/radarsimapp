@@ -17,7 +17,7 @@ export function pref<T>(key: string, fallback: T): T {
 export function setPref(key: string, value: unknown): void {
   try {
     localStorage.setItem(PREF_PREFIX + key, JSON.stringify(value));
-  } catch (_) { }
+  } catch (_) {}
 }
 
 // --- Stage views ---
@@ -91,7 +91,7 @@ export function layoutStage(): StageInsets {
     bottom: document.querySelector<HTMLElement>(".stage-bottom")?.offsetHeight ?? 0,
   };
   const root = document.documentElement.style;
-  root.setProperty("--inset-l", insets.left + "px");
-  root.setProperty("--inset-r", insets.right + "px");
+  root.setProperty("--inset-l", `${insets.left}px`);
+  root.setProperty("--inset-r", `${insets.right}px`);
   return insets;
 }

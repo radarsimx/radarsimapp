@@ -1,14 +1,14 @@
-import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
-
-import { installDom, type DomHandle } from "../helpers/dom.mts";
+import { after, before, describe, test } from "node:test";
+import { loadBuilt } from "../helpers/built.mts";
+import { type DomHandle, installDom } from "../helpers/dom.mts";
 
 let handle: DomHandle;
-let utils: any;
+let utils: typeof import("../../renderer/ts/utils.ts");
 
 before(async () => {
   handle = installDom();
-  utils = await import("../../dist/renderer/js/utils.js");
+  utils = await loadBuilt<typeof import("../../renderer/ts/utils.ts")>("renderer/js/utils.js");
 });
 
 after(() => handle.cleanup());
@@ -98,7 +98,9 @@ describe("debounce", () => {
   test("fires once after the quiet period, with the last arguments", async () => {
     const seen: number[] = [];
     const fn = utils.debounce((v: number) => seen.push(v), 20);
-    fn(1); fn(2); fn(3);
+    fn(1);
+    fn(2);
+    fn(3);
     assert.deepEqual(seen, [], "nothing runs synchronously");
     await new Promise((r) => setTimeout(r, 60));
     assert.deepEqual(seen, [3], "only the final call lands");
@@ -108,7 +110,8 @@ describe("debounce", () => {
     const seen: string[] = [];
     const a = utils.debounce(() => seen.push("a"), 10);
     const b = utils.debounce(() => seen.push("b"), 10);
-    a(); b();
+    a();
+    b();
     await new Promise((r) => setTimeout(r, 50));
     assert.deepEqual(seen.sort(), ["a", "b"]);
   });
@@ -136,7 +139,7 @@ describe("el", () => {
   test("wires on* handlers as listeners", () => {
     let clicked = 0;
     const node = utils.el("button", { onClick: () => clicked++ });
-    node.dispatchEvent(new (globalThis as any).Event("click"));
+    node.dispatchEvent(new Event("click"));
     assert.equal(clicked, 1);
   });
 

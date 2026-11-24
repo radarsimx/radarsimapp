@@ -4,19 +4,23 @@
   "description": "Radar simulation desktop app — model waveforms, targets, and antenna arrays with real-time Range-Doppler visualization",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc && tsc -p tsconfig.renderer.json && node scripts/emit-renderer-pkg.js",
+    "build": "tsc && tsc -p tsconfig.renderer.json && node scripts/emit-renderer-pkg.cjs",
     "start": "npm run build && electron .",
     "dev": "npm run build && electron . --dev",
     "dist:win": "npm run build && electron-builder --win --publish never",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
     "dist:linux": "npm run build && electron-builder --linux --publish never",
-    "generate-gif": "node scripts/generate-install-gif.js",
-    "generate-icons": "node scripts/generate-icons.js",
+    "generate-gif": "node scripts/generate-install-gif.cjs",
+    "generate-icons": "node scripts/generate-icons.cjs",
     "test": "npm run build && node --test \"test/**/*.test.mts\"",
     "test:unit": "npm run build && node --test \"test/unit/**/*.test.mts\"",
     "test:integration": "npm run build && node --test \"test/integration/**/*.test.mts\"",
     "test:watch": "node --test --watch \"test/**/*.test.mts\"",
-    "typecheck:test": "npm run build && tsc -p tsconfig.test.json"
+    "typecheck:test": "npm run build && tsc -p tsconfig.test.json",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "check": "biome check .",
+    "check:fix": "biome check --write ."
   },
   "engines": {
     "node": ">=26"
@@ -24,6 +28,7 @@
   "author": "RadarSimX",
   "license": "SEE LICENSE IN LICENSE.txt",
   "devDependencies": {
+    "@biomejs/biome": "2.6.9",
     "@napi-rs/canvas": "^1.1.1",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^26.6.6",

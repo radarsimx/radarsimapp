@@ -46,14 +46,14 @@ export function deriveReadout(input: ReadoutInput): Readout {
 
 /** A length with the unit that keeps it readable: m, cm or mm. */
 export function formatLength(metres: number): string {
-  if (!isFinite(metres)) return "—";
+  if (!Number.isFinite(metres)) return "—";
   if (metres >= 1) return `${Number(metres.toPrecision(3))} m`;
   if (metres >= 0.01) return `${Number((metres * 100).toPrecision(3))} cm`;
   return `${Number((metres * 1000).toPrecision(3))} mm`;
 }
 
 export function formatSpeed(metresPerSecond: number): string {
-  return isFinite(metresPerSecond) ? `${Number(metresPerSecond.toPrecision(3))} m/s` : "—";
+  return Number.isFinite(metresPerSecond) ? `${Number(metresPerSecond.toPrecision(3))} m/s` : "—";
 }
 
 function _field(id: string): number {
@@ -67,21 +67,25 @@ function _show(id: string, text: string): void {
 
 /** Refresh the readout tiles from the transmitter and receiver fields. */
 export function updateReadout(): void {
-  const fStart = _field("tx-f-start"), fEnd = _field("tx-f-end");
-  const tStart = _field("tx-t-start"), tEnd = _field("tx-t-end");
+  const fStart = _field("tx-f-start"),
+    fEnd = _field("tx-f-end");
+  const tStart = _field("tx-t-start"),
+    tEnd = _field("tx-t-end");
 
   (document.getElementById("tx-bandwidth") as HTMLInputElement).value = ((fEnd - fStart) * 1000).toFixed(1);
   (document.getElementById("tx-pulse-length") as HTMLInputElement).value = (tEnd - tStart).toFixed(1);
 
   const r = deriveReadout({
-    fStart: fStart * 1e9, fEnd: fEnd * 1e9,
-    tStart: tStart * 1e-6, tEnd: tEnd * 1e-6,
+    fStart: fStart * 1e9,
+    fEnd: fEnd * 1e9,
+    tStart: tStart * 1e-6,
+    tEnd: tEnd * 1e-6,
     prp: _field("tx-prp") * 1e-6,
     pulses: Math.floor(_field("tx-pulses")),
     fs: _field("rx-fs") * 1e6,
   });
   _show("ro-samples", String(r.samplesPerPulse));
   _show("ro-range-res", formatLength(r.rangeResolution));
-  _show("ro-v-max", isFinite(r.maxVelocity) ? `±${formatSpeed(r.maxVelocity)}` : "—");
+  _show("ro-v-max", Number.isFinite(r.maxVelocity) ? `±${formatSpeed(r.maxVelocity)}` : "—");
   _show("ro-v-res", formatSpeed(r.velocityResolution));
 }

@@ -1,18 +1,22 @@
-import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { describe, test } from "node:test";
+import { loadBuilt } from "../helpers/built.mts";
 
-const readout: any = await import("../../dist/renderer/js/readout.js");
+const readout = await loadBuilt<typeof import("../../renderer/ts/readout.ts")>("renderer/js/readout.js");
 
 /** The default waveform: 24 - 24.5 GHz over 80 us, 256 pulses 100 us apart, 2 MHz sampling. */
 const DEFAULTS = {
-  fStart: 24e9, fEnd: 24.5e9,
-  tStart: 0, tEnd: 80e-6,
-  prp: 100e-6, pulses: 256, fs: 2e6,
+  fStart: 24e9,
+  fEnd: 24.5e9,
+  tStart: 0,
+  tEnd: 80e-6,
+  prp: 100e-6,
+  pulses: 256,
+  fs: 2e6,
 };
 
 function near(actual: number, expected: number, tolerance: number = 1e-9): void {
-  assert.ok(Math.abs(actual - expected) <= tolerance * Math.abs(expected),
-    `expected ${expected}, got ${actual}`);
+  assert.ok(Math.abs(actual - expected) <= tolerance * Math.abs(expected), `expected ${expected}, got ${actual}`);
 }
 
 describe("deriveReadout", () => {

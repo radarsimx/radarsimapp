@@ -1,10 +1,9 @@
-"use strict";
 // ===== RadarSimApp - Mesh loading and scene packing =====
 //
 // Pure geometry helpers shared by the native bridge. Kept out of bridge.ts so
 // they can be imported (and tested) without koffi loading radarsimc.
 
-import * as fs from "fs";
+import * as fs from "node:fs";
 
 // ── Mesh (STL) loader ────────────────────────────────────────────────────────
 export const UNIT_SCALE: Record<string, number> = { mm: 1e-3, cm: 1e-2, m: 1.0, in: 0.0254 };
@@ -37,7 +36,9 @@ export function loadStl(filePath: string, unit: string = "m"): StlMesh {
       points[b + 2] = buf.readFloatLE(offset + 8) * scale;
       offset += 12;
     }
-    cells[i * 3] = i * 3; cells[i * 3 + 1] = i * 3 + 1; cells[i * 3 + 2] = i * 3 + 2;
+    cells[i * 3] = i * 3;
+    cells[i * 3 + 1] = i * 3 + 1;
+    cells[i * 3 + 2] = i * 3 + 2;
     offset += 2;
   }
   return { points, cells, cellSize: numTri };
@@ -45,10 +46,9 @@ export function loadStl(filePath: string, unit: string = "m"): StlMesh {
 
 export function loadAsciiStl(text: string, scale: number): StlMesh {
   const pts: number[] = [];
-  const re = /vertex\s+([\d.e+\-]+)\s+([\d.e+\-]+)\s+([\d.e+\-]+)/gi;
-  let m: RegExpExecArray | null;
+  const re = /vertex\s+([\d.e+-]+)\s+([\d.e+-]+)\s+([\d.e+-]+)/gi;
   let idx = 0;
-  while ((m = re.exec(text)) !== null) {
+  for (const m of text.matchAll(re)) {
     pts.push(parseFloat(m[1]) * scale, parseFloat(m[2]) * scale, parseFloat(m[3]) * scale);
     idx++;
   }
@@ -99,8 +99,12 @@ export function packSceneMesh(index: number, totalCells: number, pts: Float64Arr
   const j = new Int32Array(cells);
   const k = new Int32Array(cells);
 
-  let minX = Infinity, minY = Infinity, minZ = Infinity;
-  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  let minX = Infinity,
+    minY = Infinity,
+    minZ = Infinity;
+  let maxX = -Infinity,
+    maxY = -Infinity,
+    maxZ = -Infinity;
 
   let tri = 0;
   for (let c = 0; c < totalCells; c += stride) {
@@ -127,7 +131,15 @@ export function packSceneMesh(index: number, totalCells: number, pts: Float64Arr
   }
 
   return {
-    index, totalCells, cells: tri, x, y, z, i, j, k,
+    index,
+    totalCells,
+    cells: tri,
+    x,
+    y,
+    z,
+    i,
+    j,
+    k,
     bounds: [minX, minY, minZ, maxX, maxY, maxZ],
   };
 }

@@ -1,85 +1,136 @@
 // ===== The "Running simulation" backdrop =====
-// The same scene as the installer animation (scripts/generate-install-gif.js),
+// The same scene as the installer animation (scripts/generate-install-gif.cjs),
 // after the radarsimx.com hero, in the app's purple: a faint dot grid that a thin
 // line sweeps across from a new angle each pass, lighting up random dots that
 // then fade. It draws at about 30 frames a second, since the GPU is busy with the
 // simulation itself, and only while it is running.
 
-const TILE = 22;            // dot grid spacing (CSS px)
-const SWEEP_MS = 2600;      // time for the line to cross the window
-const PAUSE_MS = 900;       // quiet time before the next sweep
-const HIT = 0.025;          // chance the line lights a dot it passes (half the
-                            // website's, as this fills the whole window)
-const TRAIL = 140;          // faint wash behind the line
+const TILE = 22; // dot grid spacing (CSS px)
+const SWEEP_MS = 2600; // time for the line to cross the window
+const PAUSE_MS = 900; // quiet time before the next sweep
+const HIT = 0.025; // chance the line lights a dot it passes (half the
+// website's, as this fills the whole window)
+const TRAIL = 140; // faint wash behind the line
 const FRAME_MS = 33;
 
 // --primary-edge, --accent and --mesh; --accent twice, so it lights most dots
 const DOT_COLORS = ["184,163,230", "184,163,230", "123,98,179", "162,155,254"];
 const ACCENT = "184,163,230";
-const LINE = "214,202,245";   // a lighter --accent
+const LINE = "214,202,245"; // a lighter --accent
 
-interface Dot { x: number; y: number; born: number; life: number; peak: number; color: string }
-interface GridPoint { x: number; y: number; s: number }
-interface Sweep { start: number; angle: number; nx: number; ny: number; from: number; to: number; order: GridPoint[]; next: number }
+interface Dot {
+  x: number;
+  y: number;
+  born: number;
+  life: number;
+  peak: number;
+  color: string;
+}
+interface GridPoint {
+  x: number;
+  y: number;
+  s: number;
+}
+interface Sweep {
+  start: number;
+  angle: number;
+  nx: number;
+  ny: number;
+  from: number;
+  to: number;
+  order: GridPoint[];
+  next: number;
+}
 
-const easeInOut = (p: number) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+const easeInOut = (p: number) => (p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2);
 
-export interface BusyAnimation { start(): void; stop(): void }
+export interface BusyAnimation {
+  start(): void;
+  stop(): void;
+}
+
+function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("2D canvas is not available");
+  return ctx;
+}
 
 export function createBusyAnimation(canvas: HTMLCanvasElement): BusyAnimation {
-  const ctx = canvas.getContext("2d")!;
-  const grid = document.createElement("canvas");   // the still dot grid, drawn once per size
-  let w = 0, h = 0, cols = 0, rows = 0;
+  const ctx = context2d(canvas);
+  const grid = document.createElement("canvas"); // the still dot grid, drawn once per size
+  const gridCtx = context2d(grid);
+  let w = 0,
+    h = 0,
+    cols = 0,
+    rows = 0;
   let dots: Dot[] = [];
   let sweep: Sweep | null = null;
   let angle = Math.random() * Math.PI * 2;
-  let raf = 0, last = 0, running = false;
+  let raf = 0,
+    last = 0,
+    running = false;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   function resize(): boolean {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const nw = canvas.clientWidth, nh = canvas.clientHeight;
+    const nw = canvas.clientWidth,
+      nh = canvas.clientHeight;
     if (nw === w && nh === h && canvas.width === Math.round(nw * dpr)) return false;
-    w = nw; h = nh;
-    cols = Math.floor(w / TILE); rows = Math.floor(h / TILE);
-    for (const c of [canvas, grid]) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    w = nw;
+    h = nh;
+    cols = Math.floor(w / TILE);
+    rows = Math.floor(h / TILE);
+    for (const c of [canvas, grid]) {
+      c.width = Math.round(w * dpr);
+      c.height = Math.round(h * dpr);
+    }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Faint dots, fading out away from the upper middle
-    const g = grid.getContext("2d")!;
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.clearRect(0, 0, w, h);
-    const mx = w / 2, my = h * 0.35, rx = w * 0.7, ry = h * 0.6;
+    gridCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    gridCtx.clearRect(0, 0, w, h);
+    const mx = w / 2,
+      my = h * 0.35,
+      rx = w * 0.7,
+      ry = h * 0.6;
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        const x = c * TILE + TILE / 2, y = r * TILE + TILE / 2;
+        const x = c * TILE + TILE / 2,
+          y = r * TILE + TILE / 2;
         const d = Math.hypot((x - mx) / rx, (y - my) / ry);
         if (d >= 1) continue;
-        g.fillStyle = `rgba(255,255,255,${(0.09 * (1 - d)).toFixed(3)})`;
-        g.beginPath();
-        g.arc(x, y, 1, 0, Math.PI * 2);
-        g.fill();
+        gridCtx.fillStyle = `rgba(255,255,255,${(0.09 * (1 - d)).toFixed(3)})`;
+        gridCtx.beginPath();
+        gridCtx.arc(x, y, 1, 0, Math.PI * 2);
+        gridCtx.fill();
       }
     }
     sweep = null;
     return true;
   }
 
-  function newSweep(now: number): void {
+  function newSweep(now: number): Sweep {
     angle = (angle + Math.PI / 3 + Math.random() * ((Math.PI * 4) / 3)) % (Math.PI * 2);
-    const nx = Math.cos(angle), ny = Math.sin(angle);
+    const nx = Math.cos(angle),
+      ny = Math.sin(angle);
     const proj = (x: number, y: number) => x * nx + y * ny;
     const corners = [proj(0, 0), proj(w, 0), proj(0, h), proj(w, h)];
     const order: GridPoint[] = [];
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        const x = c * TILE + TILE / 2, y = r * TILE + TILE / 2;
+        const x = c * TILE + TILE / 2,
+          y = r * TILE + TILE / 2;
         order.push({ x, y, s: proj(x, y) });
       }
     }
     order.sort((a, b) => a.s - b.s);
-    sweep = {
-      start: now, angle, nx, ny, order, next: 0,
+    return {
+      start: now,
+      angle,
+      nx,
+      ny,
+      order,
+      next: 0,
       from: Math.min(...corners) - TRAIL * 0.2,
       to: Math.max(...corners) + TRAIL * 0.2,
     };
@@ -112,8 +163,8 @@ export function createBusyAnimation(canvas: HTMLCanvasElement): BusyAnimation {
     if (now - last < FRAME_MS) return;
     last = now;
     resize();
-    if (!sweep || now - sweep.start > SWEEP_MS + PAUSE_MS) newSweep(now);
-    const sw = sweep!;
+    if (!sweep || now - sweep.start > SWEEP_MS + PAUSE_MS) sweep = newSweep(now);
+    const sw = sweep;
 
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(grid, 0, 0, w, h);
@@ -127,7 +178,9 @@ export function createBusyAnimation(canvas: HTMLCanvasElement): BusyAnimation {
         const p = sw.order[sw.next++];
         if (Math.random() < HIT) {
           dots.push({
-            x: p.x, y: p.y, born: now,
+            x: p.x,
+            y: p.y,
+            born: now,
             life: 1600 + Math.random() * 2200,
             peak: 0.55 + Math.random() * 0.45,
             color: DOT_COLORS[Math.floor(Math.random() * DOT_COLORS.length)],
@@ -139,7 +192,7 @@ export function createBusyAnimation(canvas: HTMLCanvasElement): BusyAnimation {
     dots = dots.filter((d) => now - d.born < d.life);
     for (const d of dots) {
       const k = (now - d.born) / d.life;
-      const a = (k < 0.06 ? k / 0.06 : Math.pow(1 - (k - 0.06) / 0.94, 1.6)) * d.peak;
+      const a = (k < 0.06 ? k / 0.06 : (1 - (k - 0.06) / 0.94) ** 1.6) * d.peak;
       const g = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, 10);
       g.addColorStop(0, `rgba(${d.color},${(a * 0.6).toFixed(3)})`);
       g.addColorStop(1, `rgba(${d.color},0)`);

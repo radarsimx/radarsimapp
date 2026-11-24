@@ -2,10 +2,10 @@
 // What the 3D view shows: the radar platform, its channels, the boresight and
 // the targets. This module gathers it; scene3d.ts draws it.
 
-import { debounce, parseNumber, parseCSV, el } from './utils.js';
-import { pointTargets, meshTargets } from './shared.js';
-import { channelCoverage, type Coverage } from './beam.js';
-import { collectConfig } from './config.js';
+import { type Coverage, channelCoverage } from "./beam.js";
+import { type CollectedConfig, collectConfig } from "./config.js";
+import { meshTargets, pointTargets } from "./shared.js";
+import { debounce, el, parseCSV, parseNumber } from "./utils.js";
 
 export type Vec3 = [number, number, number];
 
@@ -34,10 +34,7 @@ export interface SceneMarker {
  * Whose coverage the scene shows, from what is picked on the radar: one
  * channel, a whole chain's channels, or (null) none.
  */
-export type CoverageFocus =
-  | { kind: "tx" | "rx"; index: number }
-  | { kind: "transmitter" | "receiver" }
-  | null;
+export type CoverageFocus = { kind: "tx" | "rx"; index: number } | { kind: "transmitter" | "receiver" } | null;
 
 export interface SceneModel {
   /** Platform origin, as configured (see _radarOrigin). */
@@ -81,7 +78,7 @@ export function meshColor(index: number): string {
   return MESH_COLORS[index % MESH_COLORS.length];
 }
 
-export function meshLabel(m: SceneMesh): string {
+export function meshLabel(m: Pick<SceneMesh, "index" | "cells" | "totalCells">): string {
   return m.cells < m.totalCells
     ? `M${m.index + 1} (${m.cells} of ${m.totalCells} tri)`
     : `M${m.index + 1} (${m.totalCells} tri)`;
@@ -108,16 +105,21 @@ const SCENE_TIMESTAMP = 0;
 /** Matches the per-field warning the bridge attaches to a failed pose query. */
 const POSE_WARNING_PREFIX = "Radar pose:";
 
-function _sceneStateKeyOf(cfg: any): string {
+/** A mesh target is one with a model file; anything else is a point target. */
+function _isMeshTarget(t: TargetConfig): t is MeshTargetConfig {
+  return Boolean(t?.model);
+}
+
+function _sceneStateKeyOf(cfg: SimConfig): string {
   return JSON.stringify({
     radar: cfg.radar,
-    tx: (cfg.transmitter?.channels || []).map((c: any) => c.location),
-    rx: (cfg.receiver?.channels || []).map((c: any) => c.location),
+    tx: (cfg.transmitter?.channels || []).map((c) => c.location),
+    rx: (cfg.receiver?.channels || []).map((c) => c.location),
     meshes: (cfg.targets || [])
-      .filter((t: any) => t && t.model)
+      .filter(_isMeshTarget)
       // Speed and rotation rate move the mesh once SCENE_TIMESTAMP is nonzero,
       // so they invalidate the cached pose like the static fields do.
-      .map((t: any) => [t.model, t.location, t.rotation, t.speed, t.rotation_rate, t.unit]),
+      .map((t) => [t.model, t.location, t.rotation, t.speed, t.rotation_rate, t.unit]),
   });
 }
 
@@ -127,7 +129,7 @@ const _refreshSceneState = debounce(async () => {
     return;
   }
 
-  let cfg: any;
+  let cfg: CollectedConfig;
   try {
     cfg = collectConfig();
   } catch (_) {
@@ -137,8 +139,9 @@ const _refreshSceneState = debounce(async () => {
   const key = _sceneStateKeyOf(cfg);
   if (key === _sceneStateKey) return;
   // Which mesh targets went in, as collectConfig skips those with no model
-  const withModel: number[] = meshTargets.map((_: MeshTargetData, i: number) => i).filter((i: number) =>
-    (document.getElementById(`mesh-${i}-model`) as HTMLInputElement | null)?.value);
+  const withModel: number[] = meshTargets
+    .map((_: MeshTargetData, i: number) => i)
+    .filter((i: number) => (document.getElementById(`mesh-${i}-model`) as HTMLInputElement | null)?.value);
 
   _sceneStateInFlight = true;
   try {
@@ -147,20 +150,25 @@ const _refreshSceneState = debounce(async () => {
     if (res.success && res.data) {
       // The bridge numbers meshes among the targets that have a model file;
       // renumber them as mesh targets, which is how the rest of the app counts
-      res.data.meshes.forEach((m: SceneMesh) => { m.index = withModel[m.index] ?? m.index; });
+      res.data.meshes.forEach((m: SceneMesh) => {
+        m.index = withModel[m.index] ?? m.index;
+      });
       _sceneState = res.data;
       _libRadarPose = _cfgPose(cfg.radar);
-      _libMeshPoses = new Map((cfg.targets || []).filter((t: any) => t && t.model)
-        .map((t: any, n: number) => [withModel[n] ?? n, _cfgPose(t)] as [number, Pose]));
+      _libMeshPoses = new Map(
+        cfg.targets.filter(_isMeshTarget).map((t, n): [number, Pose] => [withModel[n] ?? n, _cfgPose(t)]),
+      );
       if (res.data.warnings.length > 0) {
-        console.warn("[scene] " + res.data.warnings.join("; "));
+        console.warn(`[scene] ${res.data.warnings.join("; ")}`);
       }
       // A pose failure is reported per-field, so the meshes can still be good.
       const posed = res.data.txLocations && res.data.rxLocations && res.data.boresight;
       const warning = res.data.warnings.find((w: string) => w.startsWith(POSE_WARNING_PREFIX));
-      _poseError = posed ? null
-        : warning ? warning.slice(POSE_WARNING_PREFIX.length).trim()
-        : "radarsimlib reported no radar pose";
+      _poseError = posed
+        ? null
+        : warning
+          ? warning.slice(POSE_WARNING_PREFIX.length).trim()
+          : "radarsimlib reported no radar pose";
     } else {
       _sceneState = null;
       _poseError = res.error || "scene query failed";
@@ -204,22 +212,23 @@ function _channelMarkers(locations: Float32Array | null | undefined, prefix: "TX
   const csv = (i: number, name: string): number[] =>
     parseCSV((document.getElementById(`${pfx}-ch-${i}-${name}`) as HTMLInputElement | null)?.value ?? "");
   const markers: SceneMarker[] = [];
-  const n = locations ? Math.floor(locations.length / 3) : 0;
+  if (!locations) return markers;
+  const n = Math.floor(locations.length / 3);
   for (let i = 0; i < n; i++) {
     markers.push({
       label: `${prefix}${i + 1}`,
-      position: [locations![i * 3], locations![i * 3 + 1], locations![i * 3 + 2]],
+      position: [locations[i * 3], locations[i * 3 + 1], locations[i * 3 + 2]],
       coverage: _inFocus(pfx, i) ? channelCoverage(csv(i, "az-angles"), csv(i, "el-angles")) : null,
     });
   }
   return markers;
 }
 
-function _vec(v: any): Vec3 {
+function _vec(v: ArrayLike<unknown> | null | undefined): Vec3 {
   return [0, 1, 2].map((k) => Number(v?.[k]) || 0) as Vec3;
 }
 
-function _cfgPose(c: any): Pose {
+function _cfgPose(c: PlatformConfig | null | undefined): Pose {
   return { location: _vec(c?.location), rotation: _vec(c?.rotation) };
 }
 
@@ -247,8 +256,6 @@ function _fieldVec(prefix: string, fallbackX: number = 0): Vec3 {
 function _radarOrigin(): Vec3 {
   return _fieldVec("radar");
 }
-
-
 
 export function buildSceneModel(): SceneModel {
   const meshes = _sceneState?.meshes ?? [];
@@ -314,7 +321,9 @@ function _renderLegend(model: SceneModel): void {
     if (channels.some((c) => c.coverage?.el)) items.push(_legendEntry("cut-el", "Elevation span"));
   }
   if (model.pointTargets.length > 0) items.push(_legendEntry("point", "Point target"));
-  model.meshes.forEach((m) => items.push(_legendEntry("mesh", meshLabel(m), meshColor(m.index))));
+  model.meshes.forEach((m) => {
+    items.push(_legendEntry("mesh", meshLabel(m), meshColor(m.index)));
+  });
   if (model.meshMarkers.length > 0) items.push(_legendEntry("mesh", "Mesh target"));
   legend.replaceChildren(...items);
 }

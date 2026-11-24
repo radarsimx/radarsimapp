@@ -23,6 +23,7 @@ export function angleSpan(angles: number[]): AngleSpan | null {
 
 /** One channel's coverage: the span of each of its pattern cuts. Null when neither has any angles. */
 export function channelCoverage(azAngles: number[], elAngles: number[]): Coverage | null {
-  const az = angleSpan(azAngles), el = angleSpan(elAngles);
+  const az = angleSpan(azAngles),
+    el = angleSpan(elAngles);
   return az || el ? { az, el } : null;
 }

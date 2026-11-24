@@ -5,17 +5,30 @@
 // them. Import this module (and await `installDom()`) before any dynamic
 // import of dist/renderer/js/*.
 
-import { JSDOM } from "jsdom";
+import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { JSDOM } from "jsdom";
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 const GLOBAL_KEYS = [
-  "window", "document", "navigator", "HTMLElement", "SVGElement", "Element",
-  "Node", "Event", "CustomEvent", "MouseEvent", "localStorage", "getComputedStyle",
-  "requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver",
+  "window",
+  "document",
+  "navigator",
+  "HTMLElement",
+  "SVGElement",
+  "Element",
+  "Node",
+  "Event",
+  "CustomEvent",
+  "MouseEvent",
+  "localStorage",
+  "getComputedStyle",
+  "requestAnimationFrame",
+  "cancelAnimationFrame",
+  "ResizeObserver",
 ] as const;
 
 export interface DomHandle {
@@ -30,15 +43,19 @@ export interface DomHandle {
  */
 export function installDom(html: string = "<!doctype html><html><body></body></html>"): DomHandle {
   const dom = new JSDOM(html, { url: "http://localhost/", pretendToBeVisual: true });
-  const w = dom.window as any;
+  const w = dom.window;
 
   // jsdom does not implement ResizeObserver; createTextInput constructs one.
-  if (!w.ResizeObserver) {
-    w.ResizeObserver = class {
-      observe(): void { }
-      unobserve(): void { }
-      disconnect(): void { }
-    };
+  if (!Reflect.has(w, "ResizeObserver")) {
+    Reflect.set(
+      w,
+      "ResizeObserver",
+      class {
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {}
+      },
+    );
   }
 
   // Some of these (navigator) are getter-only on globalThis in modern Node, so
@@ -47,7 +64,7 @@ export function installDom(html: string = "<!doctype html><html><body></body></h
   for (const key of GLOBAL_KEYS) {
     saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
     Object.defineProperty(globalThis, key, {
-      value: key === "window" ? w : w[key],
+      value: key === "window" ? w : Reflect.get(w, key),
       writable: true,
       configurable: true,
       enumerable: true,
@@ -59,11 +76,31 @@ export function installDom(html: string = "<!doctype html><html><body></body></h
     cleanup(): void {
       for (const [key, descriptor] of saved) {
         if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-        else delete (globalThis as any)[key];
+        else Reflect.deleteProperty(globalThis, key);
       }
       dom.window.close();
     },
   };
+}
+
+/** The element with this id, failing the test when the page has none. */
+export function byId(id: string): HTMLElement {
+  const found = document.getElementById(id);
+  assert.ok(found, `#${id} is missing`);
+  return found;
+}
+
+/** A stand-in Plotly that draws nothing, on both globalThis and window. */
+export function stubPlotly(): void {
+  const noop = () => Promise.resolve();
+  const plotly = { newPlot: noop, react: noop, purge: () => {}, Plots: { resize: () => {} } };
+  Reflect.set(globalThis, "Plotly", plotly);
+  Reflect.set(window, "Plotly", plotly);
+}
+
+/** Stand in for the preload API with just the calls a test needs. */
+export function stubApi(api: Partial<ElectronAPI>): void {
+  Reflect.set(window, "api", api);
 }
 
 /** Load the app's real index.html into jsdom, without running its scripts. */

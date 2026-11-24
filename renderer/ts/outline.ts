@@ -4,17 +4,25 @@
 // chain, the receive chain, their antennas, on the platform; the targets' is a
 // list. Picking a component shows that component's fields, and only those.
 
-import { el } from './utils.js';
-import { txChannels, rxChannels, pointTargets, meshTargets } from './shared.js';
-import { pref, setPref } from './stage.js';
-import { redrawInspectorPlots } from './plots.js';
-import { setCoverageFocus } from './scene.js';
+import { redrawInspectorPlots } from "./plots.js";
+import { setCoverageFocus } from "./scene.js";
+import { meshTargets, pointTargets, rxChannels, txChannels } from "./shared.js";
+import { pref, setPref } from "./stage.js";
+import { el } from "./utils.js";
 
 /** What can be picked on the radar: the platform, a whole chain, one block of a chain, a channel. */
 export type RadarKind =
-  | "radar" | "transmitter" | "receiver"
-  | "waveform" | "pa" | "lna" | "mixer" | "baseband" | "adc"
-  | "tx" | "rx";
+  | "radar"
+  | "transmitter"
+  | "receiver"
+  | "waveform"
+  | "pa"
+  | "lna"
+  | "mixer"
+  | "baseband"
+  | "adc"
+  | "tx"
+  | "rx";
 /** What can be picked among the targets. */
 export type TargetKind = "point" | "mesh";
 export type NodeKind = RadarKind | TargetKind;
@@ -59,20 +67,36 @@ interface ItemSpec {
 
 const ITEMS: Record<ItemKind, ItemSpec> = {
   tx: {
-    items: txChannels, listId: "tx-channels-list", entriesId: "ol-tx",
-    label: (i) => `TX${i + 1}`, title: (i) => `TX channel ${i + 1}`, path: "Transmitter",
+    items: txChannels,
+    listId: "tx-channels-list",
+    entriesId: "ol-tx",
+    label: (i) => `TX${i + 1}`,
+    title: (i) => `TX channel ${i + 1}`,
+    path: "Transmitter",
   },
   rx: {
-    items: rxChannels, listId: "rx-channels-list", entriesId: "ol-rx",
-    label: (i) => `RX${i + 1}`, title: (i) => `RX channel ${i + 1}`, path: "Receiver",
+    items: rxChannels,
+    listId: "rx-channels-list",
+    entriesId: "ol-rx",
+    label: (i) => `RX${i + 1}`,
+    title: (i) => `RX channel ${i + 1}`,
+    path: "Receiver",
   },
   point: {
-    items: pointTargets, listId: "point-targets-list", entriesId: "ol-point",
-    label: (i) => `T${i + 1}`, title: (i) => `Point target ${i + 1}`, path: "Point targets",
+    items: pointTargets,
+    listId: "point-targets-list",
+    entriesId: "ol-point",
+    label: (i) => `T${i + 1}`,
+    title: (i) => `Point target ${i + 1}`,
+    path: "Point targets",
   },
   mesh: {
-    items: meshTargets, listId: "mesh-targets-list", entriesId: "ol-mesh",
-    label: (i) => `M${i + 1}`, title: (i) => `Mesh target ${i + 1}`, path: "Mesh targets",
+    items: meshTargets,
+    listId: "mesh-targets-list",
+    entriesId: "ol-mesh",
+    label: (i) => `M${i + 1}`,
+    title: (i) => `Mesh target ${i + 1}`,
+    path: "Mesh targets",
   },
 };
 
@@ -93,7 +117,10 @@ function _within(kind: ItemKind, index: number | undefined): number | null {
 // Each panel has its own pick: one on the radar, and one among the targets
 // for as long as there is a target to pick.
 let _radar: Selection<RadarKind> = pref<Selection<RadarKind>>("selection", { kind: "waveform" });
-let _target: Selection<TargetKind> | null = pref<Selection<TargetKind> | null>("selection.target", { kind: "point", index: 0 });
+let _target: Selection<TargetKind> | null = pref<Selection<TargetKind> | null>("selection.target", {
+  kind: "point",
+  index: 0,
+});
 
 /** What is picked on the radar. */
 export function selection(): Selection<RadarKind> {
@@ -112,7 +139,9 @@ export function select(next: Selection): void {
   _apply();
   setPref("selection", _radar);
   setPref("selection.target", _target);
-  document.querySelector<HTMLElement>(`.hud-left [data-select="${next.kind}"].sel`)?.scrollIntoView?.({ block: "nearest" });
+  document
+    .querySelector<HTMLElement>(`.hud-left [data-select="${next.kind}"].sel`)
+    ?.scrollIntoView?.({ block: "nearest" });
 
   // The fields just shown may carry a plot, which could not be drawn while hidden
   redrawInspectorPlots();
@@ -127,18 +156,25 @@ export function renderOutline(): void {
     if (!entries) return;
     // A channel is an antenna in the diagram; a target is a row in the list
     const antenna = kind === "tx" || kind === "rx";
-    entries.replaceChildren(...spec.items.map((_, i) =>
-      el(antenna ? "button" : "div", {
-        className: antenna ? "ant" : "ol-row ol-item",
-        ...(antenna ? { type: "button" } : { role: "treeitem", tabindex: "0" }),
-        title: spec.title(i),
-        "data-select": kind, "data-index": String(i),
-      }, [
-        el("i", { className: `mk-glyph mk-${kind}` }),
-        // Its box already says which chain an antenna is on
-        el("span", { className: "ol-name", textContent: antenna ? String(i + 1) : spec.label(i) }),
-      ])
-    ));
+    entries.replaceChildren(
+      ...spec.items.map((_, i) =>
+        el(
+          antenna ? "button" : "div",
+          {
+            className: antenna ? "ant" : "ol-row ol-item",
+            ...(antenna ? { type: "button" } : { role: "treeitem", tabindex: "0" }),
+            title: spec.title(i),
+            "data-select": kind,
+            "data-index": String(i),
+          },
+          [
+            el("i", { className: `mk-glyph mk-${kind}` }),
+            // Its box already says which chain an antenna is on
+            el("span", { className: "ol-name", textContent: antenna ? String(i + 1) : spec.label(i) }),
+          ],
+        ),
+      ),
+    );
     // A branch with nothing in it has nothing to fold
     entries.closest(".ol-node")?.classList.toggle("ol-empty", spec.items.length === 0);
   });
@@ -150,9 +186,8 @@ function _settle(): void {
   if (_radar.kind === "tx" || _radar.kind === "rx") {
     const index = _within(_radar.kind, _radar.index);
     // With its last channel gone, a chain is what is left to show
-    _radar = index === null
-      ? { kind: _radar.kind === "tx" ? "transmitter" : "receiver" }
-      : { kind: _radar.kind, index };
+    _radar =
+      index === null ? { kind: _radar.kind === "tx" ? "transmitter" : "receiver" } : { kind: _radar.kind, index };
   } else if (!(_radar.kind in NODES)) {
     _radar = { kind: "waveform" };
   }
@@ -171,8 +206,11 @@ function _settle(): void {
 }
 
 function _picked(entry: HTMLElement, sel: Selection | null): boolean {
-  return !!sel && entry.dataset.select === sel.kind
-    && (entry.dataset.index === undefined || Number(entry.dataset.index) === sel.index);
+  return (
+    !!sel &&
+    entry.dataset.select === sel.kind &&
+    (entry.dataset.index === undefined || Number(entry.dataset.index) === sel.index)
+  );
 }
 
 function _named(sel: Selection): NodeSpec {
@@ -185,7 +223,7 @@ function _show(id: string, text: string): void {
   const elem = document.getElementById(id);
   if (!elem) return;
   elem.textContent = text;
-  elem.title = text;  // a narrow block may have to cut it short
+  elem.title = text; // a narrow block may have to cut it short
 }
 
 /** Bring the maps and the fields under them in line with what is picked. */
@@ -206,7 +244,7 @@ function _apply(): void {
   const target = _target ? _named(_target) : null;
   const sections = [...radar.sections, ...(target?.sections ?? [])];
   document.querySelectorAll<HTMLElement>(".insp").forEach((section) => {
-    section.classList.toggle("active", sections.includes(section.dataset.insp!));
+    section.classList.toggle("active", sections.includes(section.dataset.insp ?? ""));
   });
   // A whole chain shows its blocks one under another, each under its own name
   document.getElementById("panel-radar")?.classList.toggle("whole-chain", radar.sections.length > 1);
@@ -216,7 +254,9 @@ function _apply(): void {
   (Object.keys(ITEMS) as ItemKind[]).forEach((kind) => {
     const sel = _isTarget(kind) ? _target : _radar;
     const cards = document.getElementById(ITEMS[kind].listId)?.children ?? [];
-    Array.from(cards).forEach((card, i) => card.classList.toggle("collapsed", !(sel?.kind === kind && sel.index === i)));
+    Array.from(cards).forEach((card, i) => {
+      card.classList.toggle("collapsed", !(sel?.kind === kind && sel.index === i));
+    });
   });
 
   syncCoverageFocus();
@@ -235,9 +275,15 @@ function _apply(): void {
 export function syncCoverageFocus(): void {
   const panel = document.getElementById("panel-radar") as HTMLDetailsElement | null;
   const k = _radar.kind;
-  setCoverageFocus(panel && !panel.open ? null
-    : k === "tx" || k === "rx" ? { kind: k, index: _radar.index ?? 0 }
-    : k === "transmitter" || k === "receiver" ? { kind: k } : null);
+  setCoverageFocus(
+    panel && !panel.open
+      ? null
+      : k === "tx" || k === "rx"
+        ? { kind: k, index: _radar.index ?? 0 }
+        : k === "transmitter" || k === "receiver"
+          ? { kind: k }
+          : null,
+  );
 }
 
 // --- Diagram readings ---
@@ -263,7 +309,8 @@ export function updateDiagram(): void {
   _show("arch-adc", `${_value("rx-fs")} MHz`);
 }
 
-function _toggleFold(node: Element): void {
+function _toggleFold(node: Element | null): void {
+  if (!node) return;
   const folded = node.classList.toggle("folded");
   setPref(`outline.folded.${(node as HTMLElement).dataset.node}`, folded);
 }
@@ -284,15 +331,15 @@ export function initOutline(): void {
         index: entry.dataset.index === undefined ? undefined : Number(entry.dataset.index),
       });
     } else if (entry.classList.contains("ol-row")) {
-      _toggleFold(entry.closest(".ol-node")!);  // a row that only groups others
+      _toggleFold(entry.closest(".ol-node")); // a row that only groups others
     }
   };
 
   map.addEventListener("click", (e) => {
     const target = e.target as HTMLElement;
-    if (target.closest(".btn-icon")) return;  // an add button, handled where the lists are kept
+    if (target.closest(".btn-icon")) return; // an add button, handled where the lists are kept
     if (target.closest(".ol-fold")) {
-      _toggleFold(target.closest(".ol-node")!);
+      _toggleFold(target.closest(".ol-node"));
       return;
     }
     const entry = target.closest<HTMLElement>("[data-select], .ol-row");

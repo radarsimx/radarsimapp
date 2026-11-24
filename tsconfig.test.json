@@ -15,5 +15,7 @@
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["test/**/*.ts", "test/**/*.mts"]
+  // The renderer's and the bridge's global types, for the modules the tests
+  // take their types from (typeof import of the sources they exercise).
+  "include": ["test/**/*.ts", "test/**/*.mts", "renderer/ts/types.d.ts", "sim-types.d.ts"]
 }

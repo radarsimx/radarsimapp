@@ -1,11 +1,11 @@
-import { test, describe, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-
-import { installAppDom, type DomHandle } from "../helpers/dom.mts";
+import { after, before, beforeEach, describe, test } from "node:test";
+import { loadBuilt } from "../helpers/built.mts";
+import { type DomHandle, installAppDom, stubApi, stubPlotly } from "../helpers/dom.mts";
 
 let handle: DomHandle;
-let state: any;
-let shared: any;
+let state: typeof import("../../renderer/ts/state.ts");
+let shared: typeof import("../../renderer/ts/shared.ts");
 
 before(async () => {
   handle = installAppDom();
@@ -13,24 +13,19 @@ before(async () => {
   // The renderer draws through a Plotly global and talks to main over
   // window.api. Neither exists under jsdom, and neither is what these tests
   // are about, so stub both.
-  const noop = () => Promise.resolve();
-  (globalThis as any).Plotly = {
-    newPlot: noop, react: noop, purge: () => { },
-    Plots: { resize: () => { } },
-  };
-  (globalThis as any).window.Plotly = (globalThis as any).Plotly;
-  (globalThis as any).window.api = {
+  stubPlotly();
+  stubApi({
     getSceneState: async () => ({ success: false, error: "stub" }),
     saveConfig: async () => true,
     loadConfig: async () => null,
-  };
+  });
 
-  shared = await import("../../dist/renderer/js/shared.js");
-  state = await import("../../dist/renderer/js/state.js");
+  shared = await loadBuilt<typeof import("../../renderer/ts/shared.ts")>("renderer/js/shared.js");
+  state = await loadBuilt<typeof import("../../renderer/ts/state.ts")>("renderer/js/state.js");
 });
 
 after(() => {
-  delete (globalThis as any).Plotly;
+  Reflect.deleteProperty(globalThis, "Plotly");
   handle.cleanup();
 });
 
@@ -115,10 +110,16 @@ describe("captureState / applyState round-trip", () => {
 
   test("mesh targets round-trip with their model path and unit", () => {
     const s = state.defaultState();
-    s.meshTargets = [{
-      model: "C:/models/car.stl", location: [20, 5, 0], speed: [0, 0, 0],
-      rotation: [45, 0, 0], rotation_rate: [0, 0, 0], unit: "mm",
-    }];
+    s.meshTargets = [
+      {
+        model: "C:/models/car.stl",
+        location: [20, 5, 0],
+        speed: [0, 0, 0],
+        rotation: [45, 0, 0],
+        rotation_rate: [0, 0, 0],
+        unit: "mm",
+      },
+    ];
     state.applyState(s);
     assert.equal(shared.meshTargets.length, 1);
     assert.equal(shared.meshTargets[0].model, "C:/models/car.stl");
@@ -133,26 +134,29 @@ describe("captureState / applyState round-trip", () => {
   // applyState a state object you intend to keep mutating.
   test("applyState takes ownership of the entries it is given", () => {
     const s = state.defaultState();
-    s.pointTargets = [{ location: [1, 2, 3], rcs: 5, speed: [0, 0, 0], phase: 0 }];
+    const location = [1, 2, 3];
+    s.pointTargets = [{ location, rcs: 5, speed: [0, 0, 0], phase: 0 }];
     state.applyState(s);
-    s.pointTargets[0].location[0] = 999;
-    assert.equal(shared.pointTargets[0].location[0], 999, "entries are shared, not copied");
+    location[0] = 999;
+    assert.equal(shared.pointTargets[0].location?.[0], 999, "entries are shared, not copied");
   });
 
   test("captureState, by contrast, returns a detached snapshot", () => {
     state.applyState(state.defaultState());
     const snap = state.captureState();
-    shared.pointTargets[0].location[0] = 42;
-    assert.notEqual(snap.pointTargets[0].location[0], 42);
+    const live = shared.pointTargets[0].location;
+    assert.ok(live, "the default point target has a location");
+    live[0] = 42;
+    assert.notEqual(snap.pointTargets[0].location?.[0], 42);
   });
 
   test("applyState tolerates a partial state", () => {
-    assert.doesNotThrow(() => state.applyState({ fields: {} } as any));
-    assert.doesNotThrow(() => state.applyState({} as any));
+    assert.doesNotThrow(() => state.applyState({ fields: {} }));
+    assert.doesNotThrow(() => state.applyState({}));
   });
 
   test("applyState ignores null", () => {
-    assert.doesNotThrow(() => state.applyState(null as any));
+    assert.doesNotThrow(() => state.applyState(null));
   });
 
   test("survives JSON serialisation, which is how configs are saved", () => {
@@ -167,7 +171,11 @@ describe("captureState / applyState round-trip", () => {
 
 describe("validateState", () => {
   const good = () => ({
-    fields: {}, txChannels: [], rxChannels: [], pointTargets: [], meshTargets: [],
+    fields: {},
+    txChannels: [],
+    rxChannels: [],
+    pointTargets: [],
+    meshTargets: [],
   });
 
   test("accepts a well-formed state", () => {
@@ -182,18 +190,18 @@ describe("validateState", () => {
 
   test("names the missing section", () => {
     for (const key of ["fields", "txChannels", "rxChannels", "pointTargets", "meshTargets"]) {
-      const s: any = good();
+      const s: Record<string, unknown> = good();
       delete s[key];
       assert.throws(() => state.validateState(s), new RegExp(key));
     }
   });
 
   test("rejects sections of the wrong type", () => {
-    const s: any = good();
+    const s: Record<string, unknown> = good();
     s.txChannels = "nope";
     assert.throws(() => state.validateState(s), /Expected "txChannels" to be an array/);
 
-    const s2: any = good();
+    const s2: Record<string, unknown> = good();
     s2.fields = [];
     assert.throws(() => state.validateState(s2), /"fields" to be an object/);
   });
@@ -209,7 +217,7 @@ describe("localStorage persistence", () => {
 
     const raw = globalThis.localStorage.getItem("radarsimapp_state");
     assert.ok(raw, "autosave should have written something");
-    const parsed = JSON.parse(raw!);
+    const parsed = JSON.parse(raw);
     assert.doesNotThrow(() => state.validateState(parsed));
     assert.equal(parsed.fields["tx-power"], "13");
   });

@@ -1,11 +1,30 @@
 // ===== RadarSimApp - Channel Functions =====
 
-import { el, createInput, createTextInput, createSVG, debounce, formatComplex, isValidComplex, parseNumber, parseCSV, confirmAsync, setCount } from './utils.js';
-import { attachPatternListeners, redrawInspectorPlots, markResultsOutdated } from './plots.js';
-import { renderOutline } from './outline.js';
-import { updateScene } from './scene.js';
-import { txChannels, rxChannels } from './shared.js';
-import { debouncedAutoSave } from './state.js';
+import { renderOutline } from "./outline.js";
+import { attachPatternListeners, markResultsOutdated, redrawInspectorPlots } from "./plots.js";
+import { updateScene } from "./scene.js";
+import { rxChannels, txChannels } from "./shared.js";
+import { debouncedAutoSave } from "./state.js";
+import {
+  byId,
+  confirmAsync,
+  createInput,
+  createSVG,
+  createTextInput,
+  debounce,
+  el,
+  formatComplex,
+  isValidComplex,
+  parseCSV,
+  parseNumber,
+  setCount,
+} from "./utils.js";
+
+/** Mark a polarization field whose text is not a complex number. */
+function _flagInvalidComplex(e: Event): void {
+  const input = e.target as HTMLInputElement;
+  input.classList.toggle("is-invalid", !isValidComplex(input.value));
+}
 
 function createChannelCard(prefix: string, index: number, data: ChannelData, isTx: boolean): HTMLElement {
   const pfx = prefix.toLowerCase();
@@ -35,20 +54,42 @@ function createChannelCard(prefix: string, index: number, data: ChannelData, isT
     el("div", { className: "form-group" }, [
       el("label", {}, [
         el("span", { textContent: "Polarization" }),
-        el("i", { className: "info-icon", "data-tooltip": "Real: 1  or  -0.5\nImaginary: 1j  or  -j\nComplex: 1+2j  or  0.5-1.5j" }, ["?"]),
+        el(
+          "i",
+          {
+            className: "info-icon",
+            "data-tooltip": "Real: 1  or  -0.5\nImaginary: 1j  or  -j\nComplex: 1+2j  or  0.5-1.5j",
+          },
+          ["?"],
+        ),
       ]),
       el("div", { className: "form-row triple" }, [
         el("div", { className: "form-group" }, [
           el("label", { textContent: "x" }),
-          el("input", { type: "text", id: `${pfx}-ch-${index}-pol-x`, value: formatComplex(data.polarization?.[0] ?? 0), onInput: (e: any) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
+          el("input", {
+            type: "text",
+            id: `${pfx}-ch-${index}-pol-x`,
+            value: formatComplex(data.polarization?.[0] ?? 0),
+            onInput: _flagInvalidComplex,
+          }),
         ]),
         el("div", { className: "form-group" }, [
           el("label", { textContent: "y" }),
-          el("input", { type: "text", id: `${pfx}-ch-${index}-pol-y`, value: formatComplex(data.polarization?.[1] ?? 0), onInput: (e: any) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
+          el("input", {
+            type: "text",
+            id: `${pfx}-ch-${index}-pol-y`,
+            value: formatComplex(data.polarization?.[1] ?? 0),
+            onInput: _flagInvalidComplex,
+          }),
         ]),
         el("div", { className: "form-group" }, [
           el("label", { textContent: "z" }),
-          el("input", { type: "text", id: `${pfx}-ch-${index}-pol-z`, value: formatComplex(data.polarization?.[2] ?? 1), onInput: (e: any) => e.target.classList.toggle("is-invalid", !isValidComplex(e.target.value)) }),
+          el("input", {
+            type: "text",
+            id: `${pfx}-ch-${index}-pol-z`,
+            value: formatComplex(data.polarization?.[2] ?? 1),
+            onInput: _flagInvalidComplex,
+          }),
         ]),
       ]),
     ]),
@@ -59,7 +100,7 @@ function createChannelCard(prefix: string, index: number, data: ChannelData, isT
       el("div", { className: "form-group" }, [
         el("label", { textContent: "Delay (ns)" }),
         createInput(`tx-ch-${index}-delay`, (data.delay ?? 0) * 1e9, 1),
-      ])
+      ]),
     );
   }
 
@@ -68,33 +109,21 @@ function createChannelCard(prefix: string, index: number, data: ChannelData, isT
     el("div", { className: "insp-plot pattern-plot", id: `${pfx}-ch-${index}-pattern-plot` }),
     el("div", { className: "form-group" }, [
       el("label", { className: "cut-key cut-az", textContent: "Azimuth Angles (°)" }),
-      createTextInput(
-        `${pfx}-ch-${index}-az-angles`,
-        data.azimuth_angle?.join(", ") ?? "-90, 90"
-      ),
+      createTextInput(`${pfx}-ch-${index}-az-angles`, data.azimuth_angle?.join(", ") ?? "-90, 90"),
     ]),
     el("div", { className: "form-group" }, [
       el("label", { className: "cut-key cut-az", textContent: "Azimuth Pattern (dB)" }),
-      createTextInput(
-        `${pfx}-ch-${index}-az-pattern`,
-        data.azimuth_pattern?.join(", ") ?? "0, 0"
-      ),
+      createTextInput(`${pfx}-ch-${index}-az-pattern`, data.azimuth_pattern?.join(", ") ?? "0, 0"),
     ]),
 
     // Antenna Pattern (elevation)
     el("div", { className: "form-group" }, [
       el("label", { className: "cut-key cut-el", textContent: "Elevation Angles (°)" }),
-      createTextInput(
-        `${pfx}-ch-${index}-el-angles`,
-        data.elevation_angle?.join(", ") ?? "-90, 90"
-      ),
+      createTextInput(`${pfx}-ch-${index}-el-angles`, data.elevation_angle?.join(", ") ?? "-90, 90"),
     ]),
     el("div", { className: "form-group" }, [
       el("label", { className: "cut-key cut-el", textContent: "Elevation Pattern (dB)" }),
-      createTextInput(
-        `${pfx}-ch-${index}-el-pattern`,
-        data.elevation_pattern?.join(", ") ?? "0, 0"
-      ),
+      createTextInput(`${pfx}-ch-${index}-el-pattern`, data.elevation_pattern?.join(", ") ?? "0, 0"),
     ]),
   );
 
@@ -103,10 +132,11 @@ function createChannelCard(prefix: string, index: number, data: ChannelData, isT
     el("div", { className: "channel-card-body" }, [
       fields,
       el("div", { className: "card-actions" }, [
-        el("button", { className: "btn-secondary btn-danger", title: "Remove", onClick: () => removeChannel(prefix, index) }, [
-          createSVG("trash"),
-          " Remove Channel",
-        ]),
+        el(
+          "button",
+          { className: "btn-secondary btn-danger", title: "Remove", onClick: () => removeChannel(prefix, index) },
+          [createSVG("trash"), " Remove Channel"],
+        ),
       ]),
     ]),
   ]);
@@ -115,7 +145,7 @@ function createChannelCard(prefix: string, index: number, data: ChannelData, isT
 }
 
 export function renderTxChannels(): void {
-  const container = document.getElementById("tx-channels-list")!;
+  const container = byId("tx-channels-list");
   container.innerHTML = "";
   txChannels.forEach((ch, i) => {
     container.appendChild(createChannelCard("TX", i, ch, true));
@@ -124,7 +154,9 @@ export function renderTxChannels(): void {
   renderOutline();
 
   requestAnimationFrame(() => {
-    txChannels.forEach((_, i) => attachPatternListeners("tx", i));
+    txChannels.forEach((_, i) => {
+      attachPatternListeners("tx", i);
+    });
     redrawInspectorPlots();
     attachLocationListeners();
     updateScene();
@@ -132,7 +164,7 @@ export function renderTxChannels(): void {
 }
 
 export function renderRxChannels(): void {
-  const container = document.getElementById("rx-channels-list")!;
+  const container = byId("rx-channels-list");
   container.innerHTML = "";
   rxChannels.forEach((ch, i) => {
     container.appendChild(createChannelCard("RX", i, ch, false));
@@ -141,7 +173,9 @@ export function renderRxChannels(): void {
   renderOutline();
 
   requestAnimationFrame(() => {
-    rxChannels.forEach((_, i) => attachPatternListeners("rx", i));
+    rxChannels.forEach((_, i) => {
+      attachPatternListeners("rx", i);
+    });
     redrawInspectorPlots();
     attachRxLocationListeners();
     updateScene();
@@ -156,11 +190,7 @@ export function saveTxChannelStates(): void {
       parseNumber(g(`tx-ch-${i}-loc-y`)) * 1e-3,
       parseNumber(g(`tx-ch-${i}-loc-z`)) * 1e-3,
     ];
-    ch.polarization = [
-      g(`tx-ch-${i}-pol-x`) || "0",
-      g(`tx-ch-${i}-pol-y`) || "0",
-      g(`tx-ch-${i}-pol-z`) || "1",
-    ];
+    ch.polarization = [g(`tx-ch-${i}-pol-x`) || "0", g(`tx-ch-${i}-pol-y`) || "0", g(`tx-ch-${i}-pol-z`) || "1"];
     ch.azimuth_angle = parseCSV(g(`tx-ch-${i}-az-angles`) || "");
     ch.azimuth_pattern = parseCSV(g(`tx-ch-${i}-az-pattern`) || "");
     ch.elevation_angle = parseCSV(g(`tx-ch-${i}-el-angles`) || "");
@@ -177,11 +207,7 @@ export function saveRxChannelStates(): void {
       parseNumber(g(`rx-ch-${i}-loc-y`)) * 1e-3,
       parseNumber(g(`rx-ch-${i}-loc-z`)) * 1e-3,
     ];
-    ch.polarization = [
-      g(`rx-ch-${i}-pol-x`) || "0",
-      g(`rx-ch-${i}-pol-y`) || "0",
-      g(`rx-ch-${i}-pol-z`) || "1",
-    ];
+    ch.polarization = [g(`rx-ch-${i}-pol-x`) || "0", g(`rx-ch-${i}-pol-y`) || "0", g(`rx-ch-${i}-pol-z`) || "1"];
     ch.azimuth_angle = parseCSV(g(`rx-ch-${i}-az-angles`) || "");
     ch.azimuth_pattern = parseCSV(g(`rx-ch-${i}-az-pattern`) || "");
     ch.elevation_angle = parseCSV(g(`rx-ch-${i}-el-angles`) || "");
