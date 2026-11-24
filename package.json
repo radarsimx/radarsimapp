@@ -51,7 +51,8 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "renderer/assets/logo.png"
+      "icon": "renderer/assets/logo.png",
+      "hardenedRuntime": true
     },
     "linux": {
       "target": "AppImage",
