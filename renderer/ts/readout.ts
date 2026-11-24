@@ -1,5 +1,7 @@
 // ===== RadarSimApp - Derived Waveform Readout =====
 
+import { fieldNumber } from "./utils.js";
+
 const SPEED_OF_LIGHT = 299792458;
 
 /** Waveform and sampling parameters, in SI units (Hz, s). */
@@ -26,6 +28,15 @@ export interface Readout {
   velocityResolution: number;
 }
 
+/**
+ * Samples the receiver takes in one pulse: pulse length (s) times sampling
+ * rate (Hz), rounded up. Rounded to 12 digits first, so 80 us at 2 MHz is 160
+ * samples and not 161 off a floating point product a hair over.
+ */
+export function samplesPerPulse(pulseLength: number, fs: number): number {
+  return Math.ceil(Number((Math.abs(pulseLength) * fs).toPrecision(12))) || 1;
+}
+
 export function deriveReadout(input: ReadoutInput): Readout {
   const bandwidth = Math.abs(input.fEnd - input.fStart);
   const pulseLength = Math.abs(input.tEnd - input.tStart);
@@ -35,9 +46,7 @@ export function deriveReadout(input: ReadoutInput): Readout {
   return {
     bandwidth,
     pulseLength,
-    // Rounded first, so 80 us at 2 MHz is 160 samples and not 161 off a
-    // floating point product a hair over.
-    samplesPerPulse: Math.ceil(Number((pulseLength * input.fs).toPrecision(12))) || 1,
+    samplesPerPulse: samplesPerPulse(pulseLength, input.fs),
     rangeResolution: bandwidth > 0 ? SPEED_OF_LIGHT / (2 * bandwidth) : NaN,
     maxVelocity: input.prp > 0 ? wavelength / (4 * input.prp) : NaN,
     velocityResolution: frame > 0 ? wavelength / (2 * frame) : NaN,
@@ -56,10 +65,6 @@ export function formatSpeed(metresPerSecond: number): string {
   return Number.isFinite(metresPerSecond) ? `${Number(metresPerSecond.toPrecision(3))} m/s` : "—";
 }
 
-function _field(id: string): number {
-  return parseFloat((document.getElementById(id) as HTMLInputElement | null)?.value ?? "") || 0;
-}
-
 function _show(id: string, text: string): void {
   const elem = document.getElementById(id);
   if (elem) elem.textContent = text;
@@ -67,10 +72,10 @@ function _show(id: string, text: string): void {
 
 /** Refresh the readout tiles from the transmitter and receiver fields. */
 export function updateReadout(): void {
-  const fStart = _field("tx-f-start"),
-    fEnd = _field("tx-f-end");
-  const tStart = _field("tx-t-start"),
-    tEnd = _field("tx-t-end");
+  const fStart = fieldNumber("tx-f-start"),
+    fEnd = fieldNumber("tx-f-end");
+  const tStart = fieldNumber("tx-t-start"),
+    tEnd = fieldNumber("tx-t-end");
 
   (document.getElementById("tx-bandwidth") as HTMLInputElement).value = ((fEnd - fStart) * 1000).toFixed(1);
   (document.getElementById("tx-pulse-length") as HTMLInputElement).value = (tEnd - tStart).toFixed(1);
@@ -80,9 +85,9 @@ export function updateReadout(): void {
     fEnd: fEnd * 1e9,
     tStart: tStart * 1e-6,
     tEnd: tEnd * 1e-6,
-    prp: _field("tx-prp") * 1e-6,
-    pulses: Math.floor(_field("tx-pulses")),
-    fs: _field("rx-fs") * 1e6,
+    prp: fieldNumber("tx-prp") * 1e-6,
+    pulses: Math.floor(fieldNumber("tx-pulses")),
+    fs: fieldNumber("rx-fs") * 1e6,
   });
   _show("ro-samples", String(r.samplesPerPulse));
   _show("ro-range-res", formatLength(r.rangeResolution));

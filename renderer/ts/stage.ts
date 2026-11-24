@@ -25,7 +25,7 @@ export function setPref(key: string, value: unknown): void {
 // plots, which take its place and exist only after a run.
 export type StageView = "scene" | "array" | "baseband" | "range-profile" | "range-doppler";
 
-export const RESULT_VIEWS: StageView[] = ["baseband", "range-profile", "range-doppler"];
+const RESULT_VIEWS: StageView[] = ["baseband", "range-profile", "range-doppler"];
 
 let _view: StageView = "scene";
 

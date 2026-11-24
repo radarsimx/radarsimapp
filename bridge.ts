@@ -1,10 +1,14 @@
 // ===== RadarSimApp - Native C Bridge =====
+//
+// Binds radarsimc through koffi and turns the renderer's configuration into
+// library calls. The DLL-independent pieces live in convert.ts, dsp.ts and
+// mesh.ts so they can be tested without loading the library.
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 import koffi from "koffi";
 
-import { buildAntennaPattern, type ComplexParsed, deg2rad, errorMsg, parseComplex, toF32, toF64 } from "./convert.js";
+import { buildAntennaPattern, deg2rad, errorMsg, parseComplex, toF32, toF64 } from "./convert.js";
 import {
   applyDopplerFFTAsync,
   applyRangeFFTAsync,
@@ -14,14 +18,13 @@ import {
   toComplex3DAsync,
   toDbMag3DAsync,
 } from "./dsp.js";
-import { loadStl, packSceneMesh, type SceneMesh } from "./mesh.js";
-
-// ── Resolve real filesystem path (asar-unpacked in packaged builds) ──────────
-// __dirname is dist/ at runtime; the native library lives in radarsimlib/
-// at the project root (one level up from dist/).
-const baseDir: string = path.join(__dirname, "..", "radarsimlib").replace("app.asar", "app.asar.unpacked");
+import { loadMesh, packSceneMesh } from "./mesh.js";
 
 // ── Native library ───────────────────────────────────────────────────────────
+// __dirname is dist/ at runtime; the library sits in radarsimlib/ at the
+// project root, unpacked from the asar archive in packaged builds.
+const baseDir: string = path.join(__dirname, "..", "radarsimlib").replace("app.asar", "app.asar.unpacked");
+
 const libName: string =
   process.platform === "win32"
     ? "radarsimc.dll"
@@ -37,14 +40,95 @@ type NativeFunction = ReturnType<typeof lib.func>;
 /** An opaque handle radarsimc hands out: only ever passed back to it. */
 type NativePtr = unknown;
 
-// ── Function bindings ─────────────────────────────────────────────────────────
+// ── Function bindings ────────────────────────────────────────────────────────
+// Version and license
 const Get_Version = lib.func("void Get_Version(int *version)");
 const Is_Licensed = lib.func("int Is_Licensed()");
 const Set_License_Files = lib.func(
   "int Set_License_Files(const char **license_file_paths, int num_files, const char *product)",
 );
+const Get_License_Info = lib.func("int Get_License_Info(char *buffer, int buffer_size)");
 
-// ── License activation ─────────────────────────────────────────────────────────
+// Transmitter
+const Create_Transmitter = lib.func(
+  "void *Create_Transmitter(double *freq, double *freq_time, int waveform_size," +
+    " double *freq_offset, double *pulse_start_time, int num_pulses, float tx_power)",
+);
+const Create_Transmitter_SSBPhaseNoise = lib.func(
+  "void *Create_Transmitter_SSBPhaseNoise(double *freq, double *freq_time," +
+    " int waveform_size, double *freq_offset, double *pulse_start_time," +
+    " int num_pulses, float tx_power, double *pn_freq, double *pn_power," +
+    " int pn_size, double pn_fs, int pn_num_samples, uint64 pn_seed, bool pn_validation)",
+);
+const Add_Txchannel = lib.func(
+  "int Add_Txchannel(float *location, float *polar_real, float *polar_imag," +
+    " float *phi, float *phi_ptn, int phi_length," +
+    " float *theta, float *theta_ptn, int theta_length," +
+    " float antenna_gain," +
+    " float *mod_t, float *mod_var_real, float *mod_var_imag, int mod_length," +
+    " float *pulse_mod_real, float *pulse_mod_imag," +
+    " float delay, float grid, void *ptr_tx_c)",
+);
+const Get_Num_Txchannel = lib.func("int Get_Num_Txchannel(void *ptr_tx_c)");
+const Free_Transmitter = lib.func("void Free_Transmitter(void *ptr_tx_c)");
+
+// Receiver
+const Create_Receiver = lib.func(
+  "void *Create_Receiver(float fs, float rf_gain, float resistor," +
+    " float baseband_gain, float baseband_bw, double gate_delay)",
+);
+const Add_Rxchannel = lib.func(
+  "int Add_Rxchannel(float *location, float *polar_real, float *polar_imag," +
+    " float *phi, float *phi_ptn, int phi_length," +
+    " float *theta, float *theta_ptn, int theta_length," +
+    " float antenna_gain, void *ptr_rx_c)",
+);
+const Get_Num_Rxchannel = lib.func("int Get_Num_Rxchannel(void *ptr_rx_c)");
+const Free_Receiver = lib.func("void Free_Receiver(void *ptr_rx_c)");
+
+// Radar platform
+const Create_Radar = lib.func(
+  "void *Create_Radar(void *ptr_tx_c, void *ptr_rx_c," +
+    " double *frame_start_time, int num_frames," +
+    " float *location, float *speed, float *rotation, float *rotation_rate)",
+);
+const Get_BB_Size = lib.func("int Get_BB_Size(void *ptr_radar_c)");
+const Get_Radar_State = lib.func(
+  "int Get_Radar_State(void *ptr_radar_c, double *timestamp_array, int num_timestamps," +
+    " float *tx_locations_out, float *rx_locations_out, float *boresight_out)",
+);
+const Free_Radar = lib.func("void Free_Radar(void *ptr_radar_c)");
+
+// Targets
+const Init_Targets = lib.func("void *Init_Targets()");
+const Add_Point_Target = lib.func(
+  "int Add_Point_Target(float *location, float *speed, float rcs, float phs, void *ptr_targets_c)",
+);
+const Add_Mesh_Target = lib.func(
+  "int Add_Mesh_Target(float *points, int *cells, int cell_size," +
+    " float *origin, float *location, float *speed," +
+    " float *rotation, float *rotation_rate," +
+    " float ep_real, float ep_imag, float mu_real, float mu_imag," +
+    " bool skip_diffusion, float density, bool environment," +
+    " void *ptr_targets_c)",
+);
+const Get_Num_Targets = lib.func("int Get_Num_Targets(void *ptr_targets_c)");
+const Get_Target_Mesh_Size = lib.func("int Get_Target_Mesh_Size(void *ptr_targets_c, int target_index)");
+const Get_Target_Mesh_State = lib.func(
+  "int Get_Target_Mesh_State(void *ptr_targets_c, int target_index," +
+    " double *timestamp_array, int num_timestamps," +
+    " double *sim_timestamps, int num_sim_timestamps, double *points_out)",
+);
+const Free_Targets = lib.func("void Free_Targets(void *ptr_targets_c)");
+
+// Simulation
+const Run_RadarSimulator = lib.func(
+  "int Run_RadarSimulator(void *ptr_radar_c, void *ptr_targets_c," +
+    " int level, float density, int *ray_filter," +
+    " double *ptr_bb_real, double *ptr_bb_imag)",
+);
+
+// ── Licensing ────────────────────────────────────────────────────────────────
 interface LicenseProduct {
   pattern: RegExp;
   product: string;
@@ -72,6 +156,12 @@ interface LicensePayload {
 interface LicenseRejection {
   reason: string;
   expired: boolean;
+}
+
+function libraryVersion(): string {
+  const version = new Int32Array(3);
+  Get_Version(version);
+  return `${version[0]}.${version[1]}.${version[2]}`;
 }
 
 // A .lic file is a text envelope around two base64 blocks: the license key --
@@ -127,7 +217,16 @@ function diagnoseLicense(licPath: string, product?: string): LicenseRejection {
   return { reason: "rejected by radarsimc -- see its output above", expired: false };
 }
 
-{
+/** Move an expired license file into radarsimlib/expired/, out of the way of the next launch. */
+function archiveExpired(licPath: string): string {
+  const expiredDir = path.join(baseDir, "expired");
+  fs.mkdirSync(expiredDir, { recursive: true });
+  fs.renameSync(licPath, path.join(expiredDir, path.basename(licPath)));
+  return expiredDir;
+}
+
+/** Hand every license file shipped beside the library to radarsimc, one product at a time. */
+function activateBundledLicenses(): void {
   const allFiles = fs.readdirSync(baseDir);
   let anyFound = false;
   for (const { pattern, product } of LICENSE_PRODUCTS) {
@@ -137,105 +236,25 @@ function diagnoseLicense(licPath: string, product?: string): LicenseRejection {
     const licPaths = licFiles.map((f) => path.join(baseDir, f));
     const licensed = Set_License_Files(licPaths, licPaths.length, product) === 1;
     console.log(`[bridge] License activation (${product}):`, licensed ? "success" : "failed");
-    if (!licensed) {
-      // Name the build that did the rejecting. radarsimc's license parser has
-      // changed between releases, so a bug report is only actionable with the
-      // version attached -- and it catches a stale or mismatched library.
-      const version = new Int32Array(3);
-      Get_Version(version);
-      console.warn(`[bridge] radarsimc ${version[0]}.${version[1]}.${version[2]} — ${libPath}`);
+    if (licensed) continue;
 
-      // A batch only fails when every file in it does, so each one needs a
-      // reason of its own. Expired files are archived; the rest stay put.
-      const expiredDir = path.join(baseDir, "expired");
-      for (const p of licPaths) {
-        const { reason, expired } = diagnoseLicense(p, product);
-        console.warn(`[bridge] ${path.basename(p)}: ${reason}`);
-        if (!expired) continue;
-        fs.mkdirSync(expiredDir, { recursive: true });
-        fs.renameSync(p, path.join(expiredDir, path.basename(p)));
-        console.warn(`[bridge] Moved expired license file to:`, expiredDir);
-      }
+    // Name the build that did the rejecting. radarsimc's license parser has
+    // changed between releases, so a bug report is only actionable with the
+    // version attached -- and it catches a stale or mismatched library.
+    console.warn(`[bridge] radarsimc ${libraryVersion()} — ${libPath}`);
+
+    // A batch only fails when every file in it does, so each one needs a
+    // reason of its own. Expired files are archived; the rest stay put.
+    for (const p of licPaths) {
+      const { reason, expired } = diagnoseLicense(p, product);
+      console.warn(`[bridge] ${path.basename(p)}: ${reason}`);
+      if (expired) console.warn("[bridge] Moved expired license file to:", archiveExpired(p));
     }
   }
   if (!anyFound) console.warn("[bridge] No license files found in", baseDir);
 }
 
-const Create_Transmitter = lib.func(
-  "void *Create_Transmitter(double *freq, double *freq_time, int waveform_size," +
-    " double *freq_offset, double *pulse_start_time, int num_pulses, float tx_power)",
-);
-const Create_Transmitter_SSBPhaseNoise = lib.func(
-  "void *Create_Transmitter_SSBPhaseNoise(double *freq, double *freq_time," +
-    " int waveform_size, double *freq_offset, double *pulse_start_time," +
-    " int num_pulses, float tx_power, double *pn_freq, double *pn_power," +
-    " int pn_size, double pn_fs, int pn_num_samples, uint64 pn_seed, bool pn_validation)",
-);
-const Add_Txchannel = lib.func(
-  "int Add_Txchannel(float *location, float *polar_real, float *polar_imag," +
-    " float *phi, float *phi_ptn, int phi_length," +
-    " float *theta, float *theta_ptn, int theta_length," +
-    " float antenna_gain," +
-    " float *mod_t, float *mod_var_real, float *mod_var_imag, int mod_length," +
-    " float *pulse_mod_real, float *pulse_mod_imag," +
-    " float delay, float grid, void *ptr_tx_c)",
-);
-const Get_Num_Txchannel = lib.func("int Get_Num_Txchannel(void *ptr_tx_c)");
-const Free_Transmitter = lib.func("void Free_Transmitter(void *ptr_tx_c)");
-
-const Create_Receiver = lib.func(
-  "void *Create_Receiver(float fs, float rf_gain, float resistor," +
-    " float baseband_gain, float baseband_bw, double gate_delay)",
-);
-const Add_Rxchannel = lib.func(
-  "int Add_Rxchannel(float *location, float *polar_real, float *polar_imag," +
-    " float *phi, float *phi_ptn, int phi_length," +
-    " float *theta, float *theta_ptn, int theta_length," +
-    " float antenna_gain, void *ptr_rx_c)",
-);
-const Get_Num_Rxchannel = lib.func("int Get_Num_Rxchannel(void *ptr_rx_c)");
-const Free_Receiver = lib.func("void Free_Receiver(void *ptr_rx_c)");
-
-const Create_Radar = lib.func(
-  "void *Create_Radar(void *ptr_tx_c, void *ptr_rx_c," +
-    " double *frame_start_time, int num_frames," +
-    " float *location, float *speed, float *rotation, float *rotation_rate)",
-);
-const Get_BB_Size = lib.func("int Get_BB_Size(void *ptr_radar_c)");
-const Free_Radar = lib.func("void Free_Radar(void *ptr_radar_c)");
-
-const Init_Targets = lib.func("void *Init_Targets()");
-const Add_Point_Target = lib.func(
-  "int Add_Point_Target(float *location, float *speed," + " float rcs, float phs, void *ptr_targets_c)",
-);
-const Add_Mesh_Target = lib.func(
-  "int Add_Mesh_Target(float *points, int *cells, int cell_size," +
-    " float *origin, float *location, float *speed," +
-    " float *rotation, float *rotation_rate," +
-    " float ep_real, float ep_imag, float mu_real, float mu_imag," +
-    " bool skip_diffusion, float density, bool environment," +
-    " void *ptr_targets_c)",
-);
-const Free_Targets = lib.func("void Free_Targets(void *ptr_targets_c)");
-
-const Get_Radar_State = lib.func(
-  "int Get_Radar_State(void *ptr_radar_c, double *timestamp_array, int num_timestamps," +
-    " float *tx_locations_out, float *rx_locations_out, float *boresight_out)",
-);
-const Get_Num_Targets = lib.func("int Get_Num_Targets(void *ptr_targets_c)");
-const Get_Target_Mesh_Size = lib.func("int Get_Target_Mesh_Size(void *ptr_targets_c, int target_index)");
-const Get_Target_Mesh_State = lib.func(
-  "int Get_Target_Mesh_State(void *ptr_targets_c, int target_index," +
-    " double *timestamp_array, int num_timestamps," +
-    " double *sim_timestamps, int num_sim_timestamps, double *points_out)",
-);
-
-const Run_RadarSimulator = lib.func(
-  "int Run_RadarSimulator(void *ptr_radar_c, void *ptr_targets_c," +
-    " int level, float density, int *ray_filter," +
-    " double *ptr_bb_real, double *ptr_bb_imag)",
-);
-const Get_License_Info = lib.func("int Get_License_Info(char *buffer, int buffer_size)");
+activateBundledLicenses();
 
 // radarsimc reports the active license as "Key: value" lines (empty when
 // unlicensed). Returned as a map so the renderer can pick the fields it shows.
@@ -287,16 +306,26 @@ function serialize<T>(work: () => Promise<T>): Promise<T> {
   return run;
 }
 
-// ── Builders ──────────────────────────────────────────────────────────────────
-interface TransmitterResult {
-  ptr: NativePtr;
-  pulses: number;
-  pulseDuration: number;
-  prp: Float64Array;
-  pulseStartTime: Float64Array;
-  delays: number[];
+// ── Configuration defaults ───────────────────────────────────────────────────
+// The values a missing field stands for. The simulation and the noise added
+// to its output have to agree on these, so both read them from here.
+
+function numPulsesOf(txCfg: TransmitterConfig): number {
+  return txCfg.pulses || 1;
 }
 
+function receiverParams(rxCfg: ReceiverConfig) {
+  return {
+    fs: rxCfg.fs || 2e6,
+    rfGain: rxCfg.rf_gain || 0,
+    noiseFigure: rxCfg.noise_figure || 0,
+    basebandGain: rxCfg.baseband_gain || 0,
+    loadResistor: rxCfg.load_resistor || 500,
+    bbType: rxCfg.bb_type || "complex",
+  };
+}
+
+// ── Builders ─────────────────────────────────────────────────────────────────
 function _asArray(v: number | number[]): number[] {
   return Array.isArray(v) ? v : [v];
 }
@@ -306,7 +335,50 @@ function isMeshTarget(t: TargetConfig): t is MeshTargetConfig {
   return Boolean(t?.model);
 }
 
-function _buildTransmitter(txCfg: TransmitterConfig): TransmitterResult {
+/** Degrees to radians, one value. */
+function rad(deg: number): number {
+  return (deg * Math.PI) / 180;
+}
+
+/**
+ * Complex weights from amplitudes and phases (deg), `n` of them. A missing
+ * amplitude is 1 and a missing phase 0, so either list may be left out.
+ */
+function amplitudePhase(
+  amp: number[] | undefined,
+  phsDeg: number[] | undefined,
+  n: number,
+): { re: Float32Array; im: Float32Array } {
+  const re = new Float32Array(n);
+  const im = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = amp?.[i] ?? 1;
+    const p = rad(phsDeg?.[i] ?? 0);
+    re[i] = a * Math.cos(p);
+    im[i] = a * Math.sin(p);
+  }
+  return { re, im };
+}
+
+/**
+ * The leading arguments Add_Txchannel and Add_Rxchannel share: location,
+ * polarization, and the antenna pattern with its gain.
+ */
+function antennaArgs(ch: AntennaChannelConfig): unknown[] {
+  const loc = toF32(ch.location || [0, 0, 0]);
+  const pol = (ch.polarization ?? [0, 0, 1]).map(parseComplex);
+  const polRe = new Float32Array(pol.map((v) => v.re));
+  const polIm = new Float32Array(pol.map((v) => v.im));
+  const { phi, phiPtn, theta, thetaPtn, antennaGain } = buildAntennaPattern(
+    ch.azimuth_angle,
+    ch.azimuth_pattern,
+    ch.elevation_angle,
+    ch.elevation_pattern,
+  );
+  return [loc, polRe, polIm, phi, phiPtn, phi.length, theta, thetaPtn, theta.length, antennaGain];
+}
+
+function _buildTransmitter(txCfg: TransmitterConfig): NativePtr {
   let f = _asArray(txCfg.f || [24e9, 24.5e9]);
   let t = _asArray(txCfg.t || [0, 80e-6]);
   if (f.length === 1) f = [f[0], f[0]];
@@ -315,33 +387,30 @@ function _buildTransmitter(txCfg: TransmitterConfig): TransmitterResult {
     throw new Error("f and t must have the same length.");
   }
 
-  const numPulses: number = txCfg.pulses || 1;
+  const numPulses = numPulsesOf(txCfg);
   const txPower: number = txCfg.tx_power || 0;
-
   const freq = toF64(f);
   const freqTime = toF64(t);
-
   const pulseDuration = t[t.length - 1] - t[0];
 
-  let prpArr: Float64Array;
+  let prp: Float64Array;
   if (txCfg.prp == null) {
-    prpArr = new Float64Array(numPulses).fill(pulseDuration);
+    prp = new Float64Array(numPulses).fill(pulseDuration);
   } else if (typeof txCfg.prp === "number") {
-    prpArr = new Float64Array(numPulses).fill(txCfg.prp);
+    prp = new Float64Array(numPulses).fill(txCfg.prp);
   } else {
-    prpArr = toF64(txCfg.prp);
+    prp = toF64(txCfg.prp);
   }
-  if (prpArr.length < numPulses) {
+  if (prp.length < numPulses) {
     throw new Error("The length of prp must be >= the number of pulses.");
   }
   for (let i = 0; i < numPulses; i++) {
-    if (prpArr[i] < pulseDuration) {
+    if (prp[i] < pulseDuration) {
       throw new Error("prp can't be smaller than the pulse length.");
     }
   }
-  const pst = new Float64Array(numPulses);
-  pst[0] = 0;
-  for (let i = 1; i < numPulses; i++) pst[i] = pst[i - 1] + prpArr[i - 1];
+  const pulseStart = new Float64Array(numPulses);
+  for (let i = 1; i < numPulses; i++) pulseStart[i] = pulseStart[i - 1] + prp[i - 1];
 
   let fOffset: Float64Array;
   if (txCfg.f_offset == null) {
@@ -356,161 +425,49 @@ function _buildTransmitter(txCfg: TransmitterConfig): TransmitterResult {
   let ptrTx: NativePtr;
   if (txCfg.pn_f && txCfg.pn_power) {
     const pnF = toF64(txCfg.pn_f);
-    const pnPw = toF64(txCfg.pn_power);
-    const pnFs: number = txCfg.pn_fs || 0;
-    const pnNumSamples: number = txCfg.pn_num_samples || 0;
-    const pnSeed: bigint = BigInt(txCfg.pn_seed || 0);
-    const pnValidation: boolean = txCfg.pn_validation || false;
-    console.log(
-      "[bridge] Create_Transmitter_SSBPhaseNoise args:",
-      "freq.len=",
-      freq.length,
-      "freqTime.len=",
-      freqTime.length,
-      "waveform_size=",
-      freq.length,
-      "fOffset.len=",
-      fOffset.length,
-      "pst.len=",
-      pst.length,
-      "numPulses=",
-      numPulses,
-      "txPower=",
-      txPower,
-      "pnF.len=",
-      pnF.length,
-      "pnFs=",
-      pnFs,
-      "pnNumSamples=",
-      pnNumSamples,
-    );
     ptrTx = Create_Transmitter_SSBPhaseNoise(
       freq,
       freqTime,
       freq.length,
       fOffset,
-      pst,
+      pulseStart,
       numPulses,
       txPower,
       pnF,
-      pnPw,
+      toF64(txCfg.pn_power),
       pnF.length,
-      pnFs,
-      pnNumSamples,
-      pnSeed,
-      pnValidation,
+      txCfg.pn_fs || 0,
+      txCfg.pn_num_samples || 0,
+      BigInt(txCfg.pn_seed || 0),
+      txCfg.pn_validation || false,
     );
   } else {
-    console.log(
-      "[bridge] Create_Transmitter args:",
-      "freq=",
-      Array.from(freq),
-      "freqTime=",
-      Array.from(freqTime),
-      "waveform_size=",
-      freq.length,
-      "fOffset.len=",
-      fOffset.length,
-      "fOffset[0]=",
-      fOffset[0],
-      "pst.len=",
-      pst.length,
-      "pst[0]=",
-      pst[0],
-      "pst[last]=",
-      pst[pst.length - 1],
-      "numPulses=",
-      numPulses,
-      "txPower=",
-      txPower,
-    );
-    ptrTx = Create_Transmitter(freq, freqTime, freq.length, fOffset, pst, numPulses, txPower);
-    console.log("[bridge] Create_Transmitter returned:", ptrTx);
+    ptrTx = Create_Transmitter(freq, freqTime, freq.length, fOffset, pulseStart, numPulses, txPower);
   }
   if (!ptrTx) throw new Error("Create_Transmitter returned null");
-
-  const txDelays: number[] = [];
 
   // The transmitter now exists and is registered for cleanup, so anything
   // thrown while adding channels has to release it first -- see the note in
   // _runSimulation on why a dropped handle is worse than a plain leak.
   try {
     for (const ch of txCfg.channels || [{}]) {
-      const loc = toF32(ch.location || [0, 0, 0]);
+      // Pulse-by-pulse modulation, one weight per pulse unless given
+      const pulseMod = amplitudePhase(ch.pulse_amp, ch.pulse_phs, (ch.pulse_amp ?? ch.pulse_phs)?.length ?? numPulses);
 
-      let polarRe: Float32Array, polarIm: Float32Array;
-      if (ch.polarization) {
-        const c = ch.polarization.map(parseComplex);
-        polarRe = new Float32Array(c.map((v: ComplexParsed) => v.re));
-        polarIm = new Float32Array(c.map((v: ComplexParsed) => v.im));
-      } else {
-        polarRe = new Float32Array([0, 0, 1]);
-        polarIm = new Float32Array(3);
-      }
-
-      const { phi, phiPtn, theta, thetaPtn, antennaGain } = buildAntennaPattern(
-        ch.azimuth_angle,
-        ch.azimuth_pattern,
-        ch.elevation_angle,
-        ch.elevation_pattern,
-      );
-
-      let pModRe: Float32Array, pModIm: Float32Array;
-      if (ch.pulse_amp && ch.pulse_phs) {
-        const phsRad = ch.pulse_phs.map((v) => (v * Math.PI) / 180);
-        pModRe = new Float32Array(ch.pulse_amp.map((a, i) => a * Math.cos(phsRad[i])));
-        pModIm = new Float32Array(ch.pulse_amp.map((a, i) => a * Math.sin(phsRad[i])));
-      } else if (ch.pulse_phs && !ch.pulse_amp) {
-        const phsRad = ch.pulse_phs.map((v) => (v * Math.PI) / 180);
-        pModRe = new Float32Array(phsRad.map((p) => Math.cos(p)));
-        pModIm = new Float32Array(phsRad.map((p) => Math.sin(p)));
-      } else if (ch.pulse_amp && !ch.pulse_phs) {
-        pModRe = toF32(ch.pulse_amp);
-        pModIm = new Float32Array(ch.pulse_amp.length);
-      } else {
-        pModRe = new Float32Array(numPulses).fill(1);
-        pModIm = new Float32Array(numPulses);
-      }
-
-      let modT: Float32Array,
-        modVarRe: Float32Array,
-        modVarIm: Float32Array,
-        modLen = 0;
-      if (ch.mod_t && (ch.phs != null || ch.amp != null)) {
-        modT = toF32(ch.mod_t);
-        const amp = ch.amp || new Array(modT.length).fill(1);
-        const phs = ch.phs ? ch.phs.map((v: number) => (v * Math.PI) / 180) : new Array(modT.length).fill(0);
-        modVarRe = new Float32Array(amp.map((a: number, i: number) => a * Math.cos(phs[i])));
-        modVarIm = new Float32Array(amp.map((a: number, i: number) => a * Math.sin(phs[i])));
-        modLen = modT.length;
-      } else {
-        modT = new Float32Array(0);
-        modVarRe = new Float32Array(0);
-        modVarIm = new Float32Array(0);
-      }
-
-      const chDelay: number = ch.delay || 0;
-      txDelays.push(chDelay);
+      // Intra-pulse modulation, only when there is something to modulate with
+      const modT = ch.mod_t && (ch.phs != null || ch.amp != null) ? toF32(ch.mod_t) : new Float32Array(0);
+      const mod = amplitudePhase(ch.amp, ch.phs, modT.length);
 
       const ret = Add_Txchannel(
-        loc,
-        polarRe,
-        polarIm,
-        phi,
-        phiPtn,
-        phi.length,
-        theta,
-        thetaPtn,
-        theta.length,
-        antennaGain,
+        ...antennaArgs(ch),
         modT,
-        modVarRe,
-        modVarIm,
-        modLen,
-        pModRe,
-        pModIm,
-        chDelay,
-        (1 / 180) * Math.PI,
+        mod.re,
+        mod.im,
+        modT.length,
+        pulseMod.re,
+        pulseMod.im,
+        ch.delay || 0,
+        rad(1), // ray grid
         ptrTx,
       );
       if (ret !== 0) throw new Error(errorMsg(ret, "Add_Txchannel"));
@@ -520,84 +477,28 @@ function _buildTransmitter(txCfg: TransmitterConfig): TransmitterResult {
     throw err;
   }
 
-  return {
-    ptr: ptrTx,
-    pulses: numPulses,
-    pulseDuration,
-    prp: prpArr,
-    pulseStartTime: pst,
-    delays: txDelays,
-  };
+  return ptrTx;
 }
 
-interface ReceiverResult {
-  ptr: NativePtr;
-  fs: number;
-  rfGain: number;
-  noiseFigure: number;
-  basebandGain: number;
-  loadResistor: number;
-  noiseBw: number;
-  bbType: string;
-  gateDelay: number;
-  numChannels: number;
-}
+function _buildReceiver(rxCfg: ReceiverConfig): NativePtr {
+  const rx = receiverParams(rxCfg);
 
-function _buildReceiver(rxCfg: ReceiverConfig): ReceiverResult {
-  const rxFs: number = rxCfg.fs || 2e6;
-  const rfGain: number = rxCfg.rf_gain || 0;
-  const res: number = rxCfg.load_resistor || 500;
-  const bbGain: number = rxCfg.baseband_gain || 0;
-  const bbType: string = rxCfg.bb_type || "complex";
-
-  // Range-gate / deramp reference delay (s). 0 keeps zero-delay deramp, the
-  // behavior of builds without this parameter.
+  // Range-gate / deramp reference delay (s). 0 deramps against the
+  // transmitted chirp itself.
   const gateDelay: number = Number(rxCfg.gate_delay) || 0;
   if (!(gateDelay >= 0)) {
     throw new Error("gate_delay must be >= 0.");
   }
 
-  const noiseBw = bbType === "real" ? rxFs / 2 : rxFs;
-
-  const ptrRx = Create_Receiver(rxFs, rfGain, res, bbGain, noiseBw, gateDelay);
+  const noiseBw = rx.bbType === "real" ? rx.fs / 2 : rx.fs;
+  const ptrRx = Create_Receiver(rx.fs, rx.rfGain, rx.loadResistor, rx.basebandGain, noiseBw, gateDelay);
   if (!ptrRx) throw new Error("Create_Receiver returned null");
 
   // Same as the transmitter: the receiver is registered for cleanup the
   // moment it exists, so a rejected channel must not drop the handle.
   try {
     for (const ch of rxCfg.channels || [{}]) {
-      const loc = toF32(ch.location || [0, 0, 0]);
-
-      let polarRe: Float32Array, polarIm: Float32Array;
-      if (ch.polarization) {
-        const c = ch.polarization.map(parseComplex);
-        polarRe = new Float32Array(c.map((v: ComplexParsed) => v.re));
-        polarIm = new Float32Array(c.map((v: ComplexParsed) => v.im));
-      } else {
-        polarRe = new Float32Array([0, 0, 1]);
-        polarIm = new Float32Array(3);
-      }
-
-      const { phi, phiPtn, theta, thetaPtn, antennaGain } = buildAntennaPattern(
-        ch.azimuth_angle,
-        ch.azimuth_pattern,
-        ch.elevation_angle,
-        ch.elevation_pattern,
-      );
-
-      const ret = Add_Rxchannel(
-        loc,
-        polarRe,
-        polarIm,
-        phi,
-        phiPtn,
-        phi.length,
-        theta,
-        thetaPtn,
-        theta.length,
-        antennaGain,
-        ptrRx,
-      );
+      const ret = Add_Rxchannel(...antennaArgs(ch), ptrRx);
       if (ret !== 0) throw new Error(errorMsg(ret, "Add_Rxchannel"));
     }
   } catch (err) {
@@ -605,18 +506,7 @@ function _buildReceiver(rxCfg: ReceiverConfig): ReceiverResult {
     throw err;
   }
 
-  return {
-    ptr: ptrRx,
-    fs: rxFs,
-    rfGain,
-    noiseFigure: rxCfg.noise_figure || 0,
-    basebandGain: bbGain,
-    loadResistor: res,
-    noiseBw,
-    bbType,
-    gateDelay,
-    numChannels: (rxCfg.channels || [{}]).length,
-  };
+  return ptrRx;
 }
 
 /**
@@ -652,21 +542,9 @@ async function _buildTargets(targetsCfg: TargetConfig[]): Promise<NativePtr> {
       const speed = toF32(t.speed || [0, 0, 0]);
 
       if (isMeshTarget(t)) {
-        const mesh = loadStl(t.model, t.unit || "m");
-        const origin = toF32(t.origin || [0, 0, 0]);
-
-        const rot = toF32((t.rotation || [0, 0, 0]).map((v) => (v * Math.PI) / 180));
-        const rotRate = toF32((t.rotation_rate || [0, 0, 0]).map((v) => (v * Math.PI) / 180));
-
-        let epReal: number, epImag: number;
-        if (!t.permittivity || t.permittivity === "PEC") {
-          epReal = -1;
-          epImag = 0;
-        } else {
-          const perm = parseComplex(t.permittivity);
-          epReal = perm.re;
-          epImag = perm.im;
-        }
+        const mesh = loadMesh(t.model, t.unit || "m");
+        // A perfect conductor is passed as a permittivity of -1
+        const perm = !t.permittivity || t.permittivity === "PEC" ? { re: -1, im: 0 } : parseComplex(t.permittivity);
 
         // Off-thread: a million-triangle mesh takes real time to ingest.
         const ret = await callAsync<number>(
@@ -674,15 +552,15 @@ async function _buildTargets(targetsCfg: TargetConfig[]): Promise<NativePtr> {
           mesh.points,
           mesh.cells,
           mesh.cellSize,
-          origin,
+          toF32(t.origin || [0, 0, 0]),
           loc,
           speed,
-          rot,
-          rotRate,
-          epReal,
-          epImag,
-          1.0,
-          0.0,
+          deg2rad(t.rotation || [0, 0, 0]),
+          deg2rad(t.rotation_rate || [0, 0, 0]),
+          perm.re,
+          perm.im,
+          1.0, // permeability, real
+          0.0, // permeability, imaginary
           t.skip_diffusion || false,
           t.density || 0,
           t.environment || false,
@@ -690,15 +568,7 @@ async function _buildTargets(targetsCfg: TargetConfig[]): Promise<NativePtr> {
         );
         if (ret !== 0) throw new Error(errorMsg(ret, "Add_Mesh_Target"));
       } else {
-        const phaseRad = t.phase != null ? (t.phase * Math.PI) / 180 : 0;
-        const ret = await callAsync<number>(
-          Add_Point_Target,
-          loc,
-          speed,
-          t.rcs != null ? t.rcs : 0,
-          phaseRad,
-          ptrTargets,
-        );
+        const ret = await callAsync<number>(Add_Point_Target, loc, speed, t.rcs ?? 0, rad(t.phase ?? 0), ptrTargets);
         if (ret !== 0) throw new Error(errorMsg(ret, "Add_Point_Target"));
       }
     }
@@ -709,18 +579,64 @@ async function _buildTargets(targetsCfg: TargetConfig[]): Promise<NativePtr> {
   return ptrTargets;
 }
 
-// ── Scene state ─────────────────────────────────────────────────────────────
-interface SceneState {
-  timestamp: number;
-  /** Global Tx channel locations, [numTx][3] flattened (m). */
-  txLocations: Float32Array | null;
-  /** Global Rx channel locations, [numRx][3] flattened (m). */
-  rxLocations: Float32Array | null;
-  /** Global radar boresight unit vector. */
-  boresight: Float32Array | null;
-  meshes: SceneMesh[];
-  /** Non-fatal problems — the caller falls back for whatever is missing. */
-  warnings: string[];
+// ── Receiver noise ───────────────────────────────────────────────────────────
+const BOLTZMANN = 1.38064852e-23;
+/** Reference noise temperature (K). */
+const T0 = 290;
+/** Noise samples generated between chances for the event loop to run. */
+const NOISE_BLOCK = 8192;
+
+/**
+ * Add thermal receiver noise to the baseband in place. Every TX channel seen
+ * through one RX channel shares that receiver's noise, so it is drawn once
+ * per RX channel and added to each virtual channel built on it.
+ */
+async function addReceiverNoise(
+  bbRe: Float64Array,
+  bbIm: Float64Array,
+  rxCfg: ReceiverConfig,
+  numPulses: number,
+  numChannels: number,
+  numRxCh: number,
+  spp: number,
+): Promise<void> {
+  const rx = receiverParams(rxCfg);
+  const inputNoiseDbm = 10 * Math.log10(BOLTZMANN * T0 * 1000);
+  const receiverNoiseDbm = inputNoiseDbm + rx.rfGain + rx.noiseFigure + 10 * Math.log10(rx.fs) + rx.basebandGain;
+  const receiverNoiseWatts = 1e-3 * 10 ** (receiverNoiseDbm / 10);
+  const noiseAmplitude = Math.sqrt(receiverNoiseWatts * rx.loadResistor);
+  const isReal = rx.bbType === "real";
+  const scale = isReal ? noiseAmplitude : noiseAmplitude / Math.SQRT2;
+
+  const totalSamplesPerRx = numPulses * spp;
+  const maybeYield = makeYielder();
+  const noisePerRx: { re: Float64Array; im: Float64Array }[] = [];
+  for (let r = 0; r < numRxCh; r++) {
+    const re = new Float64Array(totalSamplesPerRx);
+    const im = new Float64Array(totalSamplesPerRx);
+    for (let start = 0; start < totalSamplesPerRx; start += NOISE_BLOCK) {
+      await maybeYield();
+      const end = Math.min(start + NOISE_BLOCK, totalSamplesPerRx);
+      for (let i = start; i < end; i++) {
+        re[i] = randn() * scale;
+        if (!isReal) im[i] = randn() * scale;
+      }
+    }
+    noisePerRx.push({ re, im });
+  }
+
+  for (let c = 0; c < numChannels; c++) {
+    const noise = noisePerRx[c % numRxCh];
+    for (let p = 0; p < numPulses; p++) {
+      await maybeYield();
+      const base = (c * numPulses + p) * spp;
+      const nBase = p * spp;
+      for (let s = 0; s < spp; s++) {
+        bbRe[base + s] += noise.re[nBase + s];
+        bbIm[base + s] += noise.im[nBase + s];
+      }
+    }
+  }
 }
 
 // ── RadarSimBridge ───────────────────────────────────────────────────────────
@@ -732,26 +648,8 @@ export class RadarSimBridge {
   private async _runSimulation(config: SimConfig): Promise<SimResult> {
     const txCfg: TransmitterConfig = config.transmitter || {};
     const rxCfg: ReceiverConfig = config.receiver || {};
-    const radarCfg: PlatformConfig = config.radar || {};
     const simCfg: SimulationConfig = config.simulation || {};
     const procCfg: ProcessingConfig = config.processing || {};
-
-    console.log(
-      "[bridge] runSimulation config:",
-      JSON.stringify({
-        tx_f: txCfg.f,
-        tx_t: txCfg.t,
-        tx_pulses: txCfg.pulses,
-        tx_prp: txCfg.prp,
-        tx_channels: txCfg.channels?.length,
-        rx_fs: rxCfg.fs,
-        rx_gate_delay: rxCfg.gate_delay,
-        rx_channels: rxCfg.channels?.length,
-        num_targets: config.targets?.length,
-        density: simCfg.density,
-        level: simCfg.level,
-      }),
-    );
 
     const density = Number(simCfg.density) || 1;
     const levelMap: Record<string, number> = { frame: 0, pulse: 1, sample: 2 };
@@ -765,8 +663,8 @@ export class RadarSimBridge {
     // work is done, which made it look like a phantom test-runner failure. The
     // handles therefore live in a try/finally, so every exit from the native
     // section releases them exactly once.
-    let tx: TransmitterResult | null = null;
-    let rx: ReceiverResult | null = null;
+    let ptrTx: NativePtr = null;
+    let ptrRx: NativePtr = null;
     let ptrRadar: NativePtr = null;
     let ptrTargets: NativePtr = null;
     let bbSize = 0;
@@ -775,116 +673,49 @@ export class RadarSimBridge {
     let status: number;
 
     try {
-      console.log("[bridge] Building transmitter...");
-      tx = _buildTransmitter(txCfg);
-      console.log("[bridge] TX pointer:", tx.ptr);
-
-      console.log("[bridge] Building receiver...");
-      rx = _buildReceiver(rxCfg);
-      console.log("[bridge] RX pointer:", rx.ptr);
-
-      console.log("[bridge] Creating radar...");
-      ptrRadar = _createRadar(tx.ptr, rx.ptr, radarCfg);
-      console.log("[bridge] Radar pointer:", ptrRadar);
-
-      console.log("[bridge] Building targets...");
+      ptrTx = _buildTransmitter(txCfg);
+      ptrRx = _buildReceiver(rxCfg);
+      ptrRadar = _createRadar(ptrTx, ptrRx, config.radar || {});
       ptrTargets = await _buildTargets(config.targets || []);
-      console.log("[bridge] Targets pointer:", ptrTargets);
 
-      console.log("[bridge] Getting BB size...");
       bbSize = Get_BB_Size(ptrRadar);
-      console.log("[bridge] BB size:", bbSize);
       if (bbSize <= 0) throw new Error(`Get_BB_Size returned ${bbSize} — check radar configuration`);
       bbRe = new Float64Array(bbSize);
       bbIm = new Float64Array(bbSize);
       const rayFilter = new Int32Array(simCfg.ray_filter || [0, 10]);
 
-      console.log("[bridge] Running RadarSimulator (level=%d, density=%f)...", level, density);
       // The long one. Runs on a worker thread so the window stays responsive.
       status = await callAsync<number>(Run_RadarSimulator, ptrRadar, ptrTargets, level, density, rayFilter, bbRe, bbIm);
-      console.log("[bridge] Run_RadarSimulator status:", status);
     } finally {
       // Reverse order of creation. Free_Radar does not touch the TX/RX it was
       // built from, so those are released separately.
       if (ptrTargets) Free_Targets(ptrTargets);
       if (ptrRadar) Free_Radar(ptrRadar);
-      if (rx) Free_Receiver(rx.ptr);
-      if (tx) Free_Transmitter(tx.ptr);
+      if (ptrRx) Free_Receiver(ptrRx);
+      if (ptrTx) Free_Transmitter(ptrTx);
     }
 
     if (status !== 0) throw new Error(errorMsg(status, "Run_RadarSimulator"));
 
-    const bbType = rxCfg.bb_type || "complex";
+    const { bbType } = receiverParams(rxCfg);
     if (bbType === "real") bbIm.fill(0);
 
-    const numPulses: number = txCfg.pulses || 1;
+    const numPulses = numPulsesOf(txCfg);
     const numTxCh = (txCfg.channels || [{}]).length;
     const numRxCh = (rxCfg.channels || [{}]).length;
     const numChannels = numTxCh * numRxCh;
     const spp = Math.round(bbSize / (numPulses * numChannels));
 
-    const output: SimResult = {
-      baseband_shape: [spp, numPulses, numChannels],
-      baseband: [],
-      bb_type: rxCfg.bb_type || "complex",
-      range_axis: [],
-    };
-
-    // --- Add receiver noise ---
     if (procCfg.noise !== false) {
-      const boltzmannConst = 1.38064852e-23;
-      const Ts = 290;
-      const inputNoiseDbm = 10 * Math.log10(boltzmannConst * Ts * 1000);
-      const noiseFigure: number = rxCfg.noise_figure || 0;
-      const rfGain: number = rxCfg.rf_gain || 0;
-      const bbGain: number = rxCfg.baseband_gain || 0;
-      const rxFs: number = rxCfg.fs || 2e6;
-      const loadR: number = rxCfg.load_resistor || 500;
-      const rxBbType: string = rxCfg.bb_type || "complex";
-
-      const noiseBandwidth = rxFs;
-      const receiverNoiseDbm = inputNoiseDbm + rfGain + noiseFigure + 10 * Math.log10(noiseBandwidth) + bbGain;
-      const receiverNoiseWatts = 1e-3 * 10 ** (receiverNoiseDbm / 10);
-      const noiseAmplitude = Math.sqrt(receiverNoiseWatts * loadR);
-
-      const scale = rxBbType === "real" ? noiseAmplitude : noiseAmplitude / Math.SQRT2;
-      const totalSamplesPerRx = numPulses * spp;
-      const maybeYield = makeYielder();
-      const noisePerRx: { re: Float64Array; im: Float64Array }[] = new Array(numRxCh);
-      // Millions of samples for a large run, so generate them in blocks and
-      // let the event loop back in between.
-      const NOISE_BLOCK = 8192;
-      for (let r = 0; r < numRxCh; r++) {
-        const reNoise = new Float64Array(totalSamplesPerRx);
-        const imNoise = new Float64Array(totalSamplesPerRx);
-        for (let start = 0; start < totalSamplesPerRx; start += NOISE_BLOCK) {
-          await maybeYield();
-          const end = Math.min(start + NOISE_BLOCK, totalSamplesPerRx);
-          for (let i = start; i < end; i++) {
-            reNoise[i] = randn() * scale;
-            if (rxBbType !== "real") imNoise[i] = randn() * scale;
-          }
-        }
-        noisePerRx[r] = { re: reNoise, im: imNoise };
-      }
-      for (let c = 0; c < numChannels; c++) {
-        const rxIdx = c % numRxCh;
-        const nRe = noisePerRx[rxIdx].re;
-        const nIm = noisePerRx[rxIdx].im;
-        for (let p = 0; p < numPulses; p++) {
-          await maybeYield();
-          const base = (c * numPulses + p) * spp;
-          const nBase = p * spp;
-          for (let s = 0; s < spp; s++) {
-            bbRe[base + s] += nRe[nBase + s];
-            bbIm[base + s] += nIm[nBase + s];
-          }
-        }
-      }
-      console.log("[bridge] Noise added (amplitude=%.3e, type=%s)", noiseAmplitude, rxBbType);
+      await addReceiverNoise(bbRe, bbIm, rxCfg, numPulses, numChannels, numRxCh, spp);
     }
 
-    output.baseband = await toComplex3DAsync(bbRe, bbIm, numPulses, numChannels, spp);
+    const output: SimResult = {
+      baseband_shape: [spp, numPulses, numChannels],
+      baseband: await toComplex3DAsync(bbRe, bbIm, numPulses, numChannels, spp),
+      bb_type: bbType,
+      range_axis: Array.from({ length: spp }, (_, i) => i),
+    };
 
     if (procCfg.range_doppler !== false && numPulses > 1) {
       const rdRangeN = procCfg.rd_range_fft || nextPow2(spp);
@@ -907,8 +738,6 @@ export class RadarSimBridge {
       output.rp_range_axis = Array.from({ length: rpRangeN }, (_, i) => i);
     }
 
-    output.range_axis = Array.from({ length: spp }, (_, i) => i);
-
     if (numPulses > 1) {
       const half = Math.floor(numPulses / 2);
       output.velocity_axis = Array.from({ length: numPulses }, (_, i) => i - half);
@@ -919,10 +748,10 @@ export class RadarSimBridge {
 
   /**
    * Query the library for where the radar and its mesh targets actually are at
-   * a given timestamp, for the Scene Overview plot.
+   * a given timestamp, for the scene view.
    *
    * Radar pose comes from Get_Radar_State and mesh geometry from
-   * Get_Target_Mesh_State, so the plot shows the library's own transforms
+   * Get_Target_Mesh_State, so the view shows the library's own transforms
    * rather than a JS re-implementation of them. Failures are collected in
    * `warnings` instead of thrown — a scene preview should degrade, not break,
    * when e.g. the free-tier channel limit rejects a multi-channel array.
@@ -944,16 +773,16 @@ export class RadarSimBridge {
     };
 
     // --- Radar pose ---
-    let tx: TransmitterResult | null = null;
-    let rx: ReceiverResult | null = null;
+    let ptrTx: NativePtr = null;
+    let ptrRx: NativePtr = null;
     let ptrRadar: NativePtr = null;
     try {
-      tx = _buildTransmitter(config.transmitter || {});
-      rx = _buildReceiver(config.receiver || {});
-      ptrRadar = _createRadar(tx.ptr, rx.ptr, config.radar || {});
+      ptrTx = _buildTransmitter(config.transmitter || {});
+      ptrRx = _buildReceiver(config.receiver || {});
+      ptrRadar = _createRadar(ptrTx, ptrRx, config.radar || {});
 
-      const numTx: number = Get_Num_Txchannel(tx.ptr);
-      const numRx: number = Get_Num_Rxchannel(rx.ptr);
+      const numTx: number = Get_Num_Txchannel(ptrTx);
+      const numRx: number = Get_Num_Rxchannel(ptrRx);
       if (numTx <= 0 || numRx <= 0) {
         throw new Error(`radar reports ${numTx} TX / ${numRx} RX channels`);
       }
@@ -970,8 +799,8 @@ export class RadarSimBridge {
       out.warnings.push(`Radar pose: ${(err as Error).message || String(err)}`);
     } finally {
       if (ptrRadar) Free_Radar(ptrRadar);
-      if (rx) Free_Receiver(rx.ptr);
-      if (tx) Free_Transmitter(tx.ptr);
+      if (ptrRx) Free_Receiver(ptrRx);
+      if (ptrTx) Free_Transmitter(ptrTx);
     }
 
     // --- Mesh geometry ---
@@ -1021,14 +850,10 @@ export class RadarSimBridge {
     return out;
   }
 
-  async checkLibrary(): Promise<LibraryInfo> {
-    const version = new Int32Array(3);
-    Get_Version(version);
-    const licensed: number = Is_Licensed();
+  checkLibrary(): LibraryInfo {
     return {
-      radarsimlib_version: `${version[0]}.${version[1]}.${version[2]}`,
-      radarsimlib_available: true,
-      licensed: licensed === 1,
+      radarsimlib_version: libraryVersion(),
+      licensed: Is_Licensed() === 1,
       license_info: readLicenseInfo(),
     };
   }
@@ -1048,19 +873,10 @@ export class RadarSimBridge {
 
     // `dest` is our copy, so dropping it costs nothing -- the file the user
     // picked is untouched -- and it keeps a rejected license from being retried
-    // on every launch. An expired one is archived instead, as it always was.
+    // on every launch. An expired one is archived instead.
     const { reason, expired } = diagnoseLicense(dest, match?.product);
-    if (expired) {
-      const expiredDir = path.join(baseDir, "expired");
-      fs.mkdirSync(expiredDir, { recursive: true });
-      fs.renameSync(dest, path.join(expiredDir, fileName));
-    } else {
-      fs.rmSync(dest, { force: true });
-    }
+    if (expired) archiveExpired(dest);
+    else fs.rmSync(dest, { force: true });
     throw new Error(`License activation failed — ${reason}`);
-  }
-
-  kill(): void {
-    // No persistent process — DLL cleanup is automatic on process exit.
   }
 }

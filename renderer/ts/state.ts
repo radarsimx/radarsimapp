@@ -1,9 +1,11 @@
 // ===== RadarSimApp - State Persistence =====
+// The whole configuration as one object: kept in localStorage as it is edited,
+// saved to and loaded from files, and put back into the form.
 
-import { renderRxChannels, renderTxChannels, saveRxChannelStates, saveTxChannelStates } from "./channels.js";
+import { renderChannels, saveChannelStates } from "./channels.js";
 import { clearResultPlots, updateTxInfo } from "./plots.js";
 import { updateScene } from "./scene.js";
-import { meshTargets, pointTargets, rxChannels, txChannels } from "./shared.js";
+import { meshTargets, newPointTarget, pointTargets, rxChannels, txChannels } from "./shared.js";
 import { renderMeshTargets, renderPointTargets, saveMeshTargetStates, savePointTargetStates } from "./targets.js";
 import { byId, debounce } from "./utils.js";
 
@@ -49,7 +51,7 @@ export function defaultState(): AppState {
     },
     txChannels: [{ location: [0, 0, 0] }],
     rxChannels: [{ location: [0, 0, 0] }],
-    pointTargets: [{ location: [10, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 }],
+    pointTargets: [newPointTarget()],
     meshTargets: [],
   };
 }
@@ -60,6 +62,7 @@ export function resetToDefault(): void {
   clearResultPlots();
 }
 
+/** The fixed fields whose value is saved: every one in the page that is not a checkbox. */
 const STATIC_FIELDS: string[] = [
   "tx-f-start",
   "tx-f-end",
@@ -102,8 +105,8 @@ const CHECKBOX_FIELDS: string[] = [
 ];
 
 export function captureState(): AppState {
-  saveTxChannelStates();
-  saveRxChannelStates();
+  saveChannelStates("tx");
+  saveChannelStates("rx");
   savePointTargetStates();
   saveMeshTargetStates();
 
@@ -117,13 +120,13 @@ export function captureState(): AppState {
     if (elem) fields[id] = elem.checked;
   });
 
-  return {
-    fields,
-    txChannels: JSON.parse(JSON.stringify(txChannels)),
-    rxChannels: JSON.parse(JSON.stringify(rxChannels)),
-    pointTargets: JSON.parse(JSON.stringify(pointTargets)),
-    meshTargets: JSON.parse(JSON.stringify(meshTargets)),
-  };
+  // Copied through JSON, as the state will be written: unset values drop out
+  return JSON.parse(JSON.stringify({ fields, txChannels, rxChannels, pointTargets, meshTargets }));
+}
+
+/** Replace a list's entries in place: the other modules hold on to the array itself. */
+function _replace<T>(list: T[], next: T[] | undefined): void {
+  if (Array.isArray(next)) list.splice(0, list.length, ...next);
 }
 
 export function applyState(state: Partial<AppState> | null | undefined): void {
@@ -145,13 +148,13 @@ export function applyState(state: Partial<AppState> | null | undefined): void {
     });
   }
 
-  if (Array.isArray(state.txChannels)) txChannels.splice(0, txChannels.length, ...state.txChannels);
-  if (Array.isArray(state.rxChannels)) rxChannels.splice(0, rxChannels.length, ...state.rxChannels);
-  if (Array.isArray(state.pointTargets)) pointTargets.splice(0, pointTargets.length, ...state.pointTargets);
-  if (Array.isArray(state.meshTargets)) meshTargets.splice(0, meshTargets.length, ...state.meshTargets);
+  _replace(txChannels, state.txChannels);
+  _replace(rxChannels, state.rxChannels);
+  _replace(pointTargets, state.pointTargets);
+  _replace(meshTargets, state.meshTargets);
 
-  renderTxChannels();
-  renderRxChannels();
+  renderChannels("tx");
+  renderChannels("rx");
   renderPointTargets();
   renderMeshTargets();
 
@@ -166,16 +169,6 @@ export const debouncedAutoSave = debounce(() => {
     localStorage.setItem(STATE_KEY, JSON.stringify(captureState()));
   } catch (_) {}
 }, 500);
-
-function attachAutoSave(): void {
-  document.addEventListener("input", debouncedAutoSave);
-  document.addEventListener("change", debouncedAutoSave);
-}
-
-async function saveConfigToFile(): Promise<boolean> {
-  const state = captureState();
-  return window.api.saveConfig(JSON.stringify(state, null, 2));
-}
 
 export function validateState(input: unknown): asserts input is AppState {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -213,54 +206,47 @@ async function loadConfigFromFile(): Promise<boolean> {
   return true;
 }
 
-// --- Application Init ---
-export function initApp(): void {
-  // Config button event listeners
-  byId("btn-save-config").addEventListener("click", async () => {
-    const btn = document.getElementById("btn-save-config") as HTMLButtonElement;
-    const status = byId("config-status");
+/** Show a message by the Save and Load buttons for a while. */
+function _flashStatus(text: string, kind: "ok" | "err", ms: number): void {
+  const status = byId("config-status");
+  status.textContent = text;
+  status.className = `config-status ${kind}`;
+  setTimeout(() => {
+    status.textContent = "";
+    status.className = "config-status";
+  }, ms);
+}
+
+/** Run a Save/Load button's action with the button disabled until it is done. */
+function _onButton(id: string, action: () => Promise<void>): void {
+  const btn = byId<HTMLButtonElement>(id);
+  btn.addEventListener("click", async () => {
     btn.disabled = true;
     try {
-      const saved = await saveConfigToFile();
-      if (saved) {
-        status.textContent = "Config saved.";
-        status.className = "config-status ok";
-      }
-    } catch (_) {
-      status.textContent = "Save failed.";
-      status.className = "config-status err";
+      await action();
     } finally {
       btn.disabled = false;
-      setTimeout(() => {
-        status.textContent = "";
-        status.className = "config-status";
-      }, 3000);
+    }
+  });
+}
+
+// --- Application Init ---
+export function initApp(): void {
+  _onButton("btn-save-config", async () => {
+    try {
+      if (await window.api.saveConfig(JSON.stringify(captureState(), null, 2))) {
+        _flashStatus("Config saved.", "ok", 3000);
+      }
+    } catch (_) {
+      _flashStatus("Save failed.", "err", 3000);
     }
   });
 
-  byId("btn-load-config").addEventListener("click", async () => {
-    const btn = document.getElementById("btn-load-config") as HTMLButtonElement;
-    const status = byId("config-status");
-    btn.disabled = true;
+  _onButton("btn-load-config", async () => {
     try {
-      const loaded = await loadConfigFromFile();
-      if (loaded) {
-        status.textContent = "Config loaded.";
-        status.className = "config-status ok";
-        setTimeout(() => {
-          status.textContent = "";
-          status.className = "config-status";
-        }, 3000);
-      }
+      if (await loadConfigFromFile()) _flashStatus("Config loaded.", "ok", 3000);
     } catch (err) {
-      status.textContent = (err as Error).message;
-      status.className = "config-status err";
-      setTimeout(() => {
-        status.textContent = "";
-        status.className = "config-status";
-      }, 6000);
-    } finally {
-      btn.disabled = false;
+      _flashStatus((err as Error).message, "err", 6000);
     }
   });
 
@@ -272,19 +258,10 @@ export function initApp(): void {
       restored = true;
     }
   } catch (_) {}
+  if (!restored) applyState(defaultState());
 
-  if (!restored) {
-    txChannels.push({});
-    rxChannels.push({});
-    pointTargets.push({ location: [10, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 });
-    renderTxChannels();
-    renderRxChannels();
-    renderPointTargets();
-    updateTxInfo();
-    updateScene();
-  }
-
-  attachAutoSave();
+  document.addEventListener("input", debouncedAutoSave);
+  document.addEventListener("change", debouncedAutoSave);
 
   const startupOverlay = document.getElementById("startup-overlay");
   if (startupOverlay) {

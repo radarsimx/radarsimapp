@@ -25,9 +25,9 @@ export function randn(): number {
 // ── Cooperative scheduling ───────────────────────────────────────────────────
 // This code runs in the Electron main process, which is also the thread that
 // pumps the window's OS event loop. A loop that runs for seconds without
-// returning to the event loop makes the window stop responding, so the *Async
-// variants below run the same kernels while handing control back whenever a
-// slice has been running for longer than SLICE_MS.
+// returning to the event loop makes the window stop responding, so the
+// transforms below hand control back whenever a slice has been running for
+// longer than SLICE_MS.
 
 const SLICE_MS = 10;
 
@@ -100,7 +100,7 @@ export interface ComplexBuffers {
   im: Float64Array;
 }
 
-/** One pulse of the range FFT, the unit of work both variants schedule. */
+/** One pulse of the range FFT: the unit of work between yields. */
 function _rangeFFTPulse(
   re: Float64Array,
   im: Float64Array,
@@ -122,23 +122,10 @@ function _rangeFFTPulse(
   out.im.set(I, outBase);
 }
 
-export function applyRangeFFT(
-  re: Float64Array,
-  im: Float64Array,
-  nPulse: number,
-  nRx: number,
-  spp: number,
-  n?: number,
-): ComplexBuffers {
-  if (!n) n = nextPow2(spp);
-  const out: ComplexBuffers = { re: new Float64Array(n * nPulse * nRx), im: new Float64Array(n * nPulse * nRx) };
-  for (let c = 0; c < nRx; c++) {
-    for (let p = 0; p < nPulse; p++) _rangeFFTPulse(re, im, out, c, p, nPulse, spp, n);
-  }
-  return out;
-}
-
-/** {@link applyRangeFFT}, yielding to the event loop between pulses. */
+/**
+ * Range FFT of every pulse of every channel, zero-padded (or truncated) to `n`
+ * points. Data is laid out [channel][pulse][sample]. Yields between pulses.
+ */
 export async function applyRangeFFTAsync(
   re: Float64Array,
   im: Float64Array,
@@ -159,7 +146,7 @@ export async function applyRangeFFTAsync(
   return out;
 }
 
-/** One range bin of the Doppler FFT, the unit of work both variants schedule. */
+/** One range bin of the Doppler FFT: the unit of work between yields. */
 function _dopplerFFTBin(
   re: Float64Array,
   im: Float64Array,
@@ -185,23 +172,10 @@ function _dopplerFFTBin(
   }
 }
 
-export function applyDopplerFFT(
-  re: Float64Array,
-  im: Float64Array,
-  nPulse: number,
-  nRx: number,
-  rangeDim: number,
-  n?: number,
-): ComplexBuffers {
-  if (!n) n = nextPow2(nPulse);
-  const out: ComplexBuffers = { re: new Float64Array(rangeDim * n * nRx), im: new Float64Array(rangeDim * n * nRx) };
-  for (let c = 0; c < nRx; c++) {
-    for (let s = 0; s < rangeDim; s++) _dopplerFFTBin(re, im, out, c, s, nPulse, rangeDim, n);
-  }
-  return out;
-}
-
-/** {@link applyDopplerFFT}, yielding to the event loop between range bins. */
+/**
+ * Doppler FFT across pulses for every range bin of every channel, zero-padded
+ * to `n` and shifted so zero Doppler sits in the middle. Yields between bins.
+ */
 export async function applyDopplerFFTAsync(
   re: Float64Array,
   im: Float64Array,
@@ -222,7 +196,7 @@ export async function applyDopplerFFTAsync(
   return out;
 }
 
-/** One [pulse][rx] row in dB, the unit of work both variants schedule. */
+/** One [pulse][rx] row in dB: the unit of work between yields. */
 function _dbMagRow(re: Float64Array, im: Float64Array, p: number, r: number, nPulse: number, spp: number): number[] {
   const row = new Array<number>(spp);
   const base = (r * nPulse + p) * spp;
@@ -233,17 +207,7 @@ function _dbMagRow(re: Float64Array, im: Float64Array, p: number, r: number, nPu
   return row;
 }
 
-export function toDbMag3D(re: Float64Array, im: Float64Array, nPulse: number, nRx: number, spp: number): number[][][] {
-  const out: number[][][] = [];
-  for (let p = 0; p < nPulse; p++) {
-    const rxArr: number[][] = [];
-    for (let r = 0; r < nRx; r++) rxArr.push(_dbMagRow(re, im, p, r, nPulse, spp));
-    out.push(rxArr);
-  }
-  return out;
-}
-
-/** {@link toDbMag3D}, yielding to the event loop between rows. */
+/** Magnitude in dB as nested [pulse][channel][sample] arrays. Yields between rows. */
 export async function toDbMag3DAsync(
   re: Float64Array,
   im: Float64Array,
@@ -284,23 +248,7 @@ function _complexRow(
   };
 }
 
-export function toComplex3D(
-  re: Float64Array,
-  im: Float64Array,
-  nPulse: number,
-  nRx: number,
-  spp: number,
-): ComplexData[][] {
-  const out: ComplexData[][] = [];
-  for (let p = 0; p < nPulse; p++) {
-    const rxArr: ComplexData[] = [];
-    for (let r = 0; r < nRx; r++) rxArr.push(_complexRow(re, im, p, r, nPulse, spp));
-    out.push(rxArr);
-  }
-  return out;
-}
-
-/** {@link toComplex3D}, yielding to the event loop between rows. */
+/** Complex samples as nested [pulse][channel] {re, im} rows. Yields between rows. */
 export async function toComplex3DAsync(
   re: Float64Array,
   im: Float64Array,

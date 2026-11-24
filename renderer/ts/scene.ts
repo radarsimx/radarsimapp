@@ -3,9 +3,9 @@
 // the targets. This module gathers it; scene3d.ts draws it.
 
 import { type Coverage, channelCoverage } from "./beam.js";
-import { type CollectedConfig, collectConfig } from "./config.js";
+import { collectConfig } from "./config.js";
 import { meshTargets, pointTargets } from "./shared.js";
-import { debounce, el, parseCSV, parseNumber } from "./utils.js";
+import { debounce, el, fieldCSV, fieldNumber, fieldValue, fieldVector, XYZ, YPR } from "./utils.js";
 
 export type Vec3 = [number, number, number];
 
@@ -72,7 +72,7 @@ export interface SceneModel {
   meshLibPoses: Map<number, Pose>;
 }
 
-export const MESH_COLORS = ["#a29bfe", "#00cec9", "#fab1a0", "#74b9ff", "#ffeaa7"];
+const MESH_COLORS = ["#a29bfe", "#00cec9", "#fab1a0", "#74b9ff", "#ffeaa7"];
 
 export function meshColor(index: number): string {
   return MESH_COLORS[index % MESH_COLORS.length];
@@ -89,7 +89,7 @@ export function meshLabel(m: Pick<SceneMesh, "index" | "cells" | "totalCells">):
 // boresight, and the mesh geometry -- comes from the library (Get_Radar_State /
 // Get_Target_Mesh_State) rather than being re-derived here, so the view shows
 // the same platform rotation and motion the simulator applies, evaluated at
-// SCENE_TIMESTAMP. The call crosses IPC and reloads the STL files, so it is
+// SCENE_TIMESTAMP. The call crosses IPC and reloads the model files, so it is
 // debounced and cached against the inputs that can move something in the scene.
 let _sceneState: SceneState | null = null;
 let _sceneStateKey: string | null = null;
@@ -129,19 +129,11 @@ const _refreshSceneState = debounce(async () => {
     return;
   }
 
-  let cfg: CollectedConfig;
-  try {
-    cfg = collectConfig();
-  } catch (_) {
-    return; // panels not built yet
-  }
-
+  const cfg = collectConfig();
   const key = _sceneStateKeyOf(cfg);
   if (key === _sceneStateKey) return;
   // Which mesh targets went in, as collectConfig skips those with no model
-  const withModel: number[] = meshTargets
-    .map((_: MeshTargetData, i: number) => i)
-    .filter((i: number) => (document.getElementById(`mesh-${i}-model`) as HTMLInputElement | null)?.value);
+  const withModel: number[] = meshTargets.map((_, i) => i).filter((i) => fieldValue(`mesh-${i}-model`));
 
   _sceneStateInFlight = true;
   try {
@@ -209,8 +201,7 @@ function _inFocus(pfx: "tx" | "rx", index: number): boolean {
 /** Split the library's flat [n][3] global channel positions into markers. */
 function _channelMarkers(locations: Float32Array | null | undefined, prefix: "TX" | "RX"): SceneMarker[] {
   const pfx = prefix.toLowerCase() as "tx" | "rx";
-  const csv = (i: number, name: string): number[] =>
-    parseCSV((document.getElementById(`${pfx}-ch-${i}-${name}`) as HTMLInputElement | null)?.value ?? "");
+  const csv = (i: number, name: string): number[] => fieldCSV(`${pfx}-ch-${i}-${name}`);
   const markers: SceneMarker[] = [];
   if (!locations) return markers;
   const n = Math.floor(locations.length / 3);
@@ -232,20 +223,14 @@ function _cfgPose(c: PlatformConfig | null | undefined): Pose {
   return { location: _vec(c?.location), rotation: _vec(c?.rotation) };
 }
 
-/** A pose from its fields: `${prefix}-loc-x` and so on, and `${prefix}-rot-yaw` and so on. */
-function _fieldPose(prefix: string, fallbackX: number = 0): Pose {
-  const g = (name: string): string | undefined =>
-    (document.getElementById(`${prefix}-rot-${name}`) as HTMLInputElement | null)?.value;
-  return {
-    location: _fieldVec(prefix, fallbackX),
-    rotation: [parseNumber(g("yaw")), parseNumber(g("pitch")), parseNumber(g("roll"))],
-  };
+/** A location from its fields: `${prefix}-loc-x` and so on. */
+function _fieldVec(prefix: string, fallbackX: number = 0): Vec3 {
+  return fieldVector(`${prefix}-loc`, XYZ, [fallbackX]) as Vec3;
 }
 
-function _fieldVec(prefix: string, fallbackX: number = 0): Vec3 {
-  const g = (axis: string): string | undefined =>
-    (document.getElementById(`${prefix}-loc-${axis}`) as HTMLInputElement | null)?.value;
-  return [parseNumber(g("x"), fallbackX), parseNumber(g("y")), parseNumber(g("z"))];
+/** A pose from its fields: the location, and `${prefix}-rot-yaw` and so on. */
+function _fieldPose(prefix: string): Pose {
+  return { location: _fieldVec(prefix), rotation: fieldVector(`${prefix}-rot`, YPR) as Vec3 };
 }
 
 // The platform origin. radarsimlib exposes no query for the platform position
@@ -257,13 +242,13 @@ function _radarOrigin(): Vec3 {
   return _fieldVec("radar");
 }
 
-export function buildSceneModel(): SceneModel {
+function buildSceneModel(): SceneModel {
   const meshes = _sceneState?.meshes ?? [];
   // Mesh targets: real geometry from the library when available, otherwise a
   // marker at the configured origin.
   const drawn = new Set<number>(meshes.map((m: SceneMesh) => m.index));
   const meshMarkers: SceneMarker[] = [];
-  meshTargets.forEach((_: MeshTargetData, i: number) => {
+  meshTargets.forEach((_, i) => {
     if (!drawn.has(i)) meshMarkers.push({ label: `M${i + 1}`, index: i, position: _fieldVec(`mesh-${i}`) });
   });
 
@@ -276,8 +261,8 @@ export function buildSceneModel(): SceneModel {
     rx: _channelMarkers(_sceneState?.rxLocations, "RX"),
     boresight: boresight ? [boresight[0], boresight[1], boresight[2]] : null,
     fanEdges: _focus?.kind === "tx" || _focus?.kind === "rx",
-    roll: parseNumber((document.getElementById("radar-rot-roll") as HTMLInputElement | null)?.value),
-    pointTargets: pointTargets.map((_: PointTargetData, i: number) => ({
+    roll: fieldNumber("radar-rot-roll"),
+    pointTargets: pointTargets.map((_, i) => ({
       label: `T${i + 1}`,
       index: i,
       position: _fieldVec(`pt-${i}`, 10),
@@ -287,7 +272,7 @@ export function buildSceneModel(): SceneModel {
     poseError: _poseError,
     radarPose: _fieldPose("radar"),
     radarLibPose: _sceneState ? _libRadarPose : null,
-    meshPoses: meshTargets.map((_: MeshTargetData, i: number) => _fieldPose(`mesh-${i}`)),
+    meshPoses: meshTargets.map((_, i) => _fieldPose(`mesh-${i}`)),
     meshLibPoses: _sceneState ? _libMeshPoses : new Map(),
   };
 }

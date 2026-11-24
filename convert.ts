@@ -41,9 +41,6 @@ export function toF32(arr: number[] | Float32Array): Float32Array {
 export function toF64(arr: number[] | Float64Array): Float64Array {
   return arr instanceof Float64Array ? arr : new Float64Array(arr);
 }
-export function toI32(arr: number[] | Int32Array): Int32Array {
-  return arr instanceof Int32Array ? arr : new Int32Array(arr);
-}
 
 /** Degrees → radians. The UI works in degrees; the library takes radians. */
 export function deg2rad(arr: number[]): Float32Array {

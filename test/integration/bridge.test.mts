@@ -179,7 +179,7 @@ describe("checkLibrary", () => {
     assert.ok(major * 1000 + minor >= 15004, `library is ${version}, need >= 15.4.0`);
   });
 
-  test("reports availability and a boolean licence state", () => {
+  test("reports a boolean licence state", () => {
     assert.equal(typeof licensed, "boolean");
   });
 });

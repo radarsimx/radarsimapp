@@ -17,13 +17,15 @@ npm run typecheck:test   # type-check the tests themselves
 |---|---|
 | `unit/convert.test.mts` | typed-array helpers, `deg2rad`, complex parsing, antenna patterns, error codes |
 | `unit/dsp.test.mts` | FFT, range/Doppler transforms, dB magnitude, noise generator |
-| `unit/mesh.test.mts` | STL loading (ASCII + binary), scene mesh packing and striding |
+| `unit/mesh.test.mts` | STL (ASCII + binary), OBJ and PLY (ASCII + binary) loading, scene mesh packing and striding |
 | `unit/utils.test.mts` | renderer helpers and DOM builders |
 | `unit/config.test.mts` | `collectConfig()` — unit conversions and config shape |
 | `unit/state.test.mts` | `captureState`/`applyState`/`validateState` round-trip |
 | `unit/outline.test.mts` | radar diagram and target list — what a pick shows, and where the selection goes when its node is removed |
 | `unit/scene.test.mts` | the 3D scene's model — poses come from the library, not from JS |
 | `unit/readout.test.mts` | derived waveform readout (resolutions, unambiguous velocity) |
+| `unit/beam.test.mts` | antenna pattern coverage spans drawn as fans in the scene |
+| `unit/colresize.test.mts` | column width clamping |
 | `integration/bridge.test.mts` | `RadarSimBridge` driving real `radarsimc` calls |
 
 ## How the imports work
@@ -70,12 +72,10 @@ Importing the module is itself a check. koffi resolves every `lib.func()`
 declaration at import time, so a renamed or removed export throws before any
 test body runs.
 
-What this still does not cover: bindings the bridge never calls
-(`Run_LidarSimulator`, `Run_NoiseSimulator`, `Create_Radar_Array`,
-`Add_Point_Target_Array`, `Add_Mesh_Target_Array`,
-`Create_Transmitter_SSBPhaseNoise`, `Run_InterferenceSimulator`). Their symbols
-are verified to exist, but a wrong argument list would not be noticed until
-something calls them.
+What this still does not cover: `Create_Transmitter_SSBPhaseNoise`, which the
+bridge binds but only calls for a config with a phase-noise spectrum (the UI
+never sets one, and no test does). koffi checks that the symbol exists, but a
+wrong argument list would not be noticed until something calls it.
 
 ### Nothing is skipped
 

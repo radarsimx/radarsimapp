@@ -56,8 +56,8 @@ beforeEach(() => {
   shared.rxChannels.splice(0, Infinity, {}, {}, {});
   shared.pointTargets.splice(0, Infinity, {});
   shared.meshTargets.splice(0, Infinity);
-  channels.renderTxChannels();
-  channels.renderRxChannels();
+  channels.renderChannels("tx");
+  channels.renderChannels("rx");
   targets.renderPointTargets();
   targets.renderMeshTargets();
 });
@@ -127,7 +127,7 @@ describe("selection", () => {
   test("moves to the last one left when the selected channel is removed", () => {
     outline.select({ kind: "rx", index: 2 });
     shared.rxChannels.splice(2, 1);
-    channels.renderRxChannels();
+    channels.renderChannels("rx");
 
     assert.deepEqual(outline.selection(), { kind: "rx", index: 1 });
     assert.deepEqual(openCards("rx-channels-list"), [1]);
@@ -136,7 +136,7 @@ describe("selection", () => {
   test("falls back to the chain when its last channel is removed", () => {
     outline.select({ kind: "tx", index: 0 });
     shared.txChannels.splice(0, 1);
-    channels.renderTxChannels();
+    channels.renderChannels("tx");
 
     assert.deepEqual(outline.selection(), { kind: "transmitter" });
     assert.deepEqual(showing(), ["waveform", "pa"]);

@@ -9,14 +9,12 @@ import {
   parseComplex,
   toF32,
   toF64,
-  toI32,
 } from "../../dist/convert.js";
 
 describe("typed-array helpers", () => {
   test("convert plain arrays to the right typed array", () => {
     assert.ok(toF32([1, 2, 3]) instanceof Float32Array);
     assert.ok(toF64([1, 2, 3]) instanceof Float64Array);
-    assert.ok(toI32([1, 2, 3]) instanceof Int32Array);
     assert.deepEqual(Array.from(toF64([1.5, -2.5])), [1.5, -2.5]);
   });
 
@@ -25,10 +23,6 @@ describe("typed-array helpers", () => {
     assert.equal(toF32(f32), f32, "should be the same object, not a copy");
     const f64 = new Float64Array([1, 2]);
     assert.equal(toF64(f64), f64);
-  });
-
-  test("toI32 truncates toward zero", () => {
-    assert.deepEqual(Array.from(toI32([1.9, -1.9])), [1, -1]);
   });
 });
 

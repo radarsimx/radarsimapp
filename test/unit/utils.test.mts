@@ -86,14 +86,6 @@ describe("isValidComplex", () => {
   });
 });
 
-describe("formatComplex", () => {
-  test("passes strings through and stringifies numbers", () => {
-    assert.equal(utils.formatComplex("1+2j"), "1+2j");
-    assert.equal(utils.formatComplex(3), "3");
-    assert.equal(utils.formatComplex(-0.5), "-0.5");
-  });
-});
-
 describe("debounce", () => {
   test("fires once after the quiet period, with the last arguments", async () => {
     const seen: number[] = [];
@@ -181,21 +173,10 @@ describe("createInput", () => {
   });
 });
 
-describe("createSVG", () => {
-  test("returns an SVG element for known icons", () => {
-    for (const name of ["trash", "chevron", "close"]) {
-      const svg = utils.createSVG(name);
-      assert.equal(svg.tagName.toLowerCase(), "svg");
-      assert.ok(svg.childNodes.length > 0, `${name} should draw something`);
-    }
-  });
-
-  test("the removed rcs icon no longer draws anything", () => {
-    const svg = utils.createSVG("rcs");
-    assert.equal(svg.childNodes.length, 0);
-  });
-
-  test("unknown names produce an empty svg rather than throwing", () => {
-    assert.equal(utils.createSVG("does-not-exist").childNodes.length, 0);
+describe("trashIcon", () => {
+  test("returns an svg that draws the icon", () => {
+    const svg = utils.trashIcon();
+    assert.equal(svg.tagName.toLowerCase(), "svg");
+    assert.ok(svg.childNodes.length > 0);
   });
 });

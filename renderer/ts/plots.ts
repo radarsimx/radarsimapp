@@ -4,9 +4,9 @@ import { updateReadout } from "./readout.js";
 import { updateScene } from "./scene.js";
 import { rxChannels, txChannels } from "./shared.js";
 import { type StageView, setResultViewsAvailable, stageView } from "./stage.js";
-import { debounce, parseCSV, parseNumber } from "./utils.js";
+import { debounce, fieldCSV, fieldNumber, fieldValue } from "./utils.js";
 
-// --- TX Bandwidth / Sweep Info ---
+/** Refresh what follows the waveform fields: the readout and the waveform plot. */
 export function updateTxInfo(): void {
   updateReadout();
   updateTxWaveformPlot();
@@ -25,8 +25,6 @@ const THEME = {
   accent: "#b8a3e6",
   signal: "#8bc34a", // also --cut-az: the azimuth cut, here and in the scene
   signalSoft: "rgba(139,195,74,0.08)",
-  tx: "#8bc34a",
-  rx: "#4e9eff",
   second: "#2ec5d8", // also --cut-el: the elevation cut
   secondSoft: "rgba(46,197,216,0.08)",
   imag: "#ff7b3a",
@@ -73,7 +71,7 @@ const overlayLegend: PlotlyObject = {
   borderwidth: 0,
 };
 
-export const plotlyLayout: PlotlyObject = {
+const resultLayout: PlotlyObject = {
   ...baseLayout(12),
   margin: { l: 64, r: 24, t: 16, b: 52 },
   xaxis: axis(),
@@ -81,13 +79,11 @@ export const plotlyLayout: PlotlyObject = {
   legend: overlayLegend,
 };
 
-export const plotlyConfig: PlotlyObject = {
+const plotConfig: PlotlyObject = {
   responsive: true,
   displayModeBar: "hover",
   displaylogo: false,
 };
-
-const smallPlotConfig: PlotlyObject = { responsive: true, displayModeBar: "hover", displaylogo: false };
 
 // --- Inspector Plots ---
 // Each plot sits in the inspector beside the fields it shows: the waveform in
@@ -164,12 +160,11 @@ function _resampleCut(angles: number[], gains: number[]): { angles: number[]; ga
 }
 
 /** Redraw a channel's pattern, if its card is the one showing. */
-export function updateChannelPatternPlot(pfx: string, index: number): void {
+function updateChannelPatternPlot(pfx: string, index: number): void {
   const plotDiv = _visible(`${pfx}-ch-${index}-pattern-plot`);
   if (!plotDiv) return;
 
-  const field = (name: string): number[] =>
-    parseCSV((document.getElementById(`${pfx}-ch-${index}-${name}`) as HTMLTextAreaElement | null)?.value ?? "");
+  const field = (name: string): number[] => fieldCSV(`${pfx}-ch-${index}-${name}`);
   const cuts = [
     {
       name: "Azimuth",
@@ -280,10 +275,7 @@ export function attachPatternListeners(pfx: string, index: number): void {
     updateScene();
   });
   ["az-angles", "az-pattern", "el-angles", "el-pattern"].forEach((field) => {
-    const elem = document.getElementById(`${pfx}-ch-${index}-${field}`);
-    if (elem) {
-      elem.addEventListener("input", debouncedUpdate);
-    }
+    document.getElementById(`${pfx}-ch-${index}-${field}`)?.addEventListener("input", debouncedUpdate);
   });
 }
 
@@ -292,11 +284,11 @@ export function updateTxWaveformPlot(): void {
   const container = _visible("plot-waveform");
   if (!container) return;
 
-  const fStart = parseNumber((document.getElementById("tx-f-start") as HTMLInputElement).value);
-  const fEnd = parseNumber((document.getElementById("tx-f-end") as HTMLInputElement).value);
-  const tStart = parseNumber((document.getElementById("tx-t-start") as HTMLInputElement).value);
-  const tEnd = parseNumber((document.getElementById("tx-t-end") as HTMLInputElement).value);
-  const prp = parseNumber((document.getElementById("tx-prp") as HTMLInputElement).value, 100);
+  const fStart = fieldNumber("tx-f-start");
+  const fEnd = fieldNumber("tx-f-end");
+  const tStart = fieldNumber("tx-t-start");
+  const tEnd = fieldNumber("tx-t-end");
+  const prp = fieldNumber("tx-prp", 100);
 
   const traces: PlotlyObject[] = [];
   const numCycles = 2;
@@ -341,7 +333,7 @@ export function updateTxWaveformPlot(): void {
     showlegend: false,
   };
 
-  Plotly.react(container, traces, layout, smallPlotConfig);
+  Plotly.react(container, traces, layout, plotConfig);
 }
 
 // --- Plot Simulation Results ---
@@ -349,24 +341,48 @@ export function updateTxWaveformPlot(): void {
 // and again only once its data or the channel / pulse picked has changed.
 const _stale = new Set<StageView>();
 
+/** The last run's results, kept to redraw from as the pulse or channel picked changes. */
+const _result: {
+  baseband: SimResult["baseband"] | null;
+  bbType: string;
+  rangeProfile: number[][][] | null;
+  rangeAxis: number[] | null;
+  rangeDoppler: number[][][] | null;
+  rdRangeAxis: number[] | null;
+  rdDopplerAxis: number[] | null;
+} = {
+  baseband: null,
+  bbType: "complex",
+  rangeProfile: null,
+  rangeAxis: null,
+  rangeDoppler: null,
+  rdRangeAxis: null,
+  rdDopplerAxis: null,
+};
+
+/** The pulse or channel picked for the result plots: never below 0. */
+function _pickedIndex(id: "bb-pulse-idx" | "bb-ch-idx"): number {
+  return Math.max(0, parseInt(fieldValue(id) ?? "", 10) || 0);
+}
+
 export function plotResults(data: SimResult): void {
   document.getElementById("results-outdated-banner")?.classList.add("hidden");
   if (data.range_doppler) {
-    _lastRangeDopplerData = data.range_doppler;
-    _lastRdRangeAxis = data.rd_range_axis || null;
-    _lastRdVelocityAxis = data.rd_doppler_axis || null;
+    _result.rangeDoppler = data.range_doppler;
+    _result.rdRangeAxis = data.rd_range_axis || null;
+    _result.rdDopplerAxis = data.rd_doppler_axis || null;
     _stale.add("range-doppler");
   }
 
   if (data.range_profile) {
-    _lastRangeProfileData = data.range_profile;
-    _lastRangeAxis = data.rp_range_axis || null;
+    _result.rangeProfile = data.range_profile;
+    _result.rangeAxis = data.rp_range_axis || null;
     _stale.add("range-profile");
   }
 
   if (data.baseband) {
-    _lastBasebandData = data.baseband;
-    _lastBbType = data.bb_type || "complex";
+    _result.baseband = data.baseband;
+    _result.bbType = data.bb_type || "complex";
     const numPulses = data.baseband.length;
     const numCh = data.baseband[0]?.length ?? 1;
     const pulseInput = document.getElementById("bb-pulse-idx") as HTMLInputElement;
@@ -390,21 +406,13 @@ export function renderResultView(): void {
   else if (view === "range-doppler") _plotRangeDoppler();
 }
 
-let _lastBasebandData: SimResult["baseband"] | null = null;
-let _lastBbType: string = "complex";
-let _lastRangeProfileData: number[][][] | null = null;
-let _lastRangeAxis: number[] | null = null;
-let _lastRangeDopplerData: number[][][] | null = null;
-let _lastRdRangeAxis: number[] | null = null;
-let _lastRdVelocityAxis: number[] | null = null;
-
 function _plotRangeDoppler(): void {
   const container = document.getElementById("plot-range-doppler");
-  if (!_lastRangeDopplerData || !container) return;
-  const chIdx = Math.max(0, parseInt((document.getElementById("bb-ch-idx") as HTMLInputElement).value, 10) || 0);
+  if (!_result.rangeDoppler || !container) return;
+  const chIdx = _pickedIndex("bb-ch-idx");
 
   // One channel's map: [Doppler bin][range bin]
-  const rd = _lastRangeDopplerData.map((bin) => bin[Math.min(chIdx, bin.length - 1)]);
+  const rd = _result.rangeDoppler.map((bin) => bin[Math.min(chIdx, bin.length - 1)]);
 
   container.classList.add("has-data");
   const trace: PlotlyObject = {
@@ -420,8 +428,8 @@ function _plotRangeDoppler(): void {
     },
     showscale: true,
   };
-  if (_lastRdRangeAxis) trace.x = _lastRdRangeAxis;
-  if (_lastRdVelocityAxis) trace.y = _lastRdVelocityAxis;
+  if (_result.rdRangeAxis) trace.x = _result.rdRangeAxis;
+  if (_result.rdDopplerAxis) trace.y = _result.rdDopplerAxis;
 
   const layout = {
     ...baseLayout(12),
@@ -435,16 +443,16 @@ function _plotRangeDoppler(): void {
       camera: { eye: { x: 1.55, y: 1.55, z: 1.1 } },
     },
   };
-  Plotly.newPlot(container, [trace], layout, plotlyConfig);
+  Plotly.newPlot(container, [trace], layout, plotConfig);
 }
 
 function _plotRangeProfile(): void {
   const container = document.getElementById("plot-range-profile");
-  if (!_lastRangeProfileData || !container) return;
-  const pulseIdx = Math.max(0, parseInt((document.getElementById("bb-pulse-idx") as HTMLInputElement).value, 10) || 0);
-  const chIdx = Math.max(0, parseInt((document.getElementById("bb-ch-idx") as HTMLInputElement).value, 10) || 0);
+  if (!_result.rangeProfile || !container) return;
+  const pulseIdx = _pickedIndex("bb-pulse-idx");
+  const chIdx = _pickedIndex("bb-ch-idx");
 
-  const pulseData = _lastRangeProfileData[Math.min(pulseIdx, _lastRangeProfileData.length - 1)];
+  const pulseData = _result.rangeProfile[Math.min(pulseIdx, _result.rangeProfile.length - 1)];
   const rp = pulseData ? pulseData[Math.min(chIdx, pulseData.length - 1)] : [];
 
   container.classList.add("has-data");
@@ -454,22 +462,22 @@ function _plotRangeProfile(): void {
     mode: "lines",
     line: { color: THEME.signal, width: 1.5 },
   };
-  if (_lastRangeAxis) trace.x = _lastRangeAxis;
+  if (_result.rangeAxis) trace.x = _result.rangeAxis;
   const layout = {
-    ...plotlyLayout,
+    ...resultLayout,
     xaxis: axis("Range Bin"),
     yaxis: axis("Magnitude (dB)"),
   };
-  Plotly.newPlot(container, [trace], layout, plotlyConfig);
+  Plotly.newPlot(container, [trace], layout, plotConfig);
 }
 
 function _plotBaseband(): void {
   const container = document.getElementById("plot-baseband");
-  if (!_lastBasebandData || !container) return;
-  const pulseIdx = Math.max(0, parseInt((document.getElementById("bb-pulse-idx") as HTMLInputElement).value, 10) || 0);
-  const chIdx = Math.max(0, parseInt((document.getElementById("bb-ch-idx") as HTMLInputElement).value, 10) || 0);
+  if (!_result.baseband || !container) return;
+  const pulseIdx = _pickedIndex("bb-pulse-idx");
+  const chIdx = _pickedIndex("bb-ch-idx");
 
-  const pulseData = _lastBasebandData[Math.min(pulseIdx, _lastBasebandData.length - 1)];
+  const pulseData = _result.baseband[Math.min(pulseIdx, _result.baseband.length - 1)];
   const chData = pulseData?.[Math.min(chIdx, pulseData.length - 1)];
   if (!chData) return;
 
@@ -483,7 +491,7 @@ function _plotBaseband(): void {
       line: { color: THEME.signal, width: 1 },
     },
   ];
-  if (_lastBbType !== "real") {
+  if (_result.bbType !== "real") {
     traces.push({
       y: chData.im,
       type: "scatter",
@@ -493,26 +501,26 @@ function _plotBaseband(): void {
     });
   }
   const layout = {
-    ...plotlyLayout,
+    ...resultLayout,
     showlegend: true,
     xaxis: axis("Sample"),
     yaxis: axis("Amplitude"),
   };
-  Plotly.newPlot(container, traces, layout, plotlyConfig);
+  Plotly.newPlot(container, traces, layout, plotConfig);
 }
 
 export function markResultsOutdated(): void {
-  if (!_lastBasebandData && !_lastRangeProfileData && !_lastRangeDopplerData) return;
+  if (!_result.baseband && !_result.rangeProfile && !_result.rangeDoppler) return;
   document.getElementById("results-outdated-banner")?.classList.remove("hidden");
 }
 
 export function clearResultPlots(): void {
-  _lastBasebandData = null;
-  _lastRangeProfileData = null;
-  _lastRangeAxis = null;
-  _lastRangeDopplerData = null;
-  _lastRdRangeAxis = null;
-  _lastRdVelocityAxis = null;
+  _result.baseband = null;
+  _result.rangeProfile = null;
+  _result.rangeAxis = null;
+  _result.rangeDoppler = null;
+  _result.rdRangeAxis = null;
+  _result.rdDopplerAxis = null;
   _stale.clear();
 
   document.getElementById("results-outdated-banner")?.classList.add("hidden");

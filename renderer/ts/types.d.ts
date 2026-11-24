@@ -32,29 +32,6 @@ interface FileDialogOptions {
   filters?: Array<{ name: string; extensions: string[] }>;
 }
 
-interface SceneMesh {
-  index: number;
-  totalCells: number;
-  cells: number;
-  x: Float32Array;
-  y: Float32Array;
-  z: Float32Array;
-  i: Int32Array;
-  j: Int32Array;
-  k: Int32Array;
-  /** [minX, minY, minZ, maxX, maxY, maxZ] of the returned vertices. */
-  bounds: number[];
-}
-
-interface SceneState {
-  timestamp: number;
-  txLocations: Float32Array | null;
-  rxLocations: Float32Array | null;
-  boresight: Float32Array | null;
-  meshes: SceneMesh[];
-  warnings: string[];
-}
-
 interface ElectronAPI {
   runSimulation(config: SimConfig): Promise<IpcResult<SimResult>>;
   getSceneState(config: SimConfig): Promise<IpcResult<SceneState>>;

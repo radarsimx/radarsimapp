@@ -11,6 +11,16 @@
     "sourceMap": false,
     "outDir": "./dist"
   },
-  "include": ["types.d.ts", "sim-types.d.ts", "main.ts", "preload.ts", "bridge.ts", "convert.ts", "dsp.ts", "mesh.ts"],
+  "include": [
+    "types.d.ts",
+    "sim-types.d.ts",
+    "main.ts",
+    "preload.ts",
+    "bridge.ts",
+    "convert.ts",
+    "dsp.ts",
+    "hdf5.ts",
+    "mesh.ts"
+  ],
   "exclude": ["node_modules", "renderer"]
 }

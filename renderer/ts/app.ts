@@ -1,21 +1,18 @@
 // ===== RadarSimApp - Main Renderer Script =====
+// The renderer's entry point: wires the stage, the panels and the Run button,
+// and starts the modules that own the rest.
 
 import { createBusyAnimation } from "./busy.js";
-import { renderRxChannels, renderTxChannels, saveRxChannelStates, saveTxChannelStates } from "./channels.js";
+import { addChannel } from "./channels.js";
 import { initColumnResize, place as placeColumnGrips } from "./colresize.js";
 import { collectConfig } from "./config.js";
+import { initLicense } from "./license.js";
 import { initOutline, type Selection, select, syncCoverageFocus } from "./outline.js";
-import {
-  markResultsOutdated,
-  plotResults,
-  redrawInspectorPlots,
-  renderResultView,
-  updateTxInfo,
-  updateTxWaveformPlot,
-} from "./plots.js";
+import { plotResults, redrawInspectorPlots, renderResultView, updateTxInfo, updateTxWaveformPlot } from "./plots.js";
+import { initProcessing, processingIsValid } from "./processing.js";
 import { formatLength, updateReadout } from "./readout.js";
-import type { Pose } from "./scene.js";
-import { setSceneSink, updateScene } from "./scene.js";
+import { initRunMenu } from "./runmenu.js";
+import { type Pose, setSceneSink, updateScene } from "./scene.js";
 import {
   type CameraPreset,
   canRotate,
@@ -24,7 +21,6 @@ import {
   type SceneFraming,
   SceneView,
 } from "./scene3d.js";
-import { meshTargets, pointTargets, rxChannels, txChannels } from "./shared.js";
 import {
   isResultView,
   layoutStage,
@@ -34,18 +30,12 @@ import {
   setResultViewsAvailable,
   setStageView,
 } from "./stage.js";
-import { debouncedAutoSave, initApp, resetToDefault } from "./state.js";
-import { renderMeshTargets, renderPointTargets, saveMeshTargetStates, savePointTargetStates } from "./targets.js";
-import { byId, debounce, wrapNumberInput } from "./utils.js";
+import { initApp, resetToDefault } from "./state.js";
+import { addMeshTarget, addPointTarget } from "./targets.js";
+import { initTitlebar } from "./titlebar.js";
+import { byId, debounce, wrapNumberInput, XYZ, YPR } from "./utils.js";
 
-// --- App version ---
-window.api.getAppVersion().then((v) => {
-  const verEl = document.getElementById("app-version");
-  if (verEl) verEl.textContent = `v${v}`;
-});
-
-// --- State ---
-let lastSimResult: SimResult | null = null;
+initTitlebar();
 
 // --- 3D Scene ---
 // The view needs WebGL. Without it the panels and the result plots still work.
@@ -104,11 +94,11 @@ function _writePose(target: EditTarget, pose: Pose, done: boolean): void {
     input.value = text;
     _dragged.add(input);
   };
-  ["x", "y", "z"].forEach((a, k) => {
+  XYZ.forEach((a, k) => {
     set(`${prefix}-loc-${a}`, pose.location[k], places);
   });
   if (canRotate(target)) {
-    ["yaw", "pitch", "roll"].forEach((a, k) => {
+    YPR.forEach((a, k) => {
       set(`${prefix}-rot-${a}`, pose.rotation[k], 1);
     });
   }
@@ -154,8 +144,8 @@ document.addEventListener("outlineselect", (e) => {
 });
 
 // --- Stage Views ---
-function _resizePlots(root: ParentNode): void {
-  root.querySelectorAll(".js-plotly-plot").forEach((plot) => {
+function _resizeActivePlot(): void {
+  document.querySelectorAll(".stage-view.active .js-plotly-plot").forEach((plot) => {
     Plotly.Plots.resize(plot as HTMLElement);
   });
 }
@@ -168,8 +158,7 @@ document.addEventListener("stageview", (e) => {
   const view = (e as CustomEvent<StageView>).detail;
   if (isResultView(view)) {
     renderResultView();
-    const active = document.querySelector(".stage-view.active");
-    if (active) _resizePlots(active);
+    _resizeActivePlot();
   } else {
     sceneView?.setFraming(view as SceneFraming);
   }
@@ -223,10 +212,7 @@ initColumnResize();
 // --- Layout ---
 // The panels lie over the stage: tell the 3D view how much of it they cover,
 // and re-fit the plot between them when that changes.
-const _resizeStagePlots = debounce(() => {
-  const active = document.querySelector(".stage-view.active");
-  if (active) _resizePlots(active);
-}, 100);
+const _resizeStagePlots = debounce(_resizeActivePlot, 100);
 
 function _layout(): void {
   sceneView?.setInsets(layoutStage());
@@ -249,299 +235,78 @@ window.addEventListener("keydown", (e) => {
     });
   } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && dialogs.length === 0) {
     e.preventDefault();
-    (document.getElementById("btn-run-sim") as HTMLButtonElement).click();
+    byId("btn-run-sim").click();
   }
 });
 
 // --- Custom Number Input Spinners ---
-document.querySelectorAll('input[type="number"]:not([readonly])').forEach((input) => {
+// The fields built later (channels, targets) are wrapped as they are made
+document.querySelectorAll<HTMLInputElement>('input[type="number"]:not([readonly])').forEach((input) => {
   const parent = input.parentNode;
   if (!parent) return;
   const next = input.nextSibling;
-  const wrapper = wrapNumberInput(input as HTMLInputElement);
-  parent.insertBefore(wrapper, next);
+  parent.insertBefore(wrapNumberInput(input), next);
 });
 
-// --- TX Bandwidth / Sweep Info ---
+// --- What follows the waveform fields ---
 const debouncedUpdateTxInfo = debounce(updateTxInfo);
-const debouncedUpdateTxWaveformPlot = debounce(updateTxWaveformPlot);
-
 ["tx-f-start", "tx-f-end", "tx-t-start", "tx-t-end"].forEach((id) => {
   byId(id).addEventListener("input", debouncedUpdateTxInfo);
 });
-byId("tx-prp").addEventListener("input", debouncedUpdateTxWaveformPlot);
+byId("tx-prp").addEventListener("input", debounce(updateTxWaveformPlot));
 
 const debouncedUpdateReadout = debounce(updateReadout);
 ["tx-prp", "tx-pulses", "rx-fs"].forEach((id) => {
   byId(id).addEventListener("input", debouncedUpdateReadout);
 });
 
-// --- Radar Input Listeners ---
 const debouncedUpdateScene = debounce(updateScene);
-["radar-loc-x", "radar-loc-y", "radar-loc-z", "radar-rot-yaw", "radar-rot-pitch", "radar-rot-roll"].forEach((id) => {
+[...XYZ.map((a) => `radar-loc-${a}`), ...YPR.map((a) => `radar-rot-${a}`)].forEach((id) => {
   document.getElementById(id)?.addEventListener("input", debouncedUpdateScene);
 });
 
-// --- Run menu: Save, Load, Reset and About, dropped from the button beside Run ---
-{
-  const toggle = document.getElementById("btn-run-menu") as HTMLButtonElement;
-  const menu = byId("run-menu");
-  const items = () => [...menu.querySelectorAll<HTMLButtonElement>(".menu-item:not(:disabled)")];
-  const isOpen = () => !menu.classList.contains("hidden");
-
-  const open = (focusFirst: boolean) => {
-    menu.classList.remove("hidden");
-    toggle.setAttribute("aria-expanded", "true");
-    if (focusFirst) items()[0]?.focus();
-  };
-  const close = (refocus: boolean) => {
-    if (!isOpen()) return;
-    menu.classList.add("hidden");
-    toggle.setAttribute("aria-expanded", "false");
-    if (refocus) toggle.focus();
-  };
-
-  // A keyboard press (detail 0) moves focus into the menu; a mouse click leaves it on the button
-  toggle.addEventListener("click", (e) => (isOpen() ? close(false) : open(e.detail === 0)));
-  toggle.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      open(false);
-      const list = items();
-      list[e.key === "ArrowDown" ? 0 : list.length - 1]?.focus();
-    } else if (e.key === "Escape" && isOpen()) {
-      e.stopPropagation();
-      close(false);
-    }
+// --- Dialogs ---
+function _closeOnBackdrop(id: string): void {
+  byId(id).addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) (e.currentTarget as HTMLElement).classList.add("hidden");
   });
-
-  // Each item's own handler runs first; then the menu folds away
-  menu.addEventListener("click", (e) => {
-    if ((e.target as HTMLElement).closest(".menu-item")) close(false);
-  });
-  menu.addEventListener("keydown", (e) => {
-    const list = items();
-    const i = list.indexOf(document.activeElement as HTMLButtonElement);
-    const go = (n: number) => {
-      e.preventDefault();
-      list[(n + list.length) % list.length]?.focus();
-    };
-    if (e.key === "ArrowDown") go(i + 1);
-    else if (e.key === "ArrowUp") go(i - 1);
-    else if (e.key === "Home") go(0);
-    else if (e.key === "End") go(list.length - 1);
-    else if (e.key === "Escape") {
-      e.stopPropagation();
-      close(true);
-    } else if (e.key === "Tab") close(false);
-  });
-
-  document.addEventListener("pointerdown", (e) => {
-    if (isOpen() && !menu.contains(e.target as Node) && !toggle.contains(e.target as Node)) close(false);
-  });
-  window.addEventListener("blur", () => close(false));
-  window.addEventListener("resize", () => close(false));
 }
 
-// --- Reset ---
 byId("btn-reset-config").addEventListener("click", () => {
   byId("reset-dialog-overlay").classList.remove("hidden");
 });
-
 ["btn-reset-cancel", "btn-reset-cancel-x"].forEach((id) => {
   byId(id).addEventListener("click", () => {
     byId("reset-dialog-overlay").classList.add("hidden");
   });
 });
-
 byId("btn-reset-confirm").addEventListener("click", () => {
   byId("reset-dialog-overlay").classList.add("hidden");
   resetToDefault();
 });
-
-// Range Profile ↔ Range-Doppler dependency
-byId("proc-range-doppler").addEventListener("change", (e) => {
-  const rpCheckbox = document.getElementById("proc-range-profile") as HTMLInputElement;
-  if ((e.target as HTMLInputElement).checked) {
-    rpCheckbox.checked = true;
-  }
-  _syncProcSubOptions();
-});
-byId("proc-range-profile").addEventListener("change", (e) => {
-  const rdCheckbox = document.getElementById("proc-range-doppler") as HTMLInputElement;
-  if (!(e.target as HTMLInputElement).checked && rdCheckbox.checked) {
-    rdCheckbox.checked = false;
-  }
-  _syncProcSubOptions();
-});
-
-function _isPow2(n: number): boolean {
-  return n > 0 && (n & (n - 1)) === 0;
-}
-
-function _validateFftInput(inputEl: HTMLInputElement, minVal: number, label: string): boolean {
-  const val = parseInt(inputEl.value, 10);
-  let msg = "";
-  if (!_isPow2(val)) msg = `${label} must be a power of 2`;
-  else if (val < minVal) msg = `${label} must be \u2265 ${minVal} (next: ${_nextPow2UI(minVal)})`;
-  const wrap = inputEl.closest(".proc-sub-input-wrap");
-  inputEl.classList.toggle("is-invalid", !!msg);
-  if (wrap) {
-    if (msg) wrap.setAttribute("data-error", msg);
-    else wrap.removeAttribute("data-error");
-  }
-  return !msg;
-}
-
-function _validateFftInputs(): void {
-  const tStart = parseFloat((document.getElementById("tx-t-start") as HTMLInputElement).value) || 0;
-  const tEnd = parseFloat((document.getElementById("tx-t-end") as HTMLInputElement).value) || 0;
-  const fs = (parseFloat((document.getElementById("rx-fs") as HTMLInputElement).value) || 2) * 1e6;
-  const pulses = parseInt((document.getElementById("tx-pulses") as HTMLInputElement).value, 10) || 1;
-  const spp = Math.ceil(Math.abs(tEnd - tStart) * 1e-6 * fs) || 1;
-  if ((document.getElementById("proc-rd-range-fft-enable") as HTMLInputElement).checked) {
-    _validateFftInput(document.getElementById("proc-rd-range-fft") as HTMLInputElement, spp, "Range FFT");
-  }
-  if ((document.getElementById("proc-rd-doppler-fft-enable") as HTMLInputElement).checked) {
-    _validateFftInput(document.getElementById("proc-rd-doppler-fft") as HTMLInputElement, pulses, "Doppler FFT");
-  }
-}
-
-// Custom FFT size toggles
-["proc-rd-range-fft", "proc-rd-doppler-fft"].forEach((id) => {
-  const enableCb = document.getElementById(`${id}-enable`) as HTMLInputElement;
-  const input = document.getElementById(id) as HTMLInputElement;
-  enableCb.addEventListener("change", () => {
-    input.disabled = !enableCb.checked;
-    if (!enableCb.checked) {
-      input.classList.remove("is-invalid");
-      const wrap = input.closest(".proc-sub-input-wrap");
-      if (wrap) wrap.removeAttribute("data-error");
-      _updateAutoFftValues();
-    } else {
-      _validateFftInputs();
-    }
-  });
-  input.addEventListener("input", _validateFftInputs);
-});
-
-function _nextPow2UI(n: number): number {
-  let p = 1;
-  while (p < n) p <<= 1;
-  return p;
-}
-
-function _updateAutoFftValues(): void {
-  const tStart = parseFloat((document.getElementById("tx-t-start") as HTMLInputElement).value) || 0;
-  const tEnd = parseFloat((document.getElementById("tx-t-end") as HTMLInputElement).value) || 0;
-  const fs = (parseFloat((document.getElementById("rx-fs") as HTMLInputElement).value) || 2) * 1e6;
-  const pulses = parseInt((document.getElementById("tx-pulses") as HTMLInputElement).value, 10) || 1;
-  const spp = Math.ceil(Math.abs(tEnd - tStart) * 1e-6 * fs) || 1;
-
-  const rangeFftInput = document.getElementById("proc-rd-range-fft") as HTMLInputElement;
-  const dopplerFftInput = document.getElementById("proc-rd-doppler-fft") as HTMLInputElement;
-  if (!(document.getElementById("proc-rd-range-fft-enable") as HTMLInputElement).checked) {
-    rangeFftInput.value = String(_nextPow2UI(spp));
-  }
-  if (!(document.getElementById("proc-rd-doppler-fft-enable") as HTMLInputElement).checked) {
-    dopplerFftInput.value = String(_nextPow2UI(pulses));
-  }
-}
-
-// Update auto FFT values when relevant inputs change
-["tx-t-start", "tx-t-end", "rx-fs", "tx-pulses"].forEach((id) => {
-  document.getElementById(id)?.addEventListener("input", _updateAutoFftValues);
-});
-
-function _syncProcSubOptions(): void {
-  const rpOn = (document.getElementById("proc-range-profile") as HTMLInputElement).checked;
-  const rdOn = (document.getElementById("proc-range-doppler") as HTMLInputElement).checked;
-  byId("proc-range-profile-opts").classList.toggle("disabled", !rpOn);
-  byId("proc-range-doppler-opts").classList.toggle("disabled", !rdOn);
-  if (!rpOn) {
-    (document.getElementById("proc-rd-range-fft-enable") as HTMLInputElement).checked = false;
-    const rpFft = document.getElementById("proc-rd-range-fft") as HTMLInputElement;
-    rpFft.disabled = true;
-    rpFft.classList.remove("is-invalid");
-    const rpWrap = rpFft.closest(".proc-sub-input-wrap");
-    if (rpWrap) rpWrap.removeAttribute("data-error");
-  }
-  if (!rdOn) {
-    (document.getElementById("proc-rd-doppler-fft-enable") as HTMLInputElement).checked = false;
-    const rdFft = document.getElementById("proc-rd-doppler-fft") as HTMLInputElement;
-    rdFft.disabled = true;
-    rdFft.classList.remove("is-invalid");
-    const rdWrap = rdFft.closest(".proc-sub-input-wrap");
-    if (rdWrap) rdWrap.removeAttribute("data-error");
-  }
-  _updateAutoFftValues();
-}
-
-// Bring the processing options in line with their checkboxes: at startup, and
-// after a configuration is applied, which sets the fields without events.
-function _syncProcessing(): void {
-  const rdCb = document.getElementById("proc-range-doppler") as HTMLInputElement;
-  const rpCb = document.getElementById("proc-range-profile") as HTMLInputElement;
-  if (rdCb.checked) {
-    rpCb.checked = true;
-  }
-  _syncProcSubOptions();
-  ["proc-rd-range-fft", "proc-rd-doppler-fft"].forEach((id) => {
-    const enabled = (document.getElementById(`${id}-enable`) as HTMLInputElement).checked;
-    (document.getElementById(id) as HTMLInputElement).disabled = !enabled;
-  });
-}
-_syncProcessing();
-document.addEventListener("configapplied", _syncProcessing);
+_closeOnBackdrop("reset-dialog-overlay");
+_closeOnBackdrop("about-dialog-overlay");
 
 // --- Add Buttons ---
 // What is added is picked in the outline, so its fields come up to be filled in.
-
-byId("btn-add-tx-ch").addEventListener("click", () => {
-  saveTxChannelStates();
-  txChannels.push({});
-  renderTxChannels();
-  select({ kind: "tx", index: txChannels.length - 1 });
-  markResultsOutdated();
-  debouncedAutoSave();
-});
-
-byId("btn-add-rx-ch").addEventListener("click", () => {
-  saveRxChannelStates();
-  rxChannels.push({});
-  renderRxChannels();
-  select({ kind: "rx", index: rxChannels.length - 1 });
-  markResultsOutdated();
-  debouncedAutoSave();
-});
-
-byId("btn-add-point-target").addEventListener("click", () => {
-  savePointTargetStates();
-  pointTargets.push({ location: [10, 0, 0], rcs: 20, speed: [0, 0, 0], phase: 0 });
-  renderPointTargets();
-  select({ kind: "point", index: pointTargets.length - 1 });
-  markResultsOutdated();
-  debouncedAutoSave();
-});
-
-byId("btn-add-mesh-target").addEventListener("click", () => {
-  saveMeshTargetStates();
-  meshTargets.push({});
-  renderMeshTargets();
-  select({ kind: "mesh", index: meshTargets.length - 1 });
-  markResultsOutdated();
-  debouncedAutoSave();
-});
+byId("btn-add-tx-ch").addEventListener("click", () => addChannel("tx"));
+byId("btn-add-rx-ch").addEventListener("click", () => addChannel("rx"));
+byId("btn-add-point-target").addEventListener("click", addPointTarget);
+byId("btn-add-mesh-target").addEventListener("click", addMeshTarget);
 
 // --- Run Simulation ---
-const busy = createBusyAnimation(document.getElementById("sim-canvas") as HTMLCanvasElement);
+let lastSimResult: SimResult | null = null;
+const busy = createBusyAnimation(byId<HTMLCanvasElement>("sim-canvas"));
+/** The overlay comes up only for a run that lasts, so a quick one does not flash it. */
+const OVERLAY_DELAY_MS = 400;
+/** Just past the overlay's 0.25 s fade-out in styles.css. */
+const OVERLAY_FADE_MS = 270;
 
 byId("btn-run-sim").addEventListener("click", async () => {
-  const btn = document.getElementById("btn-run-sim") as HTMLButtonElement;
+  const btn = byId<HTMLButtonElement>("btn-run-sim");
   const status = byId("sim-status");
 
-  _validateFftInputs();
-  if (document.querySelector("#proc-range-profile-opts .is-invalid, #proc-range-doppler-opts .is-invalid")) {
+  if (!processingIsValid()) {
     status.className = "status-msg error";
     status.textContent = "Invalid FFT size. Fix the errors above before running.";
     return;
@@ -552,233 +317,65 @@ byId("btn-run-sim").addEventListener("click", async () => {
   status.textContent = "Running simulation...";
 
   const overlay = byId("sim-overlay");
-  const overlaySub = byId("sim-overlay-sub");
-  overlaySub.textContent = "";
-
-  overlay.classList.remove("hidden");
-  overlay.classList.remove("sim-visible");
-  const _overlayRevealTimer = setTimeout(() => {
+  byId("sim-overlay-sub").textContent = "";
+  overlay.classList.remove("hidden", "sim-visible");
+  const revealTimer = setTimeout(() => {
     overlay.classList.add("sim-visible");
     busy.start();
-  }, 400);
+  }, OVERLAY_DELAY_MS);
 
   try {
     const config = collectConfig();
-
     if (config.targets.length === 0) {
       throw new Error("No targets defined. Add at least one point or mesh target.");
     }
 
     const result = await window.api.runSimulation(config);
-
     if (!result.success || !result.data) {
       throw new Error(result.error ?? "The simulation returned no result.");
     }
 
-    const _resultData = result.data;
-    lastSimResult = _resultData;
+    const data = result.data;
+    lastSimResult = data;
     status.className = "status-msg success";
-    status.textContent = `Simulation complete. Baseband shape: [${_resultData.baseband_shape.join(" × ")}]`;
-    (document.getElementById("btn-export") as HTMLButtonElement).disabled = false;
+    status.textContent = `Simulation complete. Baseband shape: [${data.baseband_shape.join(" × ")}]`;
+    byId<HTMLButtonElement>("btn-export").disabled = false;
 
     // Bring up the most processed result the run produced
     setResultViewsAvailable({
-      baseband: !!_resultData.baseband,
-      "range-profile": !!_resultData.range_profile,
-      "range-doppler": !!_resultData.range_doppler,
+      baseband: !!data.baseband,
+      "range-profile": !!data.range_profile,
+      "range-doppler": !!data.range_doppler,
     });
-    setStageView(
-      _resultData.range_doppler ? "range-doppler" : _resultData.range_profile ? "range-profile" : "baseband",
-    );
-    setTimeout(() => plotResults(_resultData), 0);
+    setStageView(data.range_doppler ? "range-doppler" : data.range_profile ? "range-profile" : "baseband");
+    setTimeout(() => plotResults(data), 0);
   } catch (err) {
     status.className = "status-msg error";
     status.textContent = `Error: ${(err as Error).message}`;
   } finally {
     btn.disabled = false;
-    clearTimeout(_overlayRevealTimer);
+    clearTimeout(revealTimer);
     const wasVisible = overlay.classList.contains("sim-visible");
     overlay.classList.remove("sim-visible");
     if (wasVisible) {
       setTimeout(() => {
         overlay.classList.add("hidden");
         busy.stop();
-      }, 270);
+      }, OVERLAY_FADE_MS);
     } else {
       overlay.classList.add("hidden");
     }
   }
 });
 
-// --- Export ---
 byId("btn-export").addEventListener("click", async () => {
-  if (!lastSimResult) return;
-  await window.api.exportResults(lastSimResult);
-});
-
-// --- About ---
-// Fields from radarsimc's Get_License_Info, in display order, with our labels.
-// "License Status" and "Current Platform" are left out: the status line above
-// already says the first, and the second is just this machine.
-const LICENSE_FIELDS: [key: string, label: string][] = [
-  ["Licensed to", "Licensed to"],
-  ["Organization", "Organization"],
-  ["Email", "Email"],
-  ["Product", "Product"],
-  ["License Type", "Type"],
-  ["License Platform", "Platform"],
-];
-
-function renderLicenseStatus(licensed: boolean, info: Record<string, string> = {}): void {
-  const licenseEl = document.getElementById("about-license") as HTMLElement;
-  const detailsEl = document.getElementById("about-license-details") as HTMLElement;
-  licenseEl.textContent = licensed ? "License: Active" : "License: Unlicensed";
-  licenseEl.style.color = licensed ? "var(--ok)" : "var(--danger)";
-
-  detailsEl.replaceChildren();
-  const rows: [string, string][] = [];
-  for (const [key, label] of LICENSE_FIELDS) {
-    const v = info[key];
-    if (!v) continue;
-    rows.push([label, key === "License Type" ? v.charAt(0).toUpperCase() + v.slice(1) : v]);
-  }
-  const days = Number(info["Days Remaining"]);
-  // radarsimc gives whole days left, not a date; a date rebuilt from that
-  // could be a day early, so show the count as given.
-  if (info["Days Remaining"] && Number.isFinite(days)) {
-    rows.push(["Expires", `in ${days} day${days === 1 ? "" : "s"}`]);
-  }
-  for (const [label, value] of rows) {
-    const dt = document.createElement("dt");
-    dt.textContent = label;
-    const dd = document.createElement("dd");
-    dd.textContent = value;
-    detailsEl.append(dt, dd);
-  }
-  // Details start collapsed behind a toggle; it only appears when there is
-  // something to show.
-  const toggleEl = document.getElementById("btn-license-details") as HTMLElement;
-  toggleEl.classList.toggle("hidden", !licensed || rows.length === 0);
-  setLicenseDetailsExpanded(false);
-}
-
-function setLicenseDetailsExpanded(expanded: boolean): void {
-  const toggleEl = byId("btn-license-details");
-  toggleEl.setAttribute("aria-expanded", String(expanded));
-  toggleEl.textContent = expanded ? "Hide details" : "Show details";
-  byId("about-license-details").classList.toggle("hidden", !expanded);
-}
-
-byId("btn-license-details").addEventListener("click", (e) => {
-  const expanded = (e.currentTarget as HTMLElement).getAttribute("aria-expanded") === "true";
-  setLicenseDetailsExpanded(!expanded);
-});
-
-byId("btn-check-env").addEventListener("click", async () => {
-  const overlay = byId("about-dialog-overlay");
-  const versionEl = byId("about-version");
-  const licenseEl = byId("about-license");
-  const yearEl = byId("about-year");
-  yearEl.textContent = String(new Date().getFullYear());
-  versionEl.textContent = "Checking...";
-  licenseEl.textContent = "";
-  byId("btn-license-details").classList.add("hidden");
-  setLicenseDetailsExpanded(false);
-  overlay.classList.remove("hidden");
-
-  try {
-    const [appVersion, result] = await Promise.all([window.api.getAppVersion(), window.api.checkLibrary()]);
-    if (result.success && result.data) {
-      const d = result.data;
-      if (d.radarsimlib_available) {
-        versionEl.textContent = `RadarSimApp v${appVersion} — RadarSimLib v${d.radarsimlib_version}`;
-        renderLicenseStatus(d.licensed, d.license_info);
-        byId("btn-activate").classList.toggle("hidden", d.licensed);
-      } else {
-        versionEl.textContent = `RadarSimApp v${appVersion} — RadarSimLib not found`;
-        licenseEl.textContent = "";
-      }
-    } else {
-      versionEl.textContent = `RadarSimApp v${appVersion} — ${result.error || "Failed to check"}`;
-    }
-  } catch (err) {
-    versionEl.textContent = (err as Error).message;
-  }
-});
-
-// --- Activate License ---
-byId("btn-activate").addEventListener("click", () => {
-  byId("license-dialog-status").textContent = "";
-  byId("license-dialog-overlay").classList.remove("hidden");
-});
-
-byId("btn-about-close").addEventListener("click", () => {
-  byId("about-dialog-overlay").classList.add("hidden");
-});
-
-byId("reset-dialog-overlay").addEventListener("click", (e) => {
-  if (e.target === e.currentTarget) (e.currentTarget as HTMLElement).classList.add("hidden");
-});
-
-byId("about-dialog-overlay").addEventListener("click", (e) => {
-  if (e.target === e.currentTarget) (e.currentTarget as HTMLElement).classList.add("hidden");
-});
-
-// --- Check license on startup ---
-(async () => {
-  try {
-    const result = await window.api.checkLibrary();
-    if (result.success && result.data) {
-      const licensed = result.data.licensed;
-      byId("btn-activate").classList.toggle("hidden", licensed);
-      if (!licensed) {
-        byId("license-dialog-overlay").classList.remove("hidden");
-      }
-    }
-  } catch (_) {
-    /* ignore */
-  }
-})();
-
-// --- License dialog handlers ---
-async function _doLicenseActivation(): Promise<void> {
-  const statusEl = byId("license-dialog-status");
-  const btn = document.getElementById("btn-license-select") as HTMLButtonElement;
-  btn.disabled = true;
-  statusEl.textContent = "Activating...";
-  (statusEl as HTMLElement).style.color = "var(--ink-2)";
-  try {
-    const result = await window.api.activateLicense();
-    if (result.cancelled) {
-      statusEl.textContent = "";
-      return;
-    }
-    if (result.success && result.data?.licensed) {
-      byId("license-dialog-overlay").classList.add("hidden");
-      byId("btn-activate").classList.add("hidden");
-      const info = await window.api.checkLibrary().catch(() => null);
-      renderLicenseStatus(true, info?.success ? info.data?.license_info : undefined);
-    } else {
-      statusEl.textContent = result.error || "Activation failed. Please check the license file.";
-      (statusEl as HTMLElement).style.color = "var(--danger)";
-    }
-  } catch (err) {
-    statusEl.textContent = `Error: ${(err as Error).message}`;
-    (statusEl as HTMLElement).style.color = "var(--danger)";
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-byId("btn-license-select").addEventListener("click", _doLicenseActivation);
-byId("btn-license-cancel").addEventListener("click", () => {
-  byId("license-dialog-overlay").classList.add("hidden");
-});
-byId("btn-license-close").addEventListener("click", () => {
-  byId("license-dialog-overlay").classList.add("hidden");
+  if (lastSimResult) await window.api.exportResults(lastSimResult);
 });
 
 // --- Initialize Application ---
+initRunMenu();
+initProcessing();
+initLicense();
 initOutline();
 initApp();
 setStageView(pref<StageView>("view", "scene"));

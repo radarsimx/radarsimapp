@@ -1,7 +1,11 @@
 // ===== RadarSimApp - Configuration Collection =====
+// Reads the whole form into the configuration the bridge simulates from,
+// converting the units the fields are shown in to SI.
 
+import { readChannel, type Side } from "./channels.js";
 import { meshTargets, pointTargets, rxChannels, txChannels } from "./shared.js";
-import { parseCSV, parseNumber } from "./utils.js";
+import { readMeshMotion, readPointTarget } from "./targets.js";
+import { fieldChecked, fieldNumber, fieldValue, fieldVector, XYZ, YPR } from "./utils.js";
 
 /** A point target as the fields give it: every value is filled in. */
 export interface CollectedPointTarget extends PointTargetConfig {
@@ -37,208 +41,87 @@ export interface CollectedConfig extends SimConfig {
   processing: Required<ProcessingConfig>;
 }
 
+/**
+ * A channel's fields as the bridge takes them: an empty pattern cut is left
+ * for the library's default, and a zero delay left out.
+ */
+function _channelConfig(side: Side, i: number): TxChannelConfig {
+  const { azimuth_angle, azimuth_pattern, elevation_angle, elevation_pattern, delay, ...ch } = readChannel(side, i);
+  const out: TxChannelConfig = ch;
+  if (azimuth_angle?.length) out.azimuth_angle = azimuth_angle;
+  if (azimuth_pattern?.length) out.azimuth_pattern = azimuth_pattern;
+  if (elevation_angle?.length) out.elevation_angle = elevation_angle;
+  if (elevation_pattern?.length) out.elevation_pattern = elevation_pattern;
+  if (delay) out.delay = delay;
+  return out;
+}
+
+/** The channels of one side, or a single default channel when there are none. */
+function _channelConfigs(side: Side, count: number): TxChannelConfig[] {
+  return count > 0 ? Array.from({ length: count }, (_, i) => _channelConfig(side, i)) : [{}];
+}
+
+/** An FFT size, when its override is ticked and holds a number; null leaves the size to the bridge. */
+function _fftOverride(id: string): number | null {
+  return fieldChecked(`${id}-enable`) ? parseInt(fieldValue(id) ?? "", 10) || null : null;
+}
+
 export function collectConfig(): CollectedConfig {
-  // TX
-  const fStart = parseNumber((document.getElementById("tx-f-start") as HTMLInputElement).value) * 1e9;
-  const fEnd = parseNumber((document.getElementById("tx-f-end") as HTMLInputElement).value) * 1e9;
-  const tStart = parseNumber((document.getElementById("tx-t-start") as HTMLInputElement).value) * 1e-6;
-  const tEnd = parseNumber((document.getElementById("tx-t-end") as HTMLInputElement).value) * 1e-6;
-
-  const f = [fStart, fEnd];
-  const t = [tStart, tEnd];
-
-  // TX Channels
-  const txChannelConfigs = txChannels.map((_: ChannelData, i: number) => {
-    const ch: TxChannelConfig = {};
-    ch.location = [
-      parseNumber((document.getElementById(`tx-ch-${i}-loc-x`) as HTMLInputElement | null)?.value) * 1e-3,
-      parseNumber((document.getElementById(`tx-ch-${i}-loc-y`) as HTMLInputElement | null)?.value) * 1e-3,
-      parseNumber((document.getElementById(`tx-ch-${i}-loc-z`) as HTMLInputElement | null)?.value) * 1e-3,
-    ];
-    ch.polarization = [
-      (document.getElementById(`tx-ch-${i}-pol-x`) as HTMLInputElement | null)?.value || "0",
-      (document.getElementById(`tx-ch-${i}-pol-y`) as HTMLInputElement | null)?.value || "0",
-      (document.getElementById(`tx-ch-${i}-pol-z`) as HTMLInputElement | null)?.value || "1",
-    ];
-    const azAngles = parseCSV(
-      (document.getElementById(`tx-ch-${i}-az-angles`) as HTMLTextAreaElement | null)?.value || "",
-    );
-    const azPattern = parseCSV(
-      (document.getElementById(`tx-ch-${i}-az-pattern`) as HTMLTextAreaElement | null)?.value || "",
-    );
-    if (azAngles.length > 0) ch.azimuth_angle = azAngles;
-    if (azPattern.length > 0) ch.azimuth_pattern = azPattern;
-    const elAngles = parseCSV(
-      (document.getElementById(`tx-ch-${i}-el-angles`) as HTMLTextAreaElement | null)?.value || "",
-    );
-    const elPattern = parseCSV(
-      (document.getElementById(`tx-ch-${i}-el-pattern`) as HTMLTextAreaElement | null)?.value || "",
-    );
-    if (elAngles.length > 0) ch.elevation_angle = elAngles;
-    if (elPattern.length > 0) ch.elevation_pattern = elPattern;
-    const delay = parseNumber((document.getElementById(`tx-ch-${i}-delay`) as HTMLInputElement | null)?.value) * 1e-9;
-    if (delay !== 0) ch.delay = delay;
-    return ch;
-  });
-
-  const txConfig: CollectedConfig["transmitter"] = {
-    f,
-    t,
-    tx_power: parseNumber((document.getElementById("tx-power") as HTMLInputElement).value),
-    pulses: parseInt((document.getElementById("tx-pulses") as HTMLInputElement).value, 10) || 1,
-    prp: parseNumber((document.getElementById("tx-prp") as HTMLInputElement).value) * 1e-6,
-    channels: txChannelConfigs.length > 0 ? txChannelConfigs : [{}],
-  };
-
-  // RX Channels
-  const rxChannelConfigs = rxChannels.map((_: ChannelData, i: number) => {
-    const ch: RxChannelConfig = {};
-    ch.location = [
-      parseNumber((document.getElementById(`rx-ch-${i}-loc-x`) as HTMLInputElement | null)?.value) * 1e-3,
-      parseNumber((document.getElementById(`rx-ch-${i}-loc-y`) as HTMLInputElement | null)?.value) * 1e-3,
-      parseNumber((document.getElementById(`rx-ch-${i}-loc-z`) as HTMLInputElement | null)?.value) * 1e-3,
-    ];
-    ch.polarization = [
-      (document.getElementById(`rx-ch-${i}-pol-x`) as HTMLInputElement | null)?.value || "0",
-      (document.getElementById(`rx-ch-${i}-pol-y`) as HTMLInputElement | null)?.value || "0",
-      (document.getElementById(`rx-ch-${i}-pol-z`) as HTMLInputElement | null)?.value || "1",
-    ];
-    const azAngles = parseCSV(
-      (document.getElementById(`rx-ch-${i}-az-angles`) as HTMLTextAreaElement | null)?.value || "",
-    );
-    const azPattern = parseCSV(
-      (document.getElementById(`rx-ch-${i}-az-pattern`) as HTMLTextAreaElement | null)?.value || "",
-    );
-    if (azAngles.length > 0) ch.azimuth_angle = azAngles;
-    if (azPattern.length > 0) ch.azimuth_pattern = azPattern;
-    const elAngles = parseCSV(
-      (document.getElementById(`rx-ch-${i}-el-angles`) as HTMLTextAreaElement | null)?.value || "",
-    );
-    const elPattern = parseCSV(
-      (document.getElementById(`rx-ch-${i}-el-pattern`) as HTMLTextAreaElement | null)?.value || "",
-    );
-    if (elAngles.length > 0) ch.elevation_angle = elAngles;
-    if (elPattern.length > 0) ch.elevation_pattern = elPattern;
-    return ch;
-  });
-
-  // RX
-  const rxConfig: CollectedConfig["receiver"] = {
-    fs: parseNumber((document.getElementById("rx-fs") as HTMLInputElement).value) * 1e6,
-    noise_figure: parseNumber((document.getElementById("rx-nf") as HTMLInputElement).value),
-    rf_gain: parseNumber((document.getElementById("rx-rf-gain") as HTMLInputElement).value),
-    baseband_gain: parseNumber((document.getElementById("rx-bb-gain") as HTMLInputElement).value),
-    load_resistor: parseNumber((document.getElementById("rx-load-r") as HTMLInputElement).value),
-    bb_type: (document.getElementById("rx-bb-type") as HTMLSelectElement).value,
-    gate_delay: parseNumber((document.getElementById("rx-gate-delay") as HTMLInputElement).value) * 1e-9,
-    channels: rxChannelConfigs.length > 0 ? rxChannelConfigs : [{}],
-  };
-
-  // Radar
-  const radarConfig = {
-    location: [
-      parseNumber((document.getElementById("radar-loc-x") as HTMLInputElement).value),
-      parseNumber((document.getElementById("radar-loc-y") as HTMLInputElement).value),
-      parseNumber((document.getElementById("radar-loc-z") as HTMLInputElement).value),
-    ],
-    speed: [
-      parseNumber((document.getElementById("radar-spd-x") as HTMLInputElement).value),
-      parseNumber((document.getElementById("radar-spd-y") as HTMLInputElement).value),
-      parseNumber((document.getElementById("radar-spd-z") as HTMLInputElement).value),
-    ],
-    rotation: [
-      parseNumber((document.getElementById("radar-rot-yaw") as HTMLInputElement).value),
-      parseNumber((document.getElementById("radar-rot-pitch") as HTMLInputElement).value),
-      parseNumber((document.getElementById("radar-rot-roll") as HTMLInputElement).value),
-    ],
-    rotation_rate: [
-      parseNumber((document.getElementById("radar-rr-yaw") as HTMLInputElement).value),
-      parseNumber((document.getElementById("radar-rr-pitch") as HTMLInputElement).value),
-      parseNumber((document.getElementById("radar-rr-roll") as HTMLInputElement).value),
-    ],
-  };
-
-  // Targets
-  const targets: CollectedConfig["targets"] = [];
-
-  pointTargets.forEach((_: PointTargetData, i: number) => {
-    targets.push({
-      location: [
-        parseNumber((document.getElementById(`pt-${i}-loc-x`) as HTMLInputElement | null)?.value, 10),
-        parseNumber((document.getElementById(`pt-${i}-loc-y`) as HTMLInputElement | null)?.value),
-        parseNumber((document.getElementById(`pt-${i}-loc-z`) as HTMLInputElement | null)?.value),
-      ],
-      rcs: parseNumber((document.getElementById(`pt-${i}-rcs`) as HTMLInputElement | null)?.value, 20),
-      speed: [
-        parseNumber((document.getElementById(`pt-${i}-spd-x`) as HTMLInputElement | null)?.value),
-        parseNumber((document.getElementById(`pt-${i}-spd-y`) as HTMLInputElement | null)?.value),
-        parseNumber((document.getElementById(`pt-${i}-spd-z`) as HTMLInputElement | null)?.value),
-      ],
-      phase: parseNumber((document.getElementById(`pt-${i}-phase`) as HTMLInputElement | null)?.value),
-    });
-  });
-
-  meshTargets.forEach((_: MeshTargetData, i: number) => {
-    const model = (document.getElementById(`mesh-${i}-model`) as HTMLInputElement | null)?.value || "";
+  const targets: CollectedConfig["targets"] = pointTargets.map((_, i) => readPointTarget(i));
+  meshTargets.forEach((_, i) => {
+    const model = fieldValue(`mesh-${i}-model`) || "";
     if (!model) return;
-    const location = [
-      parseNumber((document.getElementById(`mesh-${i}-loc-x`) as HTMLInputElement | null)?.value),
-      parseNumber((document.getElementById(`mesh-${i}-loc-y`) as HTMLInputElement | null)?.value),
-      parseNumber((document.getElementById(`mesh-${i}-loc-z`) as HTMLInputElement | null)?.value),
-    ];
-    const speed = [
-      parseNumber((document.getElementById(`mesh-${i}-spd-x`) as HTMLInputElement | null)?.value),
-      parseNumber((document.getElementById(`mesh-${i}-spd-y`) as HTMLInputElement | null)?.value),
-      parseNumber((document.getElementById(`mesh-${i}-spd-z`) as HTMLInputElement | null)?.value),
-    ];
-    const rotation = [
-      parseNumber((document.getElementById(`mesh-${i}-rot-yaw`) as HTMLInputElement | null)?.value),
-      parseNumber((document.getElementById(`mesh-${i}-rot-pitch`) as HTMLInputElement | null)?.value),
-      parseNumber((document.getElementById(`mesh-${i}-rot-roll`) as HTMLInputElement | null)?.value),
-    ];
-    const rotation_rate = [
-      parseNumber((document.getElementById(`mesh-${i}-rr-yaw`) as HTMLInputElement | null)?.value),
-      parseNumber((document.getElementById(`mesh-${i}-rr-pitch`) as HTMLInputElement | null)?.value),
-      parseNumber((document.getElementById(`mesh-${i}-rr-roll`) as HTMLInputElement | null)?.value),
-    ];
-    const unit = (document.getElementById(`mesh-${i}-unit`) as HTMLSelectElement | null)?.value || "m";
-    const mt: CollectedMeshTarget = { model, location, speed, rotation, rotation_rate, unit };
-    const perm = (document.getElementById(`mesh-${i}-perm`) as HTMLInputElement | null)?.value;
+    const mt: CollectedMeshTarget = {
+      model,
+      ...readMeshMotion(i),
+      unit: fieldValue(`mesh-${i}-unit`) || "m",
+    };
+    const perm = fieldValue(`mesh-${i}-perm`);
     if (perm?.trim()) mt.permittivity = parseFloat(perm);
     targets.push(mt);
   });
 
-  // Simulation
-  const simConfig = {
-    density: parseNumber((document.getElementById("sim-density") as HTMLInputElement).value, 1),
-    level: (document.getElementById("sim-level") as HTMLSelectElement).value || null,
-  };
-
-  // Processing
-  const rdRangeFftEnabled = (document.getElementById("proc-rd-range-fft-enable") as HTMLInputElement).checked;
-  const rdDopplerFftEnabled = (document.getElementById("proc-rd-doppler-fft-enable") as HTMLInputElement).checked;
-  const rdRangeFft = rdRangeFftEnabled
-    ? parseInt((document.getElementById("proc-rd-range-fft") as HTMLInputElement).value, 10) || null
-    : null;
-  const rdDopplerFft = rdDopplerFftEnabled
-    ? parseInt((document.getElementById("proc-rd-doppler-fft") as HTMLInputElement).value, 10) || null
-    : null;
-  const rdEnabled = (document.getElementById("proc-range-doppler") as HTMLInputElement).checked;
-  const processing = {
-    range_doppler: rdEnabled,
-    rd_range_fft: rdRangeFft,
-    rd_doppler_fft: rdDopplerFft,
-    range_profile: (document.getElementById("proc-range-profile") as HTMLInputElement).checked || rdEnabled,
-    rp_range_fft: rdRangeFft,
-    noise: (document.getElementById("proc-noise") as HTMLInputElement).checked,
-  };
+  const rdEnabled = fieldChecked("proc-range-doppler");
+  const rdRangeFft = _fftOverride("proc-rd-range-fft");
 
   return {
-    transmitter: txConfig,
-    receiver: rxConfig,
-    radar: radarConfig,
+    transmitter: {
+      f: [fieldNumber("tx-f-start") * 1e9, fieldNumber("tx-f-end") * 1e9],
+      t: [fieldNumber("tx-t-start") * 1e-6, fieldNumber("tx-t-end") * 1e-6],
+      tx_power: fieldNumber("tx-power"),
+      pulses: parseInt(fieldValue("tx-pulses") ?? "", 10) || 1,
+      prp: fieldNumber("tx-prp") * 1e-6,
+      channels: _channelConfigs("tx", txChannels.length),
+    },
+    receiver: {
+      fs: fieldNumber("rx-fs") * 1e6,
+      noise_figure: fieldNumber("rx-nf"),
+      rf_gain: fieldNumber("rx-rf-gain"),
+      baseband_gain: fieldNumber("rx-bb-gain"),
+      load_resistor: fieldNumber("rx-load-r"),
+      bb_type: fieldValue("rx-bb-type") ?? "",
+      gate_delay: fieldNumber("rx-gate-delay") * 1e-9,
+      channels: _channelConfigs("rx", rxChannels.length),
+    },
+    radar: {
+      location: fieldVector("radar-loc", XYZ),
+      speed: fieldVector("radar-spd", XYZ),
+      rotation: fieldVector("radar-rot", YPR),
+      rotation_rate: fieldVector("radar-rr", YPR),
+    },
     targets,
-    simulation: simConfig,
-    processing,
+    simulation: {
+      density: fieldNumber("sim-density", 1),
+      level: fieldValue("sim-level") || null,
+    },
+    processing: {
+      range_doppler: rdEnabled,
+      rd_range_fft: rdRangeFft,
+      rd_doppler_fft: _fftOverride("proc-rd-doppler-fft"),
+      // Range-Doppler brings the range profile with it, as the checkboxes do
+      range_profile: fieldChecked("proc-range-profile") || rdEnabled,
+      rp_range_fft: rdRangeFft,
+      noise: fieldChecked("proc-noise"),
+    },
   };
 }

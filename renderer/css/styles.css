@@ -298,8 +298,6 @@ body:has(.col-grip.dragging){cursor:col-resize;user-select:none}
 .ol-group .ol-name{color:var(--ink-2)}
 .ol-item{padding-left:26px;font-family:var(--mono);font-size:12px}
 .ol-item .mk-glyph{box-shadow:none}
-.ol-hint{margin-left:auto;padding-right:4px;font-size:11px;color:var(--ink-3)}
-.ol-row.sel .ol-hint{color:rgba(255,255,255,.7)}
 .ol-fold{display:grid;place-items:center;flex-shrink:0;width:18px;height:18px;padding:0;background:none;border:0;
   border-radius:4px}
 .ol-fold::before{content:"";width:5px;height:5px;margin-top:-2px;border:solid var(--ink-3);border-width:0 1.5px 1.5px 0;

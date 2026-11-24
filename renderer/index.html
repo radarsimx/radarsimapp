@@ -809,31 +809,6 @@
 
   <script src="../node_modules/plotly.js-dist/plotly.js"></script>
   <script type="module" src="../dist/renderer/js/app.js"></script>
-  <script>
-    // macOS: the native traffic lights replace the custom window buttons
-    if (window.api.platform === 'darwin') {
-      document.documentElement.classList.add('platform-darwin');
-      const kbd = document.querySelector('#btn-run-sim kbd');
-      if (kbd) kbd.innerHTML = '&#8984; &crarr;';
-      document.getElementById('btn-run-sim').title = 'Run the simulation (\u2318\u21B5)';
-      window.api.onFullscreenChanged((isFs) => document.documentElement.classList.toggle('is-fullscreen', isFs));
-    }
-    // Titlebar window controls
-    document.getElementById('btn-win-minimize').addEventListener('click', () => window.api.windowMinimize());
-    document.getElementById('btn-win-close').addEventListener('click', () => window.api.windowClose());
-    const btnMax = document.getElementById('btn-win-maximize');
-    function updateMaxIcon(isMax) {
-      btnMax.innerHTML = isMax
-        ? '<svg width="10" height="10" viewBox="0 0 10 10"><rect x="2.5" y="0.5" width="7" height="7" fill="none" stroke="currentColor"/><polyline points="0.5,2.5 0.5,9.5 7.5,9.5" fill="none" stroke="currentColor"/></svg>'
-        : '<svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor"/></svg>';
-      btnMax.title = isMax ? 'Restore' : 'Maximize';
-    }
-    btnMax.addEventListener('click', async () => {
-      window.api.windowMaximize();
-      setTimeout(async () => updateMaxIcon(await window.api.windowIsMaximized()), 50);
-    });
-    window.api.windowIsMaximized().then(updateMaxIcon);
-  </script>
 </body>
 
 </html>

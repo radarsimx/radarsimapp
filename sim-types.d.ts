@@ -1,8 +1,8 @@
-// ===== RadarSimApp - Simulation types shared by the main process and renderer =====
+// ===== RadarSimApp - Types shared by the main process and renderer =====
 //
 // A global declaration file, included by both tsconfig.json (main process) and
 // tsconfig.renderer.json, so the configuration the renderer collects and the
-// result it plots are the same types the bridge takes and returns.
+// result and scene it draws are the same types the bridge takes and returns.
 
 /** A complex value as the fields hold it ("1+2j", "-j") or a plain real. */
 type ComplexInput = string | number;
@@ -97,7 +97,7 @@ interface PointTargetConfig {
 }
 
 interface MeshTargetConfig extends PlatformConfig {
-  /** Path of the STL model. */
+  /** Path of the model file: .stl (ASCII or binary), .obj or .ply. */
   model: string;
   /** Unit the model is drawn in: "m", "cm", "mm" or "in". */
   unit?: string;
@@ -170,7 +170,38 @@ interface SimResult {
 /** The library build and its license. */
 interface LibraryInfo {
   radarsimlib_version: string;
-  radarsimlib_available: boolean;
   licensed: boolean;
   license_info: Record<string, string>;
+}
+
+/** One mesh target as the library places it, packed for the scene view. */
+interface SceneMesh {
+  /** Index into the mesh-target list (point targets are not counted). */
+  index: number;
+  /** Triangles in the source mesh. */
+  totalCells: number;
+  /** Triangles actually returned (< totalCells when strided). */
+  cells: number;
+  x: Float32Array;
+  y: Float32Array;
+  z: Float32Array;
+  i: Int32Array;
+  j: Int32Array;
+  k: Int32Array;
+  /** Axis-aligned bounds of the returned vertices: [minX, minY, minZ, maxX, maxY, maxZ]. */
+  bounds: number[];
+}
+
+/** Where the library puts the radar and the mesh targets at one instant. */
+interface SceneState {
+  timestamp: number;
+  /** Global Tx channel locations, [numTx][3] flattened (m). */
+  txLocations: Float32Array | null;
+  /** Global Rx channel locations, [numRx][3] flattened (m). */
+  rxLocations: Float32Array | null;
+  /** Global radar boresight unit vector. */
+  boresight: Float32Array | null;
+  meshes: SceneMesh[];
+  /** Non-fatal problems — the caller falls back for whatever is missing. */
+  warnings: string[];
 }

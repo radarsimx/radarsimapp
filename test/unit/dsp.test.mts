@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { applyDopplerFFT, applyRangeFFT, fft, nextPow2, randn, toComplex3D, toDbMag3D } from "../../dist/dsp.js";
+import {
+  applyDopplerFFTAsync,
+  applyRangeFFTAsync,
+  fft,
+  nextPow2,
+  randn,
+  toComplex3DAsync,
+  toDbMag3DAsync,
+} from "../../dist/dsp.js";
 
 /** Peak bin of a magnitude spectrum. */
 function peakBin(re: Float64Array, im: Float64Array, offset = 0, len = re.length): number {
@@ -93,28 +101,28 @@ describe("fft", () => {
   });
 });
 
-describe("applyRangeFFT", () => {
-  test("shapes output as nRx * nPulse * fftSize", () => {
+describe("applyRangeFFTAsync", () => {
+  test("shapes output as nRx * nPulse * fftSize", async () => {
     const nPulse = 2,
       nRx = 3,
       spp = 8,
       n = 16;
     const re = new Float64Array(nPulse * nRx * spp);
     const im = new Float64Array(nPulse * nRx * spp);
-    const out = applyRangeFFT(re, im, nPulse, nRx, spp, n);
+    const out = await applyRangeFFTAsync(re, im, nPulse, nRx, spp, n);
     assert.equal(out.re.length, n * nPulse * nRx);
     assert.equal(out.im.length, n * nPulse * nRx);
   });
 
-  test("defaults the FFT size to the next power of two", () => {
+  test("defaults the FFT size to the next power of two", async () => {
     const nPulse = 1,
       nRx = 1,
       spp = 5;
-    const out = applyRangeFFT(new Float64Array(spp), new Float64Array(spp), nPulse, nRx, spp);
+    const out = await applyRangeFFTAsync(new Float64Array(spp), new Float64Array(spp), nPulse, nRx, spp);
     assert.equal(out.re.length, 8);
   });
 
-  test("each channel/pulse is transformed independently", () => {
+  test("each channel/pulse is transformed independently", async () => {
     const nPulse = 2,
       nRx = 2,
       spp = 8,
@@ -133,7 +141,7 @@ describe("applyRangeFFT", () => {
         }
       }
     }
-    const out = applyRangeFFT(re, im, nPulse, nRx, spp, n);
+    const out = await applyRangeFFTAsync(re, im, nPulse, nRx, spp, n);
     for (let c = 0; c < nRx; c++) {
       for (let p = 0; p < nPulse; p++) {
         const base = (c * nPulse + p) * n;
@@ -142,26 +150,26 @@ describe("applyRangeFFT", () => {
     }
   });
 
-  test("zero-pads when the FFT is longer than the sample count", () => {
+  test("zero-pads when the FFT is longer than the sample count", async () => {
     const spp = 4,
       n = 16;
     const re = new Float64Array(spp).fill(1);
     const im = new Float64Array(spp);
-    const out = applyRangeFFT(re, im, 1, 1, spp, n);
+    const out = await applyRangeFFTAsync(re, im, 1, 1, spp, n);
     // 4 ones zero-padded to 16 -> DC bin equals 4
     assert.ok(Math.abs(out.re[0] - 4) < 1e-9);
   });
 
-  test("does not modify its input buffers", () => {
+  test("does not modify its input buffers", async () => {
     const re = new Float64Array([1, 2, 3, 4]);
     const im = new Float64Array(4);
-    applyRangeFFT(re, im, 1, 1, 4, 4);
+    await applyRangeFFTAsync(re, im, 1, 1, 4, 4);
     assert.deepEqual(Array.from(re), [1, 2, 3, 4]);
   });
 });
 
-describe("applyDopplerFFT", () => {
-  test("output is fftshifted so zero Doppler sits at the centre", () => {
+describe("applyDopplerFFTAsync", () => {
+  test("output is fftshifted so zero Doppler sits at the centre", async () => {
     const nPulse = 8,
       nRx = 1,
       rangeDim = 1,
@@ -169,23 +177,23 @@ describe("applyDopplerFFT", () => {
     // Constant across pulses -> all energy at zero Doppler.
     const re = new Float64Array(nPulse).fill(1);
     const im = new Float64Array(nPulse);
-    const out = applyDopplerFFT(re, im, nPulse, nRx, rangeDim, n);
+    const out = await applyDopplerFFTAsync(re, im, nPulse, nRx, rangeDim, n);
     assert.equal(peakBin(out.re, out.im, 0, n), n / 2, "DC should be shifted to the middle");
     assert.ok(Math.abs(out.re[n / 2] - nPulse) < 1e-9);
   });
 
-  test("shapes output as nRx * fftSize * rangeDim", () => {
+  test("shapes output as nRx * fftSize * rangeDim", async () => {
     const nPulse = 4,
       nRx = 2,
       rangeDim = 3,
       n = 8;
     const re = new Float64Array(nPulse * nRx * rangeDim);
     const im = new Float64Array(nPulse * nRx * rangeDim);
-    const out = applyDopplerFFT(re, im, nPulse, nRx, rangeDim, n);
+    const out = await applyDopplerFFTAsync(re, im, nPulse, nRx, rangeDim, n);
     assert.equal(out.re.length, rangeDim * n * nRx);
   });
 
-  test("range bins stay separated", () => {
+  test("range bins stay separated", async () => {
     const nPulse = 4,
       nRx = 1,
       rangeDim = 2,
@@ -194,7 +202,7 @@ describe("applyDopplerFFT", () => {
     const im = new Float64Array(nPulse * rangeDim);
     // Only range bin 1 carries energy.
     for (let p = 0; p < nPulse; p++) re[p * rangeDim + 1] = 1;
-    const out = applyDopplerFFT(re, im, nPulse, nRx, rangeDim, n);
+    const out = await applyDopplerFFTAsync(re, im, nPulse, nRx, rangeDim, n);
     let bin0 = 0,
       bin1 = 0;
     for (let p = 0; p < n; p++) {
@@ -206,49 +214,49 @@ describe("applyDopplerFFT", () => {
   });
 });
 
-describe("toDbMag3D", () => {
-  test("magnitude 1 is 0 dB", () => {
-    const out = toDbMag3D(new Float64Array([1]), new Float64Array([0]), 1, 1, 1);
+describe("toDbMag3DAsync", () => {
+  test("magnitude 1 is 0 dB", async () => {
+    const out = await toDbMag3DAsync(new Float64Array([1]), new Float64Array([0]), 1, 1, 1);
     assert.ok(Math.abs(out[0][0][0]) < 1e-9);
   });
 
-  test("a factor of 10 in amplitude is 20 dB", () => {
-    const out = toDbMag3D(new Float64Array([10]), new Float64Array([0]), 1, 1, 1);
+  test("a factor of 10 in amplitude is 20 dB", async () => {
+    const out = await toDbMag3DAsync(new Float64Array([10]), new Float64Array([0]), 1, 1, 1);
     assert.ok(Math.abs(out[0][0][0] - 20) < 1e-9);
   });
 
-  test("uses complex magnitude, not just the real part", () => {
-    const out = toDbMag3D(new Float64Array([3]), new Float64Array([4]), 1, 1, 1);
+  test("uses complex magnitude, not just the real part", async () => {
+    const out = await toDbMag3DAsync(new Float64Array([3]), new Float64Array([4]), 1, 1, 1);
     assert.ok(Math.abs(out[0][0][0] - 20 * Math.log10(5)) < 1e-9);
   });
 
-  test("zero is floored instead of -Infinity", () => {
-    const out = toDbMag3D(new Float64Array([0]), new Float64Array([0]), 1, 1, 1);
+  test("zero is floored instead of -Infinity", async () => {
+    const out = await toDbMag3DAsync(new Float64Array([0]), new Float64Array([0]), 1, 1, 1);
     assert.ok(Number.isFinite(out[0][0][0]));
     assert.ok(out[0][0][0] < -200);
   });
 
-  test("nests as [pulse][channel][sample]", () => {
+  test("nests as [pulse][channel][sample]", async () => {
     const nPulse = 2,
       nRx = 3,
       spp = 4;
     const re = new Float64Array(nPulse * nRx * spp).fill(1);
     const im = new Float64Array(nPulse * nRx * spp);
-    const out = toDbMag3D(re, im, nPulse, nRx, spp);
+    const out = await toDbMag3DAsync(re, im, nPulse, nRx, spp);
     assert.equal(out.length, nPulse);
     assert.equal(out[0].length, nRx);
     assert.equal(out[0][0].length, spp);
   });
 });
 
-describe("toComplex3D", () => {
-  test("splits the flat buffers into per-pulse, per-channel slices", () => {
+describe("toComplex3DAsync", () => {
+  test("splits the flat buffers into per-pulse, per-channel slices", async () => {
     const nPulse = 2,
       nRx = 2,
       spp = 3;
     const re = new Float64Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
     const im = new Float64Array(12).fill(-1);
-    const out = toComplex3D(re, im, nPulse, nRx, spp);
+    const out = await toComplex3DAsync(re, im, nPulse, nRx, spp);
     assert.equal(out.length, nPulse);
     assert.equal(out[0].length, nRx);
     // layout is (channel * nPulse + pulse) * spp
@@ -259,8 +267,8 @@ describe("toComplex3D", () => {
     assert.deepEqual(out[0][0].im, [-1, -1, -1]);
   });
 
-  test("returns plain arrays, which survive IPC structured clone", () => {
-    const out = toComplex3D(new Float64Array([1]), new Float64Array([2]), 1, 1, 1);
+  test("returns plain arrays, which survive IPC structured clone", async () => {
+    const out = await toComplex3DAsync(new Float64Array([1]), new Float64Array([2]), 1, 1, 1);
     assert.ok(Array.isArray(out[0][0].re));
   });
 });
