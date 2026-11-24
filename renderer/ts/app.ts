@@ -12,6 +12,7 @@ import { SceneView, canRotate, type SceneFraming, type CameraPreset, type EditTa
 import type { Pose } from './scene.js';
 import { updateReadout, formatLength } from './readout.js';
 import { initOutline, select, syncCoverageFocus, type Selection } from './outline.js';
+import { createBusyAnimation } from './busy.js';
 import { initColumnResize, place as placeColumnGrips } from './colresize.js';
 import { pref, setPref, setStageView, setResultViewsAvailable, isResultView, layoutStage, type StageView } from './stage.js';
 
@@ -481,6 +482,8 @@ document.getElementById("btn-add-mesh-target")!.addEventListener("click", () => 
 });
 
 // --- Run Simulation ---
+const busy = createBusyAnimation(document.getElementById("sim-canvas") as HTMLCanvasElement);
+
 document.getElementById("btn-run-sim")!.addEventListener("click", async () => {
   const btn = document.getElementById("btn-run-sim") as HTMLButtonElement;
   const status = document.getElementById("sim-status")!;
@@ -502,7 +505,10 @@ document.getElementById("btn-run-sim")!.addEventListener("click", async () => {
 
   overlay.classList.remove("hidden");
   overlay.classList.remove("sim-visible");
-  const _overlayRevealTimer = setTimeout(() => overlay.classList.add("sim-visible"), 400);
+  const _overlayRevealTimer = setTimeout(() => {
+    overlay.classList.add("sim-visible");
+    busy.start();
+  }, 400);
 
   try {
     const config = collectConfig();
@@ -541,7 +547,10 @@ document.getElementById("btn-run-sim")!.addEventListener("click", async () => {
     const wasVisible = overlay.classList.contains("sim-visible");
     overlay.classList.remove("sim-visible");
     if (wasVisible) {
-      setTimeout(() => overlay.classList.add("hidden"), 270);
+      setTimeout(() => {
+        overlay.classList.add("hidden");
+        busy.stop();
+      }, 270);
     } else {
       overlay.classList.add("hidden");
     }
